@@ -159,8 +159,17 @@ enabled = true
 site_url = "env(SUPABASE_AUTH_SITE_URL)"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://127.0.0.1:3000/auth/confirm", "https://aloe.kg/auth/confirm"]
+# URLs auth providers may redirect to post-authentication. Entries are glob patterns, and an exact
+# entry does NOT match a URL carrying a query string — the Google flow sends
+# `/auth/confirm?next=/`, so each host needs a `/**` pattern. A redirect_to that matches nothing
+# here is not rejected: GoTrue silently falls back to site_url, which is how logging in on
+# new.aloe.kg dropped the user on the Vercel deployment.
+additional_redirect_urls = [
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3000/**",
+  "https://aloe.kg/**",
+  "https://new.aloe.kg/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

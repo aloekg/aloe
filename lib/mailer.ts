@@ -16,8 +16,9 @@ import type { OrderItem } from "@/types";
  */
 const SMTP_CERT_NAME = process.env.SMTP_TLS_SERVERNAME || "mail.hoster.kg";
 
-// TODO: switch back to SITE_URL (aloe.kg) once the domain points at this deployment
-const ADMIN_ORDERS_URL = "https://aloe-next.vercel.app/admin/orders";
+// TODO: switch to SITE_URL once aloe.kg itself points at this deployment — until then the site
+// lives on new.aloe.kg, while SITE_URL (aloe.kg) still resolves to the old shop.
+const ADMIN_ORDERS_URL = "https://new.aloe.kg/admin/orders";
 
 /** Order fields originate from a public checkout form — never interpolate them raw. */
 function esc(value: string | number): string {
