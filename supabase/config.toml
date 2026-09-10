@@ -188,10 +188,14 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# app/auth/validation.ts mirrors these two settings in the registration form's live checklist —
+# change one and the client will happily submit passwords the server then rejects as weak.
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+# GoTrue checks these against literal a-z / A-Z / 0-9 sets, so a Cyrillic-only password does not
+# satisfy them; the client checklist uses the same ASCII classes for that reason.
+password_requirements = "lower_upper_letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -238,9 +242,13 @@ enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
+# Surfaced in the dashboard as SMTP "Minimum interval per user". The resend countdown on the
+# registration screen is driven by RESEND_COOLDOWN_SECONDS in app/auth/validation.ts to match —
+# a shorter countdown just re-enables the button into an over_email_send_rate_limit.
+max_frequency = "60s"
+# Number of characters used in the email OTP. Only affects `{{ .Token }}` — the confirmation
+# template links via `{{ .TokenHash }}`, so this length is not what users actually see.
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
