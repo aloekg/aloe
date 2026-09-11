@@ -1,9 +1,14 @@
 -- Narrows what the public anon key can do. Nothing here touches data, and nothing widens access,
 -- so it is safe to run against production as-is.
 --
--- Run in the Supabase SQL Editor. Verification queries are at the bottom.
+-- Applied to production by hand through the Supabase SQL Editor on 2026-08-17, before the
+-- schema was under migration control. Kept here so a fresh database reaches the same state:
+-- every statement is idempotent, so `supabase db push` against production is a no-op.
+--
+-- Verification queries are at the bottom.
 
-begin;
+-- No explicit begin/commit: the migration runner already wraps each file in a transaction, and a
+-- nested BEGIN/COMMIT would end that outer transaction early.
 
 --------------------------------------------------------------------------------
 -- 1. Customers could rewrite and delete their own orders.
@@ -71,8 +76,6 @@ grant execute on function public.increment_product_purchase_counts(jsonb) to ser
 -- Unqualified `update products` inside the function with a mutable search_path is
 -- Supabase's function_search_path_mutable lint.
 alter function public.increment_product_purchase_counts(jsonb) set search_path = public, pg_catalog;
-
-commit;
 
 --------------------------------------------------------------------------------
 -- Verification — expect the orders policies to be SELECT/INSERT only, and no

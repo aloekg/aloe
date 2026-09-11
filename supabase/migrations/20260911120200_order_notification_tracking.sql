@@ -8,7 +8,9 @@
 -- accurate for orders placed before this column existed, and the admin UI labels them as unknown
 -- rather than failed.
 --
--- Run in the Supabase SQL Editor.
+-- Applied to production by hand through the Supabase SQL Editor on 2026-08-17, before the
+-- schema was under migration control. Kept here so a fresh database reaches the same state:
+-- every statement is idempotent, so `supabase db push` against production is a no-op.
 
 alter table public.orders
   add column if not exists notified_at timestamptz;

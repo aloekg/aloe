@@ -8,9 +8,13 @@
 -- sequential scan over that is single-digit milliseconds. This is headroom for growth and it
 -- removes the scans behind category/brand maintenance. Purely additive.
 --
--- Run in the Supabase SQL Editor. Plain CREATE INDEX rather than CONCURRENTLY: the editor wraps
--- statements in a transaction, where CONCURRENTLY is rejected, and at this table size the build
--- holds the write lock for milliseconds.
+-- Applied to production by hand through the Supabase SQL Editor on 2026-08-17, before the
+-- schema was under migration control. Kept here so a fresh database reaches the same state:
+-- every statement is idempotent, so `supabase db push` against production is a no-op.
+--
+-- Plain CREATE INDEX rather than CONCURRENTLY: both the SQL Editor and `db push` wrap statements
+-- in a transaction, where CONCURRENTLY is rejected, and at this table size the build holds the
+-- write lock for milliseconds.
 
 -- Storefront listings. Partial on `published` keeps them small, since every public query filters
 -- on it and nothing public ever reads unpublished rows.

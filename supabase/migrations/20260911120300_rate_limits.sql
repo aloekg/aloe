@@ -9,7 +9,9 @@
 -- Postgres rather than Redis/KV: there is no other store in this project, the volume is tiny, and
 -- an atomic upsert is enough. Additive; nothing existing is touched.
 --
--- Run in the Supabase SQL Editor.
+-- Applied to production by hand through the Supabase SQL Editor on 2026-08-17, before the
+-- schema was under migration control. Kept here so a fresh database reaches the same state:
+-- every statement is idempotent, so `supabase db push` against production is a no-op.
 
 create table if not exists public.rate_limits (
   bucket      text        not null,

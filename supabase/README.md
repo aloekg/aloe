@@ -1,54 +1,95 @@
 # Supabase — схема и миграции
 
-Схема, RLS-политики и функции проекта пока живут только в дашборде Supabase. Восстановить
-окружение из репозитория нельзя, изменения политик не ревьюятся и не откатываются.
+Схема, RLS-политики и функции лежат в `supabase/migrations/` и применяются через CLI. Раньше они
+жили только в дашборде; теперь окружение воспроизводится из репозитория.
 
-## Шаг 1 — снять текущее состояние в git
+```
+migrations/
+  20260817053308_remote_schema.sql          # baseline: db pull с прода 2026-08-17
+  20260818040731_products_thumbnail_url.sql # products.thumbnail_url
+  20260911120000_orders_rls_and_grants.sql  # сужение прав anon/authenticated (был 002)
+  20260911120100_indexes.sql                # индексы под реальные запросы (был 003)
+  20260911120200_order_notification_tracking.sql  # orders.notified_at (был 004)
+  20260911120300_rate_limits.sql            # таблица + rate_limit_hit() (был 005)
+  20260911120400_not_null_columns.sql       # NOT NULL там, где код не ждёт NULL (не применено)
+sql/
+  audit-rls.sql                             # только читающие запросы, не миграция
+```
 
-Требуется access token и пароль БД, поэтому выполняется вручную:
+Четыре миграции с префиксом `20260911` были применены к проду вручную через SQL Editor
+2026-08-17, до того как схема попала под контроль миграций (baseline снят в 05:33 того же дня,
+поэтому он их ещё не содержит — и, например, всё ещё содержит политики заказов, которые
+`..._orders_rls_and_grants.sql` удаляет). Все операторы в них идемпотентны
+(`if not exists`, `drop policy if exists`, `create or replace`, `revoke`/`grant`), так что
+`db push` на прод — no-op, который просто выравнивает историю миграций. Исключение —
+`..._not_null_columns.sql`: она ещё нигде не применялась.
+
+Единственное, что не проверяется из репозитория — применён ли на проде
+`..._indexes.sql`: индексы не видны через PostgREST. Миграция идемпотентна, так что push
+создаст отсутствующие и не тронет существующие.
+
+## Применить
 
 ```bash
 npx supabase login
 npx supabase link --project-ref dnlburbuchxzxdmhuczu
-npx supabase db pull            # создаст supabase/migrations/<timestamp>_remote_schema.sql
-git add supabase/ && git commit -m "chore: baseline Supabase schema"
+npx supabase migration list      # сравнить локальную историю с проддом
+npx supabase db push
+npm run db:types && npm run typecheck
 ```
 
-После этого файлы из `sql/` ниже переносятся в `supabase/migrations/` как обычные миграции
-и применяются через `npx supabase db push`. До снятия базовой схемы их следует применять
-через SQL Editor вручную — иначе история миграций начнётся не с того состояния.
+Если `migration list` покажет расхождение из-за ручных применений — не переписывайте файлы, а
+выравнивайте историю: `npx supabase migration repair --status applied <version>`.
 
-## Шаг 2 — аудит RLS
+## `..._not_null_columns.sql` — что с ней делать
 
-`sql/audit-rls.sql` — только читающие запросы, ничего не меняют. Главный вопрос: гостевой
-чекаут пишет заказы service-role ключом, то есть со стороны приложения политики на `orders`
-не проверяются ничем. При этом `orders.user_id` допускает `NULL` (гостевые заказы), и политика
-вида `using (user_id = auth.uid())` на такие строки даёт `NULL`, а не `false` — что безопасно
-для `SELECT`, но легко ломается при неаккуратной формулировке через `OR`.
+Она закрывает разрыв между схемой и кодом: `products.price/image_url/category_id/category/published`,
+`banners.active/sort_order`, `orders.status/created_at` nullable в базе, хотя приложение считает их
+обязательными. Именно из-за этого в `services/product.service.ts` (строки 25, 135, 167) и
+`services/favorites.service.ts` (39) стоят касты `as unknown as ProductListRow[]` — сгенерированный
+тип говорит `price: number | null`, а `Product` говорит `price: number`.
 
-## Шаг 3 — индекс под поиск
+Миграция сама себя проверяет: колонки с осмысленным значением по умолчанию бэкфиллятся, а если
+`price`/`image_url`/`category_id`/`category` где-то всё ещё NULL — она падает с количеством таких
+строк, вместо того чтобы придумать цену 0. Порядок работы:
 
-`sql/001-products-name-trgm.sql` — аддитивное изменение, безопасно применять на живой базе.
-Сейчас `ilike '%q%'` не может использовать btree, поэтому каждое нажатие клавиши в
-автоподсказке и каждый поиск — последовательное сканирование всей таблицы товаров.
+1. `npx supabase db push` — если упала, выполнить запрос из шапки миграции, починить строки, повторить.
+2. `npm run db:types` — сгенерированные типы перестают быть nullable.
+3. Убрать касты в двух сервисах, `npm run typecheck`.
+
+## Аудит RLS — результаты (2026-09-11)
+
+Проверено эмпирически: публичным anon-ключом по PostgREST, неизменяющими запросами (DELETE/PATCH с
+фильтром `id=eq.-1`, RPC с пустым массивом). `sql/audit-rls.sql` остаётся для проверки политик
+изнутри SQL Editor.
+
+| проба (anon)                                             | результат                 |
+| -------------------------------------------------------- | ------------------------- |
+| `select` orders / profiles / cart_items / favorites      | `[]` — RLS режет          |
+| `select` products                                        | отдаёт только `published` |
+| `select` rate_limits                                     | 42501 permission denied   |
+| `delete` / `patch` products, categories, banners, brands | 42501 permission denied   |
+| `patch` / `delete` orders                                | 42501 permission denied   |
+| `rpc increment_product_purchase_counts`                  | 42501 permission denied   |
+| `rpc rate_limit_hit`                                     | 42501 permission denied   |
+
+То есть `..._orders_rls_and_grants.sql` и `..._rate_limits.sql` на проде действительно применены:
+права на запись у anon отозваны, RPC закрыты, `rate_limits` недоступна. Роль `authenticated`
+отдельным токеном не проверялась, но `revoke ... from anon, authenticated` — один оператор: раз
+anon права потерял, потерял и authenticated.
+
+Отдельно про заказы: гостевой чекаут пишет service-role ключом, то есть RLS на `orders` со стороны
+приложения не участвует вообще, а `orders.user_id` допускает NULL (гостевые заказы). Политики
+чтения сформулированы как `user_id = auth.uid()`, что на NULL-строке даёт NULL, а не false — для
+`SELECT` это безопасно (строка просто не видна), но ломается при небрежной формулировке через `OR`.
+Писать в `orders` anon/authenticated больше не могут в принципе — грант отозван, так что RLS там
+уже не последняя линия защиты.
 
 ## Регенерация типов
 
-`types/database.ts` сгенерирован из схемы и коммитится в репозиторий. После любой миграции:
+`types/database.ts` сгенерирован из схемы и коммитится. После любой миграции:
 
 ```bash
 npm run db:types
 npm run typecheck
 ```
-
-## Колонки, которым стоит добавить NOT NULL
-
-Генерация типов вскрыла разрыв между схемой и допущениями кода. Эти колонки nullable в базе,
-хотя приложение считает их обязательными, и сейчас значения приводятся на границе:
-
-- `products.price`, `products.image_url`, `products.category_id`, `products.published`, `products.category`
-- `banners.active`, `banners.sort_order`
-- `orders.created_at`, `orders.status`
-
-Миграция с `NOT NULL DEFAULT` убрала бы приведения и сделала типы честными. Требует проверки,
-что в существующих строках нет `NULL` — отдельная задача, не делалась.

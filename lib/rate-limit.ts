@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 
 /**
  * Fixed-window rate limiting for public server actions, backed by the `rate_limit_hit` Postgres
- * function (see supabase/sql/005-rate-limits.sql). Postgres rather than Redis because there is no
+ * function (see supabase/migrations/20260911120300_rate_limits.sql). Postgres rather than Redis because there is no
  * other store here and the volume is tiny.
  *
  * Fails **open**: if the limiter itself errors we let the request through rather than blocking a
