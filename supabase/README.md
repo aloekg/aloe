@@ -11,7 +11,8 @@ migrations/
   20260911120100_indexes.sql                # индексы под реальные запросы (был 003)
   20260911120200_order_notification_tracking.sql  # orders.notified_at (был 004)
   20260911120300_rate_limits.sql            # таблица + rate_limit_hit() (был 005)
-  20260911120400_not_null_columns.sql       # NOT NULL там, где код не ждёт NULL (не применено)
+  20260911120400_not_null_columns.sql       # NOT NULL + CHECK «опубликованный товар категоризован»
+  20260911120500_products_category_fk_restrict.sql # FK категории: SET NULL → RESTRICT
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```
@@ -21,8 +22,9 @@ sql/
 поэтому он их ещё не содержит — и, например, всё ещё содержит политики заказов, которые
 `..._orders_rls_and_grants.sql` удаляет). Все операторы в них идемпотентны
 (`if not exists`, `drop policy if exists`, `create or replace`, `revoke`/`grant`), так что
-`db push` на прод — no-op, который просто выравнивает историю миграций. Исключение —
-`..._not_null_columns.sql`: она ещё нигде не применялась.
+`db push` на прод — no-op, который просто выравнивает историю миграций. Две последние
+(`..._not_null_columns.sql`, `..._products_category_fk_restrict.sql`) реально меняли схему и
+применены 2026-09-11; типы после них перегенерированы.
 
 Единственное, что не проверяется из репозитория — применён ли на проде
 `..._indexes.sql`: индексы не видны через PostgREST. Миграция идемпотентна, так что push
@@ -41,21 +43,51 @@ npm run db:types && npm run typecheck
 Если `migration list` покажет расхождение из-за ручных применений — не переписывайте файлы, а
 выравнивайте историю: `npx supabase migration repair --status applied <version>`.
 
-## `..._not_null_columns.sql` — что с ней делать
+## Nullable-колонки: что закрыто, а что нет
 
-Она закрывает разрыв между схемой и кодом: `products.price/image_url/category_id/category/published`,
-`banners.active/sort_order`, `orders.status/created_at` nullable в базе, хотя приложение считает их
-обязательными. Именно из-за этого в `services/product.service.ts` (строки 25, 135, 167) и
-`services/favorites.service.ts` (39) стоят касты `as unknown as ProductListRow[]` — сгенерированный
-тип говорит `price: number | null`, а `Product` говорит `price: number`.
+`products.price/image_url/published`, `banners.active/sort_order`, `orders.status/created_at`
+nullable в базе, хотя приложение считает их обязательными — из-за этого в
+`services/product.service.ts` (строки 25, 135, 167) и `services/favorites.service.ts` (39) стоят
+касты `as unknown as ProductListRow[]`: сгенерированный тип говорит `price: number | null`, а
+`Product` — `price: number`. `..._not_null_columns.sql` это закрывает, с самопроверкой: колонки с
+осмысленным дефолтом бэкфиллятся, а `price`/`image_url` придумать нельзя, поэтому при NULL-ах
+миграция падает с их количеством, а не ставит цену 0.
 
-Миграция сама себя проверяет: колонки с осмысленным значением по умолчанию бэкфиллятся, а если
-`price`/`image_url`/`category_id`/`category` где-то всё ещё NULL — она падает с количеством таких
-строк, вместо того чтобы придумать цену 0. Порядок работы:
+**`products.category_id`/`category` остались nullable — сознательно.** Первый прогон миграции
+упёрся ровно в них, и данные оказались правы: 91 товар с NULL `category_id` (текстовая метка старой
+категории сохранилась, цена и фото на месте, все не опубликованы). Их осиротил сам FK —
+`fk_products_category_id` был `ON DELETE SET NULL`, то есть удаление занятой категории вычищало
+`category_id` у её товаров, и они выпадали из всех каталожных запросов, оставаясь опубликованными,
+доступными поиску и в sitemap (см. комментарий в `deleteCategory`, app/admin/actions.ts). Значит
+«категории пока нет» — реально существующее состояние черновика, и NOT NULL просто заблокировал бы
+миграцию навсегда.
 
-1. `npx supabase db push` — если упала, выполнить запрос из шапки миграции, починить строки, повторить.
-2. `npm run db:types` — сгенерированные типы перестают быть nullable.
-3. Убрать касты в двух сервисах, `npm run typecheck`.
+Вместо NOT NULL — инвариант, на который storefront действительно опирается:
+
+```sql
+check (not published or (category_id is not null and category is not null))
+```
+
+Черновик без категории легален, но опубликовать его в таком виде нельзя. Плюс
+`..._products_category_fk_restrict.sql` переводит FK на `ON DELETE RESTRICT`, чтобы база больше не
+осиротила товары молча (в админке проверка перед удалением уже есть — это страховка уровня схемы).
+
+Сделано: миграции применены, типы перегенерированы, касты в сервисах сузились с
+`as unknown as ProductListRow[]` до одинарного `as ProductListRow[]`. Полностью убрать их не
+получается — без каста остаётся ровно одно несоответствие, `category_id: number | null` против
+`number`, и это инвариант из CHECK, которого генератор типов не видит. Что именно утверждает каст,
+написано над `ProductListRow` в `types/index.ts`.
+
+Осталось руками: раздать категории тем 91 товарам. Они группируются по сохранённой метке —
+это и есть подсказка для массового редактирования в админке:
+
+```sql
+select category as old_label, count(*), min(id), max(id)
+from public.products
+where category_id is null
+group by category
+order by count(*) desc;
+```
 
 ## Аудит RLS — результаты (2026-09-11)
 

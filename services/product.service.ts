@@ -22,7 +22,7 @@ function toList(
   { data, count, error }: { data: unknown; count: number | null; error: PostgrestError | null },
 ): { products: ProductListItem[]; total: number } {
   if (error) console.error(`[${label}] ${error.message}`);
-  return { products: withBrandName((data ?? []) as unknown as ProductListRow[]), total: count ?? 0 };
+  return { products: withBrandName((data ?? []) as ProductListRow[]), total: count ?? 0 };
 }
 
 /**
@@ -132,7 +132,7 @@ export async function getRelatedProducts(
     .order("id")
     .limit(limit);
   if (res.error) console.error(`[related-products] ${res.error.message}`);
-  return withBrandName((res.data ?? []) as unknown as ProductListRow[]);
+  return withBrandName((res.data ?? []) as ProductListRow[]);
 }
 
 /**
@@ -164,7 +164,7 @@ export async function getCategoryProducts(
   // error here would turn an outage into a 404 that then gets cached for 60 seconds.
   const data = strict("category-products", await query.order(orderCol, { ascending }).order("id"));
 
-  for (const row of withBrandName(data as unknown as ProductListRow[])) {
+  for (const row of withBrandName(data as ProductListRow[])) {
     const bucket = byCategory.get(row.category_id);
     if (bucket) bucket.push(row);
     else byCategory.set(row.category_id, [row]);

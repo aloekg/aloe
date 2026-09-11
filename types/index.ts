@@ -63,6 +63,18 @@ export type ProductListItem = {
   brand_name?: string | null;
 };
 
+/**
+ * The shape a list query returns, before `withBrandName` flattens the join.
+ *
+ * List queries assert their rows into this rather than inferring them, because one column cannot
+ * line up: `products.category_id` is nullable in the schema — an uncategorised draft is a real
+ * state, 91 rows are in it after the old category FK stripped them — while `ProductListItem`
+ * requires it. Every list query filters on `published`, and the `products_published_has_category`
+ * CHECK guarantees a published row is categorised, so the assertion holds. It is a database
+ * invariant that type generation cannot see, not a nullability that was papered over:
+ * price/image_url/published were the papered-over ones, and they are NOT NULL as of
+ * supabase/migrations/20260911120400_not_null_columns.sql.
+ */
 export type ProductListRow = Omit<ProductListItem, "brand_name"> & { brands: { name: string } | null };
 
 export function withBrandName<T extends { brands?: { name: string } | null }>(
@@ -78,9 +90,9 @@ export function withBrandName<T extends { brands?: { name: string } | null }>(
  */
 /**
  * A raw products row, exactly as stored. The admin list and edit drawer work with these; the
- * storefront uses `Product`/`ProductListItem`, which assume the display-critical columns are
- * present. Several of them (price, image_url, category_id, published) are nullable in the
- * schema and arguably should carry NOT NULL — see supabase/README.md.
+ * storefront uses `Product`/`ProductListItem`. price, image_url and published are NOT NULL as of
+ * the migration above; `category_id`/`category` stay nullable for uncategorised drafts, which is
+ * why the admin types have to keep handling their absence — see supabase/README.md.
  */
 export type ProductRecord = Tables["products"]["Row"];
 

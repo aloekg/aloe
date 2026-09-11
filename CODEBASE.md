@@ -75,9 +75,13 @@ Note: "popular" is no longer a manually-set admin label. `products.purchase_coun
 
 The schema lives in `supabase/migrations/` and is applied with `npx supabase db push`; `types/database.ts`
 is generated from it (`npm run db:types`) and committed. See [supabase/README.md](supabase/README.md)
-for the migration list, the recorded RLS audit, and the one migration not yet applied
-(`..._not_null_columns.sql` — it makes the display-critical product columns `NOT NULL`, which is
-what allows the `as unknown as ProductListRow[]` casts in the services to go).
+for the migration list and the recorded RLS audit.
+
+`products.category_id` and `category` are nullable on purpose: 91 products were orphaned by the
+category FK's old `ON DELETE SET NULL` and have no category until an admin assigns one. The
+invariant the storefront relies on is narrower and lives in a CHECK instead — a **published**
+product must be categorised (`products_published_has_category`) — and the FK is now
+`ON DELETE RESTRICT`.
 
 ### products
 

@@ -37,6 +37,6 @@ export async function getFavoriteProducts(supabase: SupabaseClient<Database>, us
     return [];
   }
   return withBrandName(
-    (data ?? []).map((f) => f.products as unknown as ProductListRow | null).filter(Boolean) as ProductListRow[],
+    (data ?? []).map((f) => f.products as ProductListRow | null).filter(Boolean) as ProductListRow[],
   );
 }
