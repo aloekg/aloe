@@ -424,11 +424,24 @@ Two maintenance scripts finish the job for anything the old site cannot supply:
 node scripts/normalize-product-images.mjs --execute  # any row not yet a WebP pair → build it from the file in Storage
 node scripts/prune-orphan-images.mjs                 # list bucket objects nothing references (--execute deletes)
 node scripts/fix-orphan-categories.mjs               # products whose category_id was stripped (--execute assigns)
+node scripts/purge-test-data.mjs                     # pre-launch orders/accounts/counters (--execute deletes)
 ```
 
 `normalize-product-images.mjs` is the one to run after a bulk import or whenever
 `image_url`/`thumbnail_url` disagree; it leaves existing WebP rows alone so nothing is re-encoded
-twice. `fix-orphan-categories.mjs` cleans up after the category FK's old `ON DELETE SET NULL`: 91 products
+twice. `purge-test-data.mjs` clears pre-launch test data, and exists because three things are coupled:
+`purchase_count` does not follow the order it came from (checkout increments it via the RPC, so
+deleting the order would leave `/popular` ranked by test purchases — `--reset-counts` recomputes
+from the orders that remain), `orders.user_id` cascades (see the FK migration below), and
+`backups/backup-db.mjs` is the only copy of an order that exists anywhere, so the script refuses to
+delete without a dump containing `orders.json`. Nothing is selected by pattern: orders go by id,
+accounts by email, and an account with `role=admin` is never deleted.
+
+`backups/backup-db.mjs` covers `orders`, `profiles`, `favorites`, `cart_items`, `brands` and
+`banners` as well as the catalogue — the catalogue can be re-pulled from the old site, an order
+cannot. The dump includes customer names, phones and addresses; `backups/` is git-ignored.
+
+`fix-orphan-categories.mjs` cleans up after the category FK's old `ON DELETE SET NULL`: 91 products
 lost their `category_id` when a category was deleted and keep only the denormalised `category`
 label, which the tree reorganisation renamed. It matches that label to a leaf category ignoring
 case, ё/е and punctuation, takes judgement calls from an `OVERRIDES` table in the file, and reports
