@@ -15,7 +15,7 @@
 ```
 /
 ├── app/                    # Next.js App Router pages
-├── components/             # ~30 shared React components (barrel: components/index.ts)
+├── components/             # ~40 shared components + components/header/ (barrel: components/index.ts)
 ├── hooks/                  # Custom React hooks
 ├── lib/                    # Supabase clients, caching, utilities
 ├── services/               # Data access layer (8 domain modules)
@@ -59,6 +59,8 @@
 /admin/categories           # Category management (drag-to-reorder)
 /admin/brands               # Brand management
 /admin/banners              # Banner carousel management (desktop/mobile tabs)
+
+/catalog/product/view/[...path]  # route.ts — 301s old JoomShopping product URLs to /product/[id]
 ```
 
 Note: the `discount` label/route from earlier iterations has been removed — `Product["label"]` is now only `"new" | "sale" | null`.
@@ -69,7 +71,7 @@ Note: "popular" is no longer a manually-set admin label. `products.purchase_coun
 
 **Category page (`/catalog/[slug]`):** renders every subcategory of the top-level category as its own section in one `VirtualCategoryContent` window-virtualized scroll (`@tanstack/react-virtual`). `SubcategoryFilter` renders a pill per subcategory; clicking one calls `scrollToSection` (`lib/section-scroll.ts`) to jump to it, and the pill that's currently scrolled into view is tracked via `lib/active-section.ts` pub/sub and highlighted (`useActiveSectionSync`). As the active section changes, `SubcategoryFilter` mirrors it into the URL as `?sub=<subcategorySlug>` via `history.replaceState` directly (not `router.replace`) so the address bar stays shareable/bookmarkable without forcing a server re-render on every scroll tick. Landing on `/catalog/[slug]?sub=<slug>` (a shared link, a reload, or the breadcrumb/sitemap links below) resolves that slug to a subcategory id server-side and passes it to `VirtualCategoryContent` as `initialSectionId`, which scrolls to it on mount — reasserting the scroll position for the first ~20 frames to win a race against the App Router's own post-navigation scroll handling, which otherwise snaps it back to the top a couple of frames after mount.
 
-**Sub-subcategories (3rd level):** `categories.parent_id` is self-referential, so a category can be nested one level deeper than a normal subcategory (category → subcategory → sub-subcategory). Sub-subcategories have **no page of their own** — `products.category_id` may point directly at one (instead of at the subcategory), and `/catalog/[slug]` groups that subcategory's products into per-sub-subcategory sections within its section rather than routing to a new URL. `getSubcategorySection`/`getCachedSubcategorySection` take an array of category ids (subcategory id + its sub-subcategory ids) so products assigned at either level still show up together. `sitemap.ts`, the homepage carousel grouping (`app/page.tsx`), and the product-detail breadcrumbs (`app/product/[id]/page.tsx`) all walk up to 2 `parent_id` hops to resolve the real top-level/subcategory pair, and link to the subcategory as `/catalog/[topSlug]?sub=[subSlug]`. Admin: `AdminCategories.tsx` renders 3 tiers and only allows a subcategory (not a sub-subcategory) as a parent, capping the tree at 3 levels; the product editor's category `<select>` only lists leaf categories (those with no children), labeled with their full breadcrumb path.
+**Sub-subcategories (3rd level):** `categories.parent_id` is self-referential, so a category can be nested one level deeper than a normal subcategory (category → subcategory → sub-subcategory). Sub-subcategories have **no page of their own** — `products.category_id` may point directly at one (instead of at the subcategory), and `/catalog/[slug]` groups that subcategory's products into per-sub-subcategory sections within its section rather than routing to a new URL. `getCategoryProducts` (cached as `getCachedCategoryProducts`) takes every category id under the top-level one in one query and returns the rows bucketed by `category_id`, so products assigned at either level arrive together; `buildCategorySection()` in `lib/subcategory-sections.ts` then splits each subcategory's bucket into per-sub-subcategory groups. `sitemap.ts`, the homepage carousel grouping (`app/page.tsx`), and the product-detail breadcrumbs (`app/product/[id]/page.tsx`) all walk up to 2 `parent_id` hops to resolve the real top-level/subcategory pair, and link to the subcategory as `/catalog/[topSlug]?sub=[subSlug]`. Admin: `AdminCategories.tsx` renders 3 tiers and only allows a subcategory (not a sub-subcategory) as a parent, capping the tree at 3 levels; the product editor's category `<select>` only lists leaf categories (those with no children), labeled with their full breadcrumb path.
 
 ## Database Schema (Supabase / PostgreSQL)
 
@@ -226,7 +228,42 @@ type Product = {
 
 type ProductRow = Product & { brands: { name: string } | null };
 
-function withBrandName(rows: ProductRow[]): Product[]; // maps brands.name → brand_name
+/**
+ * What a product card renders, and all that list queries select — `description`/`seo_text` are long
+ * free text and would otherwise dominate every grid payload (and push cached category pages past
+ * the 2 MB data-cache entry limit).
+ */
+type ProductListItem = {
+  id: number;
+  name: string;
+  price: number;
+  old_price?: number | null;
+  image_url: string;
+  thumbnail_url?: string | null;
+  category_id: number;
+  label?: "new" | "sale" | null;
+  brand_id?: number | null;
+  brand_name?: string | null;
+};
+
+type ProductListRow = Omit<ProductListItem, "brand_name"> & { brands: { name: string } | null };
+
+// Flattens the brands join on either shape.
+function withBrandName<T extends { brands?: { name: string } | null }>(
+  rows: T[],
+): Array<Omit<T, "brands"> & { brand_name: string | null }>;
+
+type CartItem = { id: number; name: string; price: number; image_url: string; quantity: number };
+/** A cart item frozen into an order — every field re-derived server-side at checkout. */
+type OrderItem = CartItem;
+
+// Derived from the generated schema, so a renamed or newly-nullable column fails the build.
+type ProductRecord = Tables["products"]["Row"]; // raw row, used by the admin list and edit drawer
+type Category = Tables["categories"]["Row"];
+type Banner = Tables["banners"]["Row"];
+type Profile = Tables["profiles"]["Row"];
+type ProfileFields = Pick<Profile, "name" | "phone" | "address">;
+type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 ```
 
 ## Services (`/services/`)
@@ -244,44 +281,50 @@ function withBrandName(rows: ProductRow[]): Product[]; // maps brands.name → b
 
 ## Lib Utilities (`/lib/`)
 
-| file                      | purpose                                                                                                                                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                   |
-| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                        |
-| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                   |
-| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                       |
-| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                     |
-| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                 |
-| `constants.ts`            | `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color)                                                                                                                  |
-| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                             |
-| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                            |
-| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill |
-| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                          |
-| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                              |
-| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                    |
-| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email                             |
-| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                               |
-| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                 |
-| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                      |
-| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                     |
+| file                      | purpose                                                                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                   |
+| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                        |
+| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                   |
+| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                       |
+| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                     |
+| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                 |
+| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), and the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()` |
+| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                                                             |
+| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                            |
+| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                 |
+| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                                                          |
+| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                              |
+| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                    |
+| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email                                                             |
+| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                               |
+| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                 |
+| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                      |
+| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                     |
 
 ### Cached Queries (ISR tags & TTLs)
 
-| function                                            | TTL    | tag          |
-| --------------------------------------------------- | ------ | ------------ |
-| `getCachedCategories()`                             | 1 hour | `categories` |
-| `getCachedCategoriesWithSlug()`                     | 1 hour | `categories` |
-| `getCachedBrands()`                                 | 1 hour | `brands`     |
-| `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`     |
-| `getCachedActiveBanners()`                          | 1 hour | `banners`    |
-| `getCachedProductsByLabel(label, limit?)`           | 60 s   | `products`   |
-| `getCachedPopularProducts(limit?)`                  | 60 s   | `products`   |
-| `getCachedProductsByCategories(ids, limit?)`        | 60 s   | `products`   |
-| `getCachedProductsByBrand(id, page, pageSize)`      | 60 s   | `products`   |
-| `getCachedHomePageCategoryProducts(groups, limit?)` | 60 s   | `products`   |
-| `getCachedSubcategorySection(subcategoryId, sort)`  | 60 s   | `products`   |
-| `getCachedSubcategoryProducts(subcategoryId, opts)` | 60 s   | `products`   |
-| `getCachedBrandsForSubcategory(subcategoryId)`      | 60 s   | `products`   |
+| function                                            | TTL    | tags                          |
+| --------------------------------------------------- | ------ | ----------------------------- |
+| `getCachedCategories()`                             | 1 hour | `categories`                  |
+| `getCachedCategoriesWithSlug()`                     | 1 hour | `categories`                  |
+| `getCachedBrands()`                                 | 1 hour | `brands`                      |
+| `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`                      |
+| `getCachedActiveBanners()`                          | 1 hour | `banners`                     |
+| `getCachedProductsByLabel(label, limit?)`           | 60 s   | `products`                    |
+| `getCachedProductsByLabelPaginated(label, page, …)` | 60 s   | `products`                    |
+| `getCachedPopularProducts(limit?)`                  | 60 s   | `products` `products-popular` |
+| `getCachedPopularProductsPaginated(page, pageSize)` | 60 s   | `products` `products-popular` |
+| `getCachedHomePageCategoryProducts(groups, limit?)` | 60 s   | `products`                    |
+| `getCachedCategoryProducts(categoryIds, sort)`      | 60 s   | `products`                    |
+| `getCachedProductsByBrand(id, page, pageSize)`      | 60 s   | `products`                    |
+| `getCachedProduct(id)`                              | 60 s   | `products`                    |
+| `getCachedRelatedProducts(categoryId, excludeId)`   | 60 s   | `products`                    |
+
+`getCachedCategoryProducts` returns tuples rather than the `Map` the service produces — a `Map`
+cannot cross the `unstable_cache` boundary, so the caller rebuilds it. The extra `products-popular`
+tag lets checkout expire the two purchase-count-ranked queries without dropping the whole catalogue
+cache.
 
 ## Zustand Stores (`/store/`)
 
@@ -292,12 +335,12 @@ function withBrandName(rows: ProductRow[]): Product[]; // maps brands.name → b
 
 ## Server Actions
 
-| file                            | actions                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/checkout/actions.ts`       | `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed; clears server-side cart on success                                                                                                                                                                                                                                                |
-| `app/profile/actions.ts`        | `saveProfile()`                                                                                                                                                                                                                                                                                                                                                                     |
-| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                 |
-| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()` — all gated by `assertAdmin()` and run through a service-role client |
+| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart, increments `purchase_count` and emails the admin with a PDF invoice                                                                                                                                                                                        |
+| `app/profile/actions.ts`        | `saveProfile()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `downloadInvoice()`, `resendOrderNotification()` — all gated by `assertAdmin()` and run through a service-role client |
 
 ## Auth
 
@@ -355,6 +398,12 @@ back to `SITE_URL` on purpose: a missing variable must not noindex the live shop
 
 **`ProductCard` is `React.memo`-wrapped:** it renders inside the virtualized category grid, carousels, and infinite-scroll brand pages, whose parents re-render on every scroll tick / page load — memoizing avoids re-rendering every visible card (and its `AddToCart`/`FavoriteButton` children) when its own props haven't changed.
 
+**Admin product filters** carry two `none` sentinels rather than only real values: `?label=none`
+finds products with no badge, and `?category=none` finds products whose `category_id` is missing —
+rows orphaned by the category FK's old `ON DELETE SET NULL`, which nothing else in the admin could
+single out. The list also badges them, since `products_published_has_category` means such a product
+cannot be published at all.
+
 **Admin list pages** (products/categories/brands/orders) share `useAdminListNav()` (syncs filters to the URL query string, resets pagination on filter change) and `useDebouncedSearch()` (debounces search input before triggering navigation).
 
 **Drag-to-reorder** for admin categories and banners shares one hook, `useDragReorder()` — tracks drag/drop indices per group and hands back a reordered array; the caller persists the new `sort_order` via a server action (`reorderSubcategories()` / `reorderBanners()`).
@@ -407,7 +456,7 @@ keeps moving while this site is built. These scripts pull from it. Credentials l
 `scripts/joomla/data/` (also git-ignored). Products are matched on `products.external_id`.
 
 ```bash
-node backups/backup-db.mjs                        # always first — dumps categories + products
+node backups/backup-db.mjs                        # always first — dumps every table (see below)
 node scripts/joomla/scrape-products.mjs           # admin product list → data/joomla-products.json
 node scripts/joomla/diff-products.mjs             # vs Supabase → data/diff.json + a report
 node scripts/joomla/sync-products.mjs --execute   # apply name/price/published, insert new, unpublish gone

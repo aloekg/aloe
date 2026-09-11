@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aloe.kg
 
-## Getting Started
+Интернет-магазин бытовой химии и косметики в Бишкеке. Next.js 16 (App Router) + Supabase,
+переписан со старого Joomla + JoomShopping.
 
-First, run the development server:
+Сайт живёт на **new.aloe.kg**; на `aloe.kg` пока работает старый магазин, он переедет на
+`old.aloe.kg` — порядок переключения в [MIGRATION.md](MIGRATION.md).
+
+## Запуск
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Нужен `.env.local` с ключами Supabase и SMTP — список переменных в
+[CODEBASE.md](CODEBASE.md#environment-variables). Файл не коммитится.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Команды
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev          npm run build        npm run start
+npm run lint         npm run format       npm run typecheck
+npm run test         # vitest, только чистые хелперы — без БД и DOM
+npm run db:types     # перегенерировать types/database.ts из схемы
+```
 
-## Learn More
+Перед пушем достаточно `npm run typecheck && npm run lint && npm test` — то же самое гоняет CI
+([.github/workflows/ci.yml](.github/workflows/ci.yml)), плюс `format:check` и сборку.
 
-To learn more about Next.js, take a look at the following resources:
+## Где что
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| файл                                     | о чём                                                                             |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| [CODEBASE.md](CODEBASE.md)               | Справочник: маршруты, схема БД, сервисы, стора, серверные экшены, паттерны        |
+| [AGENTS.md](AGENTS.md)                   | Правило для ИИ-агентов: это Next.js 16, читать документацию в `node_modules/next` |
+| [MIGRATION.md](MIGRATION.md)             | Чеклист переезда на домен `aloe.kg`                                               |
+| [supabase/README.md](supabase/README.md) | Миграции, аудит RLS, регенерация типов                                            |
+| `scripts/joomla/`                        | Синхронизация каталога со старым сайтом (он пока и есть продакшен)                |
+| `scripts/`, `backups/`                   | Обслуживание: картинки, потерянные категории, очистка тестовых данных, бэкапы     |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Особенности, о которые легко споткнуться
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Оптимизация картинок Next отключена намеренно** (`images.unoptimized: true`) — квота Vercel на
+  Hobby-плане. Вместо неё у каждого товара два WebP: `thumbnail_url` (≤500px) для карточек и
+  `image_url` (≤1200px) для страницы товара. Не включайте обратно и не сжимайте фото сильнее.
+- **`SITE_URL` жёстко равен `https://aloe.kg`** — это целевой домен, на него смотрят canonical,
+  sitemap и редиректы старых ссылок. Текущий хост задаётся `DEPLOY_ORIGIN`; пока они различаются,
+  `robots.txt` отдаёт `Disallow: /` и страницы носят `noindex`.
+- **Схема БД — в `supabase/migrations/`**, а не только в дашборде. После миграции обязательно
+  `npm run db:types`.
+- **`/api` маршрутов нет**: данные читаются прямо в серверных компонентах, запись — через серверные
+  экшены.
