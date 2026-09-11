@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { strict } from "@/lib/db";
 import type { Database } from "@/types/database";
 
 type CartItem = {
@@ -15,18 +16,14 @@ type CartRow = {
   products: { name: string; price: number; image_url: string; thumbnail_url: string | null } | null;
 };
 
+/** Throws on failure — an empty cart and an unreachable database must not merge the same way. */
 export async function loadCart(supabase: SupabaseClient<Database>, userId: string): Promise<CartItem[]> {
-  const { data, error } = await supabase
+  const res = await supabase
     .from("cart_items")
     .select("product_id, quantity, products(name, price, image_url, thumbnail_url)")
     .eq("user_id", userId);
 
-  if (error) {
-    console.error("[cart] load error:", error.message);
-    return [];
-  }
-
-  return (data as unknown as CartRow[])
+  return (strict("cart/load", res) as unknown as CartRow[])
     .filter((r) => r.products !== null)
     .map((r) => ({
       id: r.product_id,

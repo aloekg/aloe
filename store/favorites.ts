@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { addFavorite, loadFavoriteIds, removeFavorite } from "@/services/favorites.service";
 
 type FavoritesStore = {
@@ -16,41 +17,75 @@ async function getSupabase() {
   return createClient();
 }
 
-export const useFavorites = create<FavoritesStore>((set, get) => ({
-  ids: [],
-  userId: null,
-  initialized: false,
+/**
+ * Mirrors the cart's fire-and-forget writes. Failures are swallowed rather than left to reject
+ * unhandled offline; the next successful `setUser` load is what reconciles the two sides.
+ */
+function sync(run: (supabase: Awaited<ReturnType<typeof getSupabase>>) => Promise<unknown>) {
+  void getSupabase()
+    .then(run)
+    .catch((e) => console.error("[favorites] sync failed:", e));
+}
 
-  add: (id) => {
-    set((state) => ({ ids: [...state.ids, id] }));
-    const { userId } = get();
-    if (userId) {
-      getSupabase().then((sb) => addFavorite(sb, userId, id));
-    }
-  },
+/**
+ * Persisted so a returning customer's hearts are already right on first paint, instead of rendering
+ * empty until `loadFavoriteIds` answers — and staying empty if it never does. `userId` rides along
+ * because those ids belong to one account: without it, the next person to sign in on this browser
+ * would briefly see someone else's favourites.
+ *
+ * Unlike the cart there is nothing to keep for a guest — FavoriteButton sends them to /auth rather
+ * than storing anything — so signing out drops the lot.
+ */
+export const useFavorites = create<FavoritesStore>()(
+  persist(
+    (set, get) => ({
+      ids: [],
+      userId: null,
+      initialized: false,
 
-  remove: (id) => {
-    set((state) => ({ ids: state.ids.filter((i) => i !== id) }));
-    const { userId } = get();
-    if (userId) {
-      getSupabase().then((sb) => removeFavorite(sb, userId, id));
-    }
-  },
+      add: (id) => {
+        set((state) => ({ ids: [...state.ids, id] }));
+        const { userId } = get();
+        if (userId) {
+          sync((sb) => addFavorite(sb, userId, id));
+        }
+      },
 
-  setUser: async (userId) => {
-    if (!userId) {
-      set({ userId: null, ids: [], initialized: true });
-      return;
-    }
+      remove: (id) => {
+        set((state) => ({ ids: state.ids.filter((i) => i !== id) }));
+        const { userId } = get();
+        if (userId) {
+          sync((sb) => removeFavorite(sb, userId, id));
+        }
+      },
 
-    // onAuthStateChange fires for INITIAL_SESSION, SIGNED_IN, hourly TOKEN_REFRESHED and on tab
-    // focus; reloading the same user's favourites on each of those is pure waste.
-    if (get().userId === userId && get().initialized) return;
+      setUser: async (userId) => {
+        if (!userId) {
+          set({ userId: null, ids: [], initialized: true });
+          return;
+        }
 
-    set({ userId });
+        // onAuthStateChange fires for INITIAL_SESSION, SIGNED_IN, hourly TOKEN_REFRESHED and on tab
+        // focus; reloading the same user's favourites on each of those is pure waste. A failed load
+        // leaves `initialized` false, which is also what lets the next of those events retry.
+        if (get().userId === userId && get().initialized) return;
 
-    const supabase = await getSupabase();
-    const ids = await loadFavoriteIds(supabase, userId);
-    set({ ids, initialized: true });
-  },
-}));
+        // Rehydrated ids are only worth showing to the account that saved them.
+        set(get().userId === userId ? { userId } : { userId, ids: [] });
+
+        try {
+          const supabase = await getSupabase();
+          set({ ids: await loadFavoriteIds(supabase, userId), initialized: true });
+        } catch (e) {
+          // Settling on an empty list would grey out every heart the customer had already set, so
+          // keep showing the persisted ones and try again on the next auth event.
+          console.error("[favorites] load failed:", e);
+        }
+      },
+    }),
+    {
+      name: "favorites",
+      partialize: (state) => ({ ids: state.ids, userId: state.userId }),
+    },
+  ),
+);

@@ -7,6 +7,9 @@ export const SITE_URL = "https://aloe.kg";
  */
 export const LEGACY_SITE_URL = "https://old.aloe.kg";
 
+/** The green everything brand-coloured keys off — matches Tailwind's green-600. */
+export const BRAND_COLOR = "#16a34a";
+
 export const LABEL_MAP = {
   new: { text: "Новинка", cls: "bg-blue-500" },
   sale: { text: "Акция", cls: "bg-orange-500" },

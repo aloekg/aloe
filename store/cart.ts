@@ -29,6 +29,17 @@ async function getSupabase() {
   return createClient();
 }
 
+/**
+ * Pushes a change to the server-side cart without blocking the UI on it. Failures are swallowed on
+ * purpose — offline these are unhandled rejections otherwise, and the local cart is the source of
+ * truth regardless: the next sign-in merges it back over whatever the database ended up holding.
+ */
+function sync(run: (supabase: Awaited<ReturnType<typeof getSupabase>>) => Promise<unknown>) {
+  void getSupabase()
+    .then(run)
+    .catch((e) => console.error("[cart] sync failed:", e));
+}
+
 export const useCart = create<CartStore>()(
   persist(
     (set, get) => ({
@@ -48,7 +59,7 @@ export const useCart = create<CartStore>()(
         const { userId, items } = get();
         if (userId) {
           const updated = items.find((i) => i.id === item.id)!;
-          getSupabase().then((sb) => upsertCartItem(sb, userId, item.id, updated.quantity));
+          sync((sb) => upsertCartItem(sb, userId, item.id, updated.quantity));
         }
       },
 
@@ -72,7 +83,7 @@ export const useCart = create<CartStore>()(
         const { userId, items } = get();
         if (userId) {
           const touched = items.filter((i) => incoming.some((n) => n.id === i.id));
-          getSupabase().then((sb) => reconcileCartItems(sb, userId, touched));
+          sync((sb) => reconcileCartItems(sb, userId, touched));
         }
       },
 
@@ -80,7 +91,7 @@ export const useCart = create<CartStore>()(
         const { userId } = get();
         set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
         if (userId) {
-          getSupabase().then((sb) => deleteCartItem(sb, userId, id));
+          sync((sb) => deleteCartItem(sb, userId, id));
         }
       },
 
@@ -91,7 +102,7 @@ export const useCart = create<CartStore>()(
         const { userId, items } = get();
         if (userId) {
           const updated = items.find((i) => i.id === id)!;
-          getSupabase().then((sb) => upsertCartItem(sb, userId, id, updated.quantity));
+          sync((sb) => upsertCartItem(sb, userId, id, updated.quantity));
         }
       },
 
@@ -105,11 +116,11 @@ export const useCart = create<CartStore>()(
         const { userId } = get();
         if (userId && prev) {
           if (prev.quantity <= 1) {
-            getSupabase().then((sb) => deleteCartItem(sb, userId, id));
+            sync((sb) => deleteCartItem(sb, userId, id));
           } else {
             const updated = get().items.find((i) => i.id === id);
             if (updated) {
-              getSupabase().then((sb) => upsertCartItem(sb, userId, id, updated.quantity));
+              sync((sb) => upsertCartItem(sb, userId, id, updated.quantity));
             }
           }
         }
@@ -119,7 +130,7 @@ export const useCart = create<CartStore>()(
         const { userId } = get();
         set({ items: [] });
         if (userId) {
-          getSupabase().then((sb) => clearCart(sb, userId));
+          sync((sb) => clearCart(sb, userId));
         }
       },
 
@@ -139,24 +150,31 @@ export const useCart = create<CartStore>()(
 
         set({ userId });
 
-        const supabase = await getSupabase();
-        const dbItems = await loadCart(supabase, userId);
+        try {
+          const supabase = await getSupabase();
+          const dbItems = await loadCart(supabase, userId);
 
-        // Local items win on conflict, DB-only items are appended
-        const localItems = get().items;
-        const merged: CartItem[] = [...localItems];
-        for (const dbItem of dbItems) {
-          if (!merged.find((i) => i.id === dbItem.id)) {
-            merged.push(dbItem);
+          // Local items win on conflict, DB-only items are appended
+          const localItems = get().items;
+          const merged: CartItem[] = [...localItems];
+          for (const dbItem of dbItems) {
+            if (!merged.find((i) => i.id === dbItem.id)) {
+              merged.push(dbItem);
+            }
           }
-        }
 
-        set({ items: merged });
+          set({ items: merged });
 
-        // Reconcile local-only items back to DB
-        const localOnly = localItems.filter((li) => !dbItems.find((di) => di.id === li.id));
-        if (localOnly.length > 0) {
-          await reconcileCartItems(supabase, userId, localOnly);
+          // Reconcile local-only items back to DB
+          const localOnly = localItems.filter((li) => !dbItems.find((di) => di.id === li.id));
+          if (localOnly.length > 0) {
+            await reconcileCartItems(supabase, userId, localOnly);
+          }
+        } catch (e) {
+          // Drop back to signed-out so the guard above lets the next auth event retry. Leaving
+          // `userId` set would mark the cart merged and never run it again for this session.
+          console.error("[cart] merge failed:", e);
+          set({ userId: null });
         }
       },
     }),

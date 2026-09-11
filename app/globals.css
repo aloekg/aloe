@@ -20,6 +20,10 @@
     /* No font-family here: the next/font class on <body> already supplies Geist, and hardcoding
        Arial overrode it — the font was downloaded and preloaded on every page, then unused. */
     scrollbar-gutter: stable;
+    /* Paired with `viewportFit: "cover"` in app/layout.tsx — without these the page runs under the
+       notch in landscape on an iPhone. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   ::-webkit-scrollbar {
@@ -59,6 +63,12 @@
 
 @utility scrollbar-gutter-stable {
   scrollbar-gutter: stable both-edges;
+}
+
+/* MobileBottomNav is fixed to the bottom edge; in a standalone PWA there is no browser chrome left
+   to keep it clear of the iPhone home indicator. The 0.5rem is the gap the nav wants anyway. */
+@utility safe-area-pb {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
 }
 
 @keyframes banner-progress {

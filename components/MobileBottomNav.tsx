@@ -21,10 +21,7 @@ export default function MobileBottomNav() {
   const badge = isClient && count > 0 ? count : 0;
 
   return (
-    <nav
-      aria-label="Основная навигация"
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden safe-area-pb pb-2 px-4"
-    >
+    <nav aria-label="Основная навигация" className="fixed bottom-0 left-0 right-0 z-40 md:hidden safe-area-pb px-4">
       <div className="flex justify-center gap-2">
         <div className="flex items-center justify-around bg-white/50 rounded-full p-1 backdrop-blur-xs">
           {items.map((item) => {

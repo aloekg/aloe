@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Lobster } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
 import { AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
 import { getCachedCategories } from "@/lib/cached-queries";
-import { SITE_URL } from "@/lib/constants";
+import { BRAND_COLOR, SITE_URL } from "@/lib/constants";
 import { IS_CANONICAL_HOST } from "@/lib/deploy-origin";
 import "./globals.css";
 
@@ -39,6 +39,20 @@ export const metadata: Metadata = {
     title: "Aloe.kg",
     description: SITE_DESCRIPTION,
   },
+  // Gives iOS the standalone launch mode and the home screen label. `black-translucent` is
+  // deliberately not used: it pulls content up under the status bar, which every page would then
+  // have to pad around.
+  appleWebApp: { capable: true, title: "Aloe.kg", statusBarStyle: "default" },
+};
+
+// themeColor belongs here rather than in `metadata`, where it has been deprecated since Next 14.
+// `viewport-fit: cover` lets the floating bottom nav sit against the screen edge on a notched
+// phone; app/globals.css pays for it with safe-area insets on body and on the nav itself.
+export const viewport: Viewport = {
+  themeColor: BRAND_COLOR,
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 const websiteJsonLd = {
@@ -74,7 +88,7 @@ export default async function RootLayout({ children, modal }: { children: React.
         </a>
         <JsonLd data={websiteJsonLd} />
         <JsonLd data={organizationJsonLd} />
-        <NextTopLoader color="#16a34a" showSpinner={false} />
+        <NextTopLoader color={BRAND_COLOR} showSpinner={false} />
         <AuthSync />
         <Header className="hidden md:block" />
         <CategoryNav categories={categories} />

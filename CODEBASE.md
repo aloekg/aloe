@@ -5,7 +5,7 @@
 - **Framework:** Next.js 16.2.9 (App Router, Server Components, Server Actions, React 19)
 - **Language:** TypeScript 6.0.3 (strict mode, path alias `@/*` → root)
 - **Database:** Supabase (PostgreSQL + Auth + Storage + RLS)
-- **State:** Zustand 5.0.14 (only the cart store uses `persist`/localStorage; favorites/toast/mobile-menu don't — both cart and favorites also rehydrate from Supabase on auth)
+- **State:** Zustand 5.0.14 (cart and favorites use `persist`/localStorage; toast/mobile-menu don't — both cart and favorites also rehydrate from Supabase on auth)
 - **Styling:** Tailwind CSS 4.3.1, no dark mode
 - **UI libs:** Lucide React, React Icons, Embla Carousel (+ autoplay), react-markdown, nextjs-toploader, @tailwindcss/typography, @tanstack/react-virtual
 - **Code quality:** ESLint 9, Prettier (120 char, import sorting via `@ianvs/prettier-plugin-sort-imports`)
@@ -23,6 +23,7 @@
 ├── types/                  # TypeScript type definitions (index.ts) + generated database.ts
 ├── tests/                  # Vitest unit tests (pure helpers only — no DB, no DOM)
 ├── supabase/               # migrations/ (source of truth for the schema), sql/audit-rls.sql
+├── public/                 # Manifest PNG icons (generated, see scripts/generate-app-icons.mjs)
 ├── scripts/                # Old-site sync + image maintenance (see below)
 ├── proxy.ts                # Middleware — Supabase auth cookie management
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
@@ -330,7 +331,7 @@ cache.
 ## Zustand Stores (`/store/`)
 
 - **cart store** (`store/cart.ts`) — cart items array, persisted to localStorage (key `"cart"`, only `items` is persisted); syncs with DB when user logs in (local items win on conflict, DB-only items appended, `reconcileCartItems` pushes local-only items back).
-- **favorites store** (`store/favorites.ts`) — product IDs; syncs with DB on auth. No persist middleware.
+- **favorites store** (`store/favorites.ts`) — product IDs; syncs with DB on auth. Persisted to localStorage (key `"favorites"`, `ids` + `userId`) so a returning customer's hearts are right on first paint and survive an offline reload; `userId` rides along because the ids belong to one account, and they are dropped whenever a different user signs in or the current one signs out. Unlike the cart there is nothing to keep for a guest — `FavoriteButton` sends them to `/auth` rather than storing anything. A failed load leaves `initialized` false, which both keeps the button disabled and lets the next auth event retry.
 - **toast store** (`store/toast.ts`) — notification queue, auto-dismiss after 3.5s, keeps at most 3 toasts.
 - **mobile-menu store** (`store/mobile-menu.ts`) — boolean open/close state for mobile nav.
 
@@ -425,7 +426,21 @@ tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop,
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
 other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
 
-**Primary color:** `#16a34a` (green-600)
+**Primary color:** `#16a34a` (green-600) — `BRAND_COLOR` in `lib/constants.ts`, used by the manifest, the `viewport` export and `NextTopLoader`.
+
+**PWA — installable only, no service worker.** `app/manifest.ts` plus the `viewport` export and
+`appleWebApp` in `app/layout.tsx` make the storefront installable and give it a proper standalone
+look; `scripts/generate-app-icons.mjs` regenerates `public/icon-192.png`, `public/icon-512.png` and
+`public/icon-maskable-512.png` from `app/icon.svg` (the maskable one is inset to 60% for Android's
+launcher mask). There is deliberately **no service worker and no offline cache**: prices and stock
+must not be served stale, `createOrder` is not idempotent so a background-sync retry would duplicate
+orders, and Serwist — the offline route the Next guide points at — still requires webpack while this
+project builds with Turbopack. `themeColor` lives in `viewport`, not `metadata`, where Next has
+deprecated it since v14.
+
+Because `viewport` sets `viewport-fit: cover`, `app/globals.css` carries the matching safe-area
+insets: left/right on `body`, and the `safe-area-pb` utility that `MobileBottomNav` uses to stay
+clear of the iPhone home indicator in standalone.
 
 ## Scripts
 
@@ -475,6 +490,7 @@ node scripts/normalize-product-images.mjs --execute  # any row not yet a WebP pa
 node scripts/prune-orphan-images.mjs                 # list bucket objects nothing references (--execute deletes)
 node scripts/fix-orphan-categories.mjs               # products whose category_id was stripped (--execute assigns)
 node scripts/purge-test-data.mjs                     # pre-launch orders/accounts/counters (--execute deletes)
+node scripts/generate-app-icons.mjs                 # app/icon.svg → the manifest's PNG icons in public/
 ```
 
 `normalize-product-images.mjs` is the one to run after a bulk import or whenever

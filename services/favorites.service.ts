@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { strict } from "@/lib/db";
 import type { ProductListRow } from "@/types";
 import { withBrandName } from "@/types";
 import type { Database } from "@/types/database";
@@ -7,13 +8,16 @@ import type { Database } from "@/types/database";
 const FAVORITE_PRODUCT_COLUMNS =
   "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, brands(name)";
 
+/**
+ * Throws rather than returning an empty list: the store treats the result as the full set of
+ * favourites, so a failed request used to render every heart as un-favourited — and the next click
+ * then tried to insert a row that already existed.
+ */
 export async function loadFavoriteIds(supabase: SupabaseClient<Database>, userId: string) {
-  const { data, error } = await supabase.from("favorites").select("product_id").eq("user_id", userId);
-  if (error) {
-    console.error("[favorites] load error:", error.message);
-    return [];
-  }
-  return (data ?? []).map((f) => f.product_id).filter((id): id is number => id != null);
+  const res = await supabase.from("favorites").select("product_id").eq("user_id", userId);
+  return strict("favorites/load", res)
+    .map((f) => f.product_id)
+    .filter((id): id is number => id != null);
 }
 
 export async function addFavorite(supabase: SupabaseClient<Database>, userId: string, productId: number) {
