@@ -18,7 +18,7 @@ export default async function ProductsPage({
   const label = sp.label ?? "";
   const published = sp.published ?? "";
   const category = sp.category ?? "";
-  const categoryId = category ? parseInt(category) || undefined : undefined;
+  const categoryId = category === "none" ? "none" : category ? parseInt(category) || undefined : undefined;
   const sort = (sp.sort ?? "id-desc") as AdminProductsSort;
   const pageSizeParam = sp.pageSize ?? DEFAULT_PAGE_SIZE;
   const pageSize = pageSizeParam === "all" ? "all" : Math.max(1, parseInt(pageSizeParam) || 20);

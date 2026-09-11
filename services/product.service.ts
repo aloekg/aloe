@@ -265,7 +265,7 @@ export async function getAdminProducts(
     q?: string;
     label?: string;
     published?: string;
-    categoryId?: number;
+    categoryId?: number | "none";
     sort?: AdminProductsSort;
     page?: number;
     pageSize?: number | "all";
@@ -276,7 +276,11 @@ export async function getAdminProducts(
   // Stays `select("*")` — the edit drawer needs description/seo_text/published.
   let query = supabase.from("products").select("*", { count: "exact" });
   if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
-  if (categoryId) query = query.eq("category_id", categoryId);
+  // "none" mirrors the label filter: the products orphaned by the category FK's old
+  // ON DELETE SET NULL are otherwise unreachable — nothing else in the admin can single out a
+  // row whose category is missing, and they cannot be published until one is assigned.
+  if (categoryId === "none") query = query.is("category_id", null);
+  else if (categoryId) query = query.eq("category_id", categoryId);
   if (label === "none") query = query.is("label", null);
   else if (label) query = query.eq("label", label);
   if (published === "yes") query = query.eq("published", true);

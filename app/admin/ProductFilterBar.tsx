@@ -81,6 +81,7 @@ export default function ProductFilterBar({
         className="border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 hover:cursor-pointer"
       >
         <option value="">Все категории</option>
+        <option value="none">⚠ Без категории</option>
         {categories.map((c) => (
           <option key={c.id} value={c.id}>
             {"--".repeat(c.depth) + c.name}
