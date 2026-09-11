@@ -1,6 +1,7 @@
 import "server-only";
 import tls from "tls";
 import nodemailer from "nodemailer";
+import { DEPLOY_ORIGIN } from "@/lib/deploy-origin";
 import type { OrderItem } from "@/types";
 
 /**
@@ -16,9 +17,12 @@ import type { OrderItem } from "@/types";
  */
 const SMTP_CERT_NAME = process.env.SMTP_TLS_SERVERNAME || "mail.hoster.kg";
 
-// TODO: switch to SITE_URL once aloe.kg itself points at this deployment — until then the site
-// lives on new.aloe.kg, while SITE_URL (aloe.kg) still resolves to the old shop.
-const ADMIN_ORDERS_URL = "https://new.aloe.kg/admin/orders";
+/**
+ * Addresses *this* deployment, not the canonical domain: until aloe.kg points here, SITE_URL still
+ * resolves to the old shop, and a notification linking there would send the admin to a login page
+ * for a different site. Configured via DEPLOY_ORIGIN — see lib/deploy-origin.ts and MIGRATION.md.
+ */
+const ADMIN_ORDERS_URL = `${DEPLOY_ORIGIN}/admin/orders`;
 
 /** Order fields originate from a public checkout form — never interpolate them raw. */
 function esc(value: string | number): string {
