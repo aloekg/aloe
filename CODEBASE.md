@@ -20,10 +20,14 @@
 ├── lib/                    # Supabase clients, caching, utilities
 ├── services/               # Data access layer (8 domain modules)
 ├── store/                  # Zustand stores (cart, favorites, toast, mobile-menu)
-├── types/                  # TypeScript type definitions (index.ts)
+├── types/                  # TypeScript type definitions (index.ts) + generated database.ts
+├── tests/                  # Vitest unit tests (pure helpers only — no DB, no DOM)
+├── supabase/               # migrations/ (source of truth for the schema), sql/audit-rls.sql
+├── scripts/                # Old-site sync + image maintenance (see below)
 ├── proxy.ts                # Middleware — Supabase auth cookie management
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
-└── .env.local              # Supabase keys (see below)
+├── MIGRATION.md            # Domain cutover checklist (new.aloe.kg → aloe.kg)
+└── .env.local              # Supabase keys, SMTP, DEPLOY_ORIGIN (see below)
 ```
 
 ## App Routes
@@ -68,6 +72,12 @@ Note: "popular" is no longer a manually-set admin label. `products.purchase_coun
 **Sub-subcategories (3rd level):** `categories.parent_id` is self-referential, so a category can be nested one level deeper than a normal subcategory (category → subcategory → sub-subcategory). Sub-subcategories have **no page of their own** — `products.category_id` may point directly at one (instead of at the subcategory), and `/catalog/[slug]` groups that subcategory's products into per-sub-subcategory sections within its section rather than routing to a new URL. `getSubcategorySection`/`getCachedSubcategorySection` take an array of category ids (subcategory id + its sub-subcategory ids) so products assigned at either level still show up together. `sitemap.ts`, the homepage carousel grouping (`app/page.tsx`), and the product-detail breadcrumbs (`app/product/[id]/page.tsx`) all walk up to 2 `parent_id` hops to resolve the real top-level/subcategory pair, and link to the subcategory as `/catalog/[topSlug]?sub=[subSlug]`. Admin: `AdminCategories.tsx` renders 3 tiers and only allows a subcategory (not a sub-subcategory) as a parent, capping the tree at 3 levels; the product editor's category `<select>` only lists leaf categories (those with no children), labeled with their full breadcrumb path.
 
 ## Database Schema (Supabase / PostgreSQL)
+
+The schema lives in `supabase/migrations/` and is applied with `npx supabase db push`; `types/database.ts`
+is generated from it (`npm run db:types`) and committed. See [supabase/README.md](supabase/README.md)
+for the migration list, the recorded RLS audit, and the one migration not yet applied
+(`..._not_null_columns.sql` — it makes the display-critical product columns `NOT NULL`, which is
+what allows the `as unknown as ProductListRow[]` casts in the services to go).
 
 ### products
 
@@ -141,26 +151,49 @@ Note: "popular" is no longer a manually-set admin label. `products.purchase_coun
 | customer_phone   | text        |                                                                    |
 | customer_address | text        |                                                                    |
 | comment          | text        | nullable                                                           |
-| items            | jsonb       | array of cart items                                                |
-| total            | numeric     |                                                                    |
+| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs)         |
+| total            | numeric     | goods + delivery                                                   |
+| delivery_type    | text        | nullable                                                           |
+| delivery_cost    | numeric     | not null, default 0                                                |
 | status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` |
+| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never   |
 | created_at       | timestamptz |                                                                    |
 
 ### cart_items
 
-| column     | type           |
-| ---------- | -------------- |
-| user_id    | uuid (PK part) |
-| product_id | int (PK part)  |
-| quantity   | int            |
+| column     | type        | notes                                |
+| ---------- | ----------- | ------------------------------------ |
+| id         | int         | PK                                   |
+| user_id    | uuid        | FK → auth.users, `on delete cascade` |
+| product_id | int         | FK → products, `on delete cascade`   |
+| quantity   | int         | default 1                            |
+| created_at | timestamptz |                                      |
+
+`unique (user_id, product_id)` — that pair, not `id`, is what the upsert in `cart.service.ts` conflicts on.
 
 ### favorites
 
-| column     | type           |
-| ---------- | -------------- |
-| user_id    | uuid (PK part) |
-| product_id | int (PK part)  |
-| created_at | timestamptz    |
+| column     | type        | notes                                |
+| ---------- | ----------- | ------------------------------------ |
+| id         | int         | PK                                   |
+| user_id    | uuid        | FK → auth.users, `on delete cascade` |
+| product_id | int         | FK → products, `on delete cascade`   |
+| created_at | timestamptz |                                      |
+
+`unique (user_id, product_id)`, same as `cart_items`.
+
+### rate_limits
+
+| column       | type        | notes               |
+| ------------ | ----------- | ------------------- |
+| bucket       | text        | PK part             |
+| key          | text        | PK part — client IP |
+| window_start | timestamptz |                     |
+| hits         | int         |                     |
+
+Fixed-window counters for public server actions. RLS on with no policy and no grants: only the
+service role touches it, through the `rate_limit_hit(bucket, key, limit, window)` function
+(`lib/rate-limit.ts`).
 
 **Storage buckets:** `product-images` (product photos), `banners` (banner images), `categories` (category images)
 
@@ -207,18 +240,26 @@ function withBrandName(rows: ProductRow[]): Product[]; // maps brands.name → b
 
 ## Lib Utilities (`/lib/`)
 
-| file                  | purpose                                                                                                                                                                                        |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `supabase-server.ts`  | `createClient()` — SSR Supabase with cookies                                                                                                                                                   |
-| `supabase-browser.ts` | `createClient()` — client-side Supabase                                                                                                                                                        |
-| `supabase.ts`         | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                   |
-| `cn.ts`               | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                       |
-| `cached-queries.ts`   | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                     |
-| `auth.ts`             | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                 |
-| `constants.ts`        | `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color)                                                                                                                  |
-| `page-params.ts`      | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                             |
-| `section-scroll.ts`   | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                            |
-| `active-section.ts`   | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill |
+| file                      | purpose                                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                   |
+| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                        |
+| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                   |
+| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                       |
+| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                     |
+| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                 |
+| `constants.ts`            | `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color)                                                                                                                  |
+| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                             |
+| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                            |
+| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill |
+| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                          |
+| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                              |
+| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                    |
+| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email                             |
+| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                               |
+| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                 |
+| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                      |
+| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                     |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -271,7 +312,26 @@ function withBrandName(rows: ProductRow[]): Product[]; // maps brands.name → b
 NEXT_PUBLIC_SUPABASE_URL        # https://dnlburbuchxzxdmhuczu.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # public/client-safe
 SUPABASE_SERVICE_ROLE_KEY       # server-only, used in admin actions + guest checkout to bypass RLS
+
+SMTP_HOST                       # mail.aloe.kg — order notifications to the admin
+SMTP_PORT
+SMTP_USER
+SMTP_PASS
+ADMIN_NOTIFICATION_EMAIL        # recipient; unset → notifications are skipped, not failed
+SMTP_TLS_SERVERNAME             # optional, defaults to mail.hoster.kg (certificate name, see lib/mailer.ts)
+
+DEPLOY_ORIGIN                   # optional; the origin THIS deployment serves on when it is not
+                                # SITE_URL (aloe.kg) — currently https://new.aloe.kg. Unset means
+                                # "this is the canonical domain". See MIGRATION.md.
 ```
+
+**`SITE_URL` vs `DEPLOY_ORIGIN`:** `SITE_URL` (`lib/constants.ts`, hardcoded `https://aloe.kg`) is
+the canonical domain — canonical tags, `metadataBase`, JSON-LD, the sitemap and the legacy-URL 301s
+all use it, and they are written for the state _after_ the cutover. `DEPLOY_ORIGIN`
+(`lib/deploy-origin.ts`) is where this build actually answers. While the two differ, `app/robots.ts`
+returns `Disallow: /` and the root layout adds `noindex`, so the pre-cutover host on `new.aloe.kg`
+cannot be indexed as a duplicate of the future `aloe.kg`. An unset/malformed `DEPLOY_ORIGIN` falls
+back to `SITE_URL` on purpose: a missing variable must not noindex the live shop.
 
 ## Key Patterns
 
@@ -325,6 +385,14 @@ npm run format:check
 npm run typecheck   # tsc --noEmit
 npm run test        # vitest run
 npm run db:types    # regenerate types/database.ts from the linked Supabase project
+```
+
+### Schema changes
+
+```bash
+npx supabase migration list   # compare local history with the linked project
+npx supabase db push          # apply supabase/migrations/
+npm run db:types              # then regenerate the types and typecheck
 ```
 
 ### Old-site sync (`scripts/joomla/`)
