@@ -5,7 +5,7 @@ import { Minus, Plus, Search, Trash2, X } from "lucide-react";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
-import { useProductAutocomplete } from "@/hooks/useProductAutocomplete";
+import { MIN_QUERY, useProductAutocomplete } from "@/hooks/useProductAutocomplete";
 import { updateOrderItems, type OrderItemInput } from "./actions";
 
 type Props = {
@@ -32,7 +32,7 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
   const close = useCallback(() => setDismissedFor(query), [query]);
   useOutsideClick(boxRef, close);
 
-  const open = query.length >= 2 && dismissedFor !== query;
+  const open = query.length >= MIN_QUERY && dismissedFor !== query;
 
   function addProduct(product: OrderItemInput) {
     setItems((prev) => {

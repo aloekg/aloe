@@ -9,6 +9,7 @@ import {
   Skeleton,
   Title,
 } from "@/components";
+import HeaderSearchInput from "@/components/header/HeaderSearchInput";
 import {
   getCachedActiveBanners,
   getCachedCategoriesWithSlug,
@@ -90,6 +91,13 @@ export default async function HomePage() {
       <MainContainer className="flex flex-col gap-4 md:gap-8">
         {/* The carousels below are h2s; without this the site's most important page had no h1. */}
         <Title className="sr-only">Бытовая химия и косметика с доставкой по Бишкеку</Title>
+        {/*
+          The mobile header above carries only the logo, and every other mobile route has its own
+          MobileHeader field — this was the one place a phone could not search from. The field is
+          transparent and borderless below md (see SearchInput), so the tinted pill is what makes
+          it read as a field on the page's white background.
+        */}
+        <HeaderSearchInput className="rounded-xl bg-green-50 md:hidden" />
         <div className="block md:hidden">
           <BannerCarousel banners={mobileBanners} />
         </div>

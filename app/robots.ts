@@ -15,8 +15,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      // /search and /catalog?q= are already noindex via generateMetadata, but crawlers still
-      // burn budget on the unbounded ?q= / ?brand= / ?page= permutations behind them.
+      // /search is already noindex via generateMetadata (and /catalog?q= now redirects to it), but
+      // crawlers still burn budget on the unbounded ?q= / ?brand= / ?page= permutations behind it.
       disallow: ["/admin", "/cart", "/checkout", "/profile", "/favorites", "/auth", "/search", "/*?q=", "/*?brand="],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,

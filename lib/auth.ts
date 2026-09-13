@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
+import { adminRole } from "@/lib/roles";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 
@@ -28,6 +29,17 @@ export async function requireAuth() {
  */
 export async function requireAdmin() {
   const { user } = await getUser();
-  if (!user || user.app_metadata?.role !== "admin") notFound();
-  return { user, db: createAdminClient() };
+  const role = adminRole(user);
+  if (!user || !role) notFound();
+  return { user, role, db: createAdminClient() };
+}
+
+/**
+ * For the one page that decides who else gets in. `notFound()` again rather than a "forbidden"
+ * screen: an ordinary admin has no business knowing the route is there.
+ */
+export async function requireSuperAdmin() {
+  const { user, role, db } = await requireAdmin();
+  if (role !== "superadmin") notFound();
+  return { user, db };
 }

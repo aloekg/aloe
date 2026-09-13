@@ -12,11 +12,15 @@ const TABS = [
   { label: "Баннеры", href: "/admin/banners" },
 ];
 
-export default function AdminNav() {
+/** Only the super-admin hands out access, and /admin/users 404s for everyone else. */
+const SUPERADMIN_TABS = [{ label: "Пользователи", href: "/admin/users" }];
+
+export default function AdminNav({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const pathname = usePathname();
+  const tabs = isSuperAdmin ? [...TABS, ...SUPERADMIN_TABS] : TABS;
   return (
     <div className="flex gap-1 mb-4 md:mb-6 md:border-b border-gray-200 overflow-x-auto overflow-y-hidden md:overflow-visible">
-      {TABS.map((t) => (
+      {tabs.map((t) => (
         <Link
           key={t.href}
           href={t.href}

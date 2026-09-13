@@ -7,14 +7,14 @@ export const metadata = { title: "Админ", robots: { index: false, follow: f
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Pages re-gate independently — a layout does not guard the pages nested under it in RSC,
   // they render in parallel. The lookup is request-cached, so this costs no extra round trip.
-  await requireAdmin();
+  const { role } = await requireAdmin();
 
   return (
     <>
       <MobileHeader title="Админ" withGoToMainButton />
       <MainContainer>
         <Title className="hidden md:block mb-4 md:mb-6">Админ</Title>
-        <AdminNav />
+        <AdminNav isSuperAdmin={role === "superadmin"} />
         {children}
       </MainContainer>
     </>

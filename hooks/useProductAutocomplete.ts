@@ -8,8 +8,10 @@ type Suggestion = Awaited<ReturnType<typeof searchProductsAutocomplete>>[number]
 
 // pg_trgm needs three characters to extract a trigram, so a two-character ILIKE cannot use
 // products_name_trgm_idx and degrades to a sequential scan over the whole catalogue — issued from
-// the browser, unauthenticated, once per debounce window.
-const MIN_QUERY = 3;
+// the browser, unauthenticated, once per debounce window. Exported so callers open their dropdown
+// on exactly the queries this hook will actually search for — a shorter threshold on their side
+// renders an empty, never-fetched result list as "nothing found".
+export const MIN_QUERY = 3;
 const DEBOUNCE_MS = 300;
 
 /**

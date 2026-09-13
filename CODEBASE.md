@@ -18,7 +18,7 @@
 ├── components/             # ~40 shared components + components/header/ (barrel: components/index.ts)
 ├── hooks/                  # Custom React hooks
 ├── lib/                    # Supabase clients, caching, utilities
-├── services/               # Data access layer (8 domain modules)
+├── services/               # Data access layer (9 domain modules)
 ├── store/                  # Zustand stores (cart, favorites, toast, mobile-menu)
 ├── types/                  # TypeScript type definitions (index.ts) + generated database.ts
 ├── tests/                  # Vitest unit tests (pure helpers only — no DB, no DOM)
@@ -60,6 +60,7 @@
 /admin/categories           # Category management (drag-to-reorder)
 /admin/brands               # Brand management
 /admin/banners              # Banner carousel management (desktop/mobile tabs)
+/admin/users                # Accounts list; grant/revoke the admin role (role: superadmin only)
 
 /catalog/product/view/[...path]  # route.ts — 301s old JoomShopping product URLs to /product/[id]
 ```
@@ -279,6 +280,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                   |
 | `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list         |
 | `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                            |
+| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only     |
 
 ## Lib Utilities (`/lib/`)
 
@@ -299,6 +301,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                    |
 | `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email                                                             |
 | `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                               |
+| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                         |
 | `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                 |
 | `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                      |
 | `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`)                |
@@ -337,12 +340,12 @@ cache.
 
 ## Server Actions
 
-| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart, increments `purchase_count` and emails the admin with a PDF invoice                                                                                                                                                                                        |
-| `app/profile/actions.ts`        | `saveProfile()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `downloadInvoice()`, `resendOrderNotification()` — all gated by `assertAdmin()` and run through a service-role client |
+| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart, increments `purchase_count` and emails the admin with a PDF invoice                                                                                                                                                                                                         |
+| `app/profile/actions.ts`        | `saveProfile()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client |
 
 ## Auth
 
@@ -350,10 +353,21 @@ cache.
 - **Methods:** Email/password + Google OAuth
 - **Email flow:** sign up → email OTP → `/auth/confirm` route → redirect
 - **OAuth flow:** Google PKCE → `/auth/confirm` code exchange
-- **Admin check:** `user.app_metadata?.role === "admin"`
-- **Server auth:** `createClient()` from `supabase-server.ts` (reads cookies); admin server actions additionally re-check via `assertAdmin()` before using the service-role client
+- **Roles:** `app_metadata.role` is `"admin"`, `"superadmin"` or absent — `lib/roles.ts` (`adminRole()`, `isSuperAdmin()`) is the only place that reads it. Both open the admin area; `superadmin` additionally sees `/admin/users` and is the only role that can hand out access. Only the service role can write the key, so nothing a user controls grants either.
+- **The super-admin is set by hand in Supabase, never by the app.** `setUserRole()` only ever writes `"admin"` (or deletes the key) and refuses any account that already holds `"superadmin"` — that is what makes the owner's account impossible to demote from the UI. To appoint or move it, in the Supabase SQL editor:
+
+  ```sql
+  update auth.users
+     set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"superadmin"}'::jsonb
+   where email = 'owner@example.com';
+  ```
+
+  With no super-admin at all, `/admin/users` 404s for everyone and roles can only be changed with that statement; the rest of the admin keeps working for existing admins.
+
+- **Freshness:** both guards read the role through `auth.getUser()`, which asks the Auth server rather than trusting the access token's claims, so a grant — and more importantly a revocation — applies on the next request rather than at the next token refresh.
+- **Server auth:** `createClient()` from `supabase-server.ts` (reads cookies); admin server actions additionally re-check via `assertAdmin()` before using the service-role client, and `setUserRole()` re-reads its _target's_ role there too, so a stale page cannot demote anyone it shouldn't
 - **Client sync:** `AuthSync` component listens to `onAuthStateChange` and calls `setUser()` on both the cart and favorites stores
-- **Protected routes:** `/admin/*` (401 redirect if not admin), `/profile` (redirect to `/auth`)
+- **Protected routes:** `/admin/*` (401 redirect if not admin), `/admin/users` (`requireSuperAdmin()` — `notFound()` for an ordinary admin, and `AdminNav` hides the tab), `/profile` (redirect to `/auth`)
 
 ## Environment Variables
 

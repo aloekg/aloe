@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { DELIVERY_OPTIONS, getDeliveryCost, ORDER_STATUS } from "@/lib/constants";
 import { generateInvoicePdf, type InvoiceItem } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
+import { adminRole } from "@/lib/roles";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { getAdminBrands } from "@/services/brand.service";
@@ -15,7 +16,9 @@ async function assertAdmin() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || user.app_metadata?.role !== "admin") throw new Error("Unauthorized");
+  const role = adminRole(user);
+  if (!user || !role) throw new Error("Unauthorized");
+  return { user, role };
 }
 
 const adminDb = createAdminClient;
@@ -595,4 +598,45 @@ export async function uploadProductImage(
     url: db.storage.from("product-images").getPublicUrl(`${base}.webp`).data.publicUrl,
     thumbnailUrl: db.storage.from("product-images").getPublicUrl(`thumb/${base}.webp`).data.publicUrl,
   };
+}
+
+/**
+ * Roles live in `app_metadata`, which only the service role can write — nothing a user can reach
+ * grants one. Both guards read the role through `auth.getUser()`, which asks the Auth server
+ * instead of trusting the claims baked into the access token, so a grant and — more importantly —
+ * a revocation take effect on the very next request rather than whenever that token refreshes.
+ *
+ * Two rules make the hierarchy hold, and both are enforced here rather than in the UI, since the
+ * browser supplies the id:
+ *   - only a super-admin hands out access, so an ordinary admin cannot widen the circle;
+ *   - a super-admin's own role is never written from the app, in either direction. That is what
+ *     makes it un-revokable: the account that owns the shop cannot be demoted by anyone who got
+ *     in through this page, and the only way to change it is in Supabase directly.
+ */
+export async function setUserRole(
+  userId: string,
+  makeAdmin: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { role } = await assertAdmin();
+  if (role !== "superadmin") return { ok: false, error: "Права администратора выдаёт только супер-админ" };
+
+  const db = adminDb();
+
+  // The target's role is re-read here, not taken from whatever the page was rendered with: a
+  // stale list (or a hand-made request) must not be able to demote the super-admin.
+  const { data: target, error: lookupError } = await db.auth.admin.getUserById(userId);
+  if (lookupError) return { ok: false, error: lookupError.message };
+  if (adminRole(target.user) === "superadmin") {
+    return { ok: false, error: "Роль супер-админа меняется только в Supabase" };
+  }
+
+  const { error } = await db.auth.admin.updateUserById(userId, {
+    // GoTrue merges `app_metadata` key by key and deletes the ones passed as null, so this leaves
+    // the rest of the metadata alone and removes `role` outright rather than storing a null one.
+    app_metadata: { role: makeAdmin ? "admin" : null },
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/users");
+  return { ok: true };
 }
