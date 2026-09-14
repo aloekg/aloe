@@ -1,5 +1,17 @@
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
+#
+# ---------------------------------------------------------------------------------------------
+# THE DASHBOARD IS THE SOURCE OF TRUTH, NOT THIS FILE. Most of what follows is the CLI's default
+# template and was never applied to the project, so the two have drifted: as of 2026-09-14
+# `supabase config diff` reports 19 differences, and eight settings that exist only on the remote
+# — the SMTP sender for auth mail and the Google OAuth client among them — are not declared here
+# at all. Pushing this file as it stands would silently switch those off.
+#
+# So: never run `supabase config push` without running `supabase config diff` first and reading
+# every line of it. To adopt the project's real settings instead, `supabase config pull` — but
+# note it rewrites this file and drops the comments below, which is where the reasoning lives.
+# ---------------------------------------------------------------------------------------------
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
 project_id = "aloe"
@@ -156,7 +168,11 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "env(SUPABASE_AUTH_SITE_URL)"
+# Hardcoded rather than read from SUPABASE_AUTH_SITE_URL: that variable was never defined
+# anywhere — not in .env.local, not in Vercel — so the value resolved to an empty string, and a
+# push would have left GoTrue with no fallback at all for redirects and for the links in
+# confirmation email.
+site_url = "https://aloe.kg"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # URLs auth providers may redirect to post-authentication. Entries are glob patterns, and an exact
