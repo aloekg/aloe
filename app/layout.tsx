@@ -18,11 +18,11 @@ const SITE_DESCRIPTION = "Интернет-магазин бытовой хим�
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  // Everything below addresses the canonical domain even while this build is served from
-  // new.aloe.kg — that is the point, the URLs have to be right on the day aloe.kg switches over.
-  // The cost is that a non-canonical host serves pages advertising someone else's URLs, so it gets
-  // an explicit noindex as well as the `disallow: /` in app/robots.ts. Two signals rather than
-  // one: robots.txt alone still allows a URL-only index entry for a link discovered elsewhere.
+  // Everything below addresses the canonical domain even when this build is served elsewhere (a
+  // preview deployment) — the URLs have to be the real ones wherever the page is rendered. The
+  // cost is that a non-canonical host serves pages advertising someone else's URLs, so it gets an
+  // explicit noindex as well as the `disallow: /` in app/robots.ts. Two signals rather than one:
+  // robots.txt alone still allows a URL-only index entry for a link discovered elsewhere.
   ...(IS_CANONICAL_HOST ? {} : { robots: { index: false, follow: false } }),
   title: { default: "Aloe.kg — бытовая химия и косметика в Бишкеке", template: "%s — Aloe.kg" },
   description: SITE_DESCRIPTION,

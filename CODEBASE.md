@@ -27,7 +27,7 @@
 ├── scripts/                # Old-site sync + image maintenance (see below)
 ├── proxy.ts                # Middleware — Supabase auth cookie management
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
-├── MIGRATION.md            # Domain cutover checklist (new.aloe.kg → aloe.kg)
+├── MIGRATION.md            # Domain cutover: what shipped, what is still open
 └── .env.local              # Supabase keys, SMTP, DEPLOY_ORIGIN (see below)
 ```
 
@@ -299,7 +299,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                                                          |
 | `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                              |
 | `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                    |
-| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email                                                             |
+| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                      |
 | `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                               |
 | `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                         |
 | `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                 |
@@ -384,17 +384,29 @@ ADMIN_NOTIFICATION_EMAIL        # recipient; unset → notifications are skipped
 SMTP_TLS_SERVERNAME             # optional, defaults to mail.hoster.kg (certificate name, see lib/mailer.ts)
 
 DEPLOY_ORIGIN                   # optional; the origin THIS deployment serves on when it is not
-                                # SITE_URL (aloe.kg) — currently https://new.aloe.kg. Unset means
-                                # "this is the canonical domain". See MIGRATION.md.
+                                # SITE_URL (aloe.kg). Unset means "this is the canonical domain",
+                                # which is what production wants now that aloe.kg points here —
+                                # a leftover value noindexes the live shop. See MIGRATION.md.
 ```
 
 **`SITE_URL` vs `DEPLOY_ORIGIN`:** `SITE_URL` (`lib/constants.ts`, hardcoded `https://aloe.kg`) is
 the canonical domain — canonical tags, `metadataBase`, JSON-LD, the sitemap and the legacy-URL 301s
-all use it, and they are written for the state _after_ the cutover. `DEPLOY_ORIGIN`
-(`lib/deploy-origin.ts`) is where this build actually answers. While the two differ, `app/robots.ts`
-returns `Disallow: /` and the root layout adds `noindex`, so the pre-cutover host on `new.aloe.kg`
-cannot be indexed as a duplicate of the future `aloe.kg`. An unset/malformed `DEPLOY_ORIGIN` falls
-back to `SITE_URL` on purpose: a missing variable must not noindex the live shop.
+all use it. `DEPLOY_ORIGIN` (`lib/deploy-origin.ts`) is where this build actually answers, and
+exists because the two were different during the cutover: the shop ran on `new.aloe.kg` while
+`aloe.kg` still served the old JoomShopping store. Anything addressing _this_ deployment rather
+than the canonical domain reads it — the admin link in the order notification email
+(`lib/mailer.ts`), and the decision whether this host may be indexed at all.
+
+The cutover is done: `aloe.kg` now serves this deployment, so **production leaves `DEPLOY_ORIGIN`
+unset** and only preview deployments set it. Whenever the two differ, `app/robots.ts` returns
+`Disallow: /` and the root layout adds `noindex` — two signals, because robots.txt alone still
+allows a URL-only index entry. That guard has teeth in both directions: a stale `DEPLOY_ORIGIN` on
+production silently hides the live shop from search (see MIGRATION.md). An unset or malformed value
+falls back to `SITE_URL` on purpose — a missing variable must not noindex the live shop.
+
+The old store stays reachable at `LEGACY_SITE_URL` (`https://old.aloe.kg`), linked from the footer
+with `rel="nofollow"`; old JoomShopping product URLs on the main domain are 301d to `/product/[id]`
+by `app/catalog/product/view/[...path]/route.ts`.
 
 ## Key Patterns
 

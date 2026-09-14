@@ -1,82 +1,59 @@
-# Переезд на aloe.kg
+# Переезд на aloe.kg — выполнен
 
-Сейчас новый магазин живёт на **new.aloe.kg**, а **aloe.kg** — это старый Joomla + JoomShopping.
-После тестирования домены меняются местами: `aloe.kg` → этот деплой, старый магазин → `old.aloe.kg`.
+`aloe.kg` отдаёт этот деплой (Vercel), старый Joomla + JoomShopping живёт на `old.aloe.kg`.
+Проверено 14 сентября 2026. Осталось три хвоста — ниже, первый из них срочный.
 
-Код уже написан под финальное состояние: `SITE_URL = "https://aloe.kg"`
-([lib/constants.ts](lib/constants.ts)) — на него указывают canonical, `metadataBase`, JSON-LD,
-sitemap и 301-редиректы старых ссылок. Всё, что должно обращаться именно к текущему хосту, читает
-`DEPLOY_ORIGIN` ([lib/deploy-origin.ts](lib/deploy-origin.ts)), поэтому переезд не требует правок в
-коде — только переменные окружения и настройки в дашбордах.
+## Проверено и работает
 
-## Сейчас, до переезда
+- `aloe.kg` → Vercel (A `216.198.79.1`), отдаёт Next-сборку.
+- 301 старых ссылок: `https://aloe.kg/catalog/product/view/21/6865.html` → `https://aloe.kg/product/9993`
+  ([app/catalog/product/view/[...path]/route.ts](app/catalog/product/view/%5B...path%5D/route.ts)).
+- `https://aloe.kg/sitemap.xml` открывается и содержит `aloe.kg`-адреса.
+- **Почта не уехала вместе с апексом:** MX `aloe.kg` → `mail.aloe.kg` → `176.126.165.130` (hoster.kg),
+  то есть уведомления о заказах ходят по-прежнему.
+- `old.aloe.kg` поднят и открывается — на него ссылается футер (`LEGACY_SITE_URL`).
 
-- [ ] **Vercel → Environment Variables (Production):** `DEPLOY_ORIGIN=https://new.aloe.kg`,
-      затем redeploy. Это включает `disallow: /` в `robots.txt` и `noindex` в `<head>`, чтобы
-      тестовый домен не попал в индекс и не стал дублем будущего aloe.kg. Пока переменная не
-      выставлена, `new.aloe.kg` индексируется — это осознанный fail-safe (отсутствие переменной не
-      должно однажды выключить из индекса живой магазин).
-- [ ] Проверить: `curl https://new.aloe.kg/robots.txt` → `Disallow: /`.
-- [ ] Если `new.aloe.kg` уже в индексе — посмотреть в Search Console и после переезда закрыть
-      301-редиректом на `aloe.kg`.
+## Осталось
 
-## День переезда
+### 1. Снять `noindex` с продакшена — сейчас магазин закрыт от поисковиков
 
-### DNS и домены
+`https://aloe.kg/robots.txt` отдаёт `Disallow: /`, и в `<head>` каждой страницы стоит
+`<meta name="robots" content="noindex, nofollow">`. Это значит, что в Vercel → Production всё ещё
+выставлен `DEPLOY_ORIGIN=https://new.aloe.kg`: пока он не равен `SITE_URL`, деплой считает себя
+неканоническим хостом ([lib/deploy-origin.ts](lib/deploy-origin.ts), [app/robots.ts](app/robots.ts),
+[app/layout.tsx](app/layout.tsx)).
 
-- [ ] `aloe.kg` (+ `www`) → Vercel, домен добавлен в проект и подтверждён.
-- [ ] Старый магазин поднят на `old.aloe.kg` и открывается — на него ссылается футер
-      (`LEGACY_SITE_URL`).
-- [ ] **Почта не должна уехать вместе с апексом.** `SMTP_HOST = mail.aloe.kg`, сертификат
-      `*.hoster.kg` (см. комментарий в [lib/mailer.ts](lib/mailer.ts)). Убедиться, что записи
-      `mail.aloe.kg` и MX остались на hoster.kg до смены A-записи апекса. Иначе уведомления о
-      заказах отвалятся — и отвалятся тихо: отправка логируется, но заказ всё равно создаётся,
-      а в админке он будет помечен «отправка не подтверждена» (`orders.notified_at`).
-- [ ] `new.aloe.kg` → 301 на `aloe.kg` (оставить домен в проекте как редирект, не удалять).
+- [ ] Vercel → Settings → Environment Variables → удалить `DEPLOY_ORIGIN` из Production
+      (или выставить `https://aloe.kg`).
+- [ ] **Redeploy обязателен** — `robots.ts`, `sitemap.ts` и metadata статические, без пересборки
+      останутся закэшированные значения.
+- [ ] Проверить: `curl https://aloe.kg/robots.txt` → обычные правила и
+      `Sitemap: https://aloe.kg/sitemap.xml`; в HTML главной нет `noindex`.
 
-### Переменные окружения (Vercel, Production)
+### 2. Закрыть `old.aloe.kg` от индексации
 
-- [ ] Убрать `DEPLOY_ORIGIN` (или выставить `https://aloe.kg`) → возвращается обычный `robots.txt`,
-      снимается `noindex`, ссылка в письме админу указывает на `https://aloe.kg/admin/orders`.
-- [ ] Redeploy — `robots.ts`, `sitemap.ts` и metadata статические, старые значения останутся в
-      кэше сборки.
+Сейчас там стоковый Joomla-`robots.txt` (закрыты только служебные папки), то есть весь каталог
+открыт для краулеров. Это полный дубль контента `aloe.kg` на своём домене — две площадки будут
+конкурировать в выдаче за одни и те же товары.
 
-### Supabase Auth
+- [ ] `Disallow: /` или `noindex` на старом сайте.
 
-Файл [supabase/config.toml](supabase/config.toml) — это конфиг CLI; **пока он не запушен, источник
-истины — дашборд**. Значения нужно проставить в Dashboard → Authentication → URL Configuration:
+### 3. `new.aloe.kg` отдаёт 404
 
-- [ ] `Site URL` = `https://aloe.kg` (локально это `SUPABASE_AUTH_SITE_URL`).
-- [ ] `Redirect URLs`: убрать `https://new.aloe.kg/**`, оставить `https://aloe.kg/**` и локальные.
-      Важно: паттерн обязательно с `/**` — Google-флоу присылает `/auth/confirm?next=/`, а точное
-      совпадение без wildcard не матчит query-строку, и GoTrue молча падает на `Site URL`.
-- [ ] Google OAuth (Google Cloud Console): в Authorized redirect URIs остаётся callback Supabase
-      (`https://dnlburbuchxzxdmhuczu.supabase.co/auth/v1/callback`) — он не меняется; проверить,
-      что в Authorized JavaScript origins есть `https://aloe.kg`.
-- [ ] Синхронизировать `supabase/config.toml` с тем, что выставлено в дашборде.
+DNS всё ещё смотрит на Vercel, но домен из проекта убран — вместо 301 на `aloe.kg` посетитель
+получает 404. Если поддомен успел попасть в индекс или на него есть внешние ссылки:
 
-### Проверки после переключения
+- [ ] Вернуть `new.aloe.kg` в проект как редирект на `aloe.kg` (не как отдельный деплой).
 
-- [ ] Вход по email и через Google на `aloe.kg` — редиректит на `aloe.kg`, не на vercel.app и не
-      на `new.aloe.kg` (логика хоста — `resolveOrigin` в [lib/safe-redirect.ts](lib/safe-redirect.ts),
-      правок не требует: разрешены сам `aloe.kg` и его поддомены).
-- [ ] Тестовый заказ → письмо админу пришло, ссылка «Открыть заказы» ведёт на `aloe.kg/admin/orders`,
-      в админке заказ не помечен «отправка не подтверждена».
-- [ ] Старая ссылка вида `https://aloe.kg/catalog/product/view/21/6865.html` → 301 на
-      `/product/<id>` (роут [app/catalog/product/view/[...path]/route.ts](app/catalog/product/view/%5B...path%5D/route.ts);
-      до переезда его нельзя было проверить живьём).
-- [ ] `https://aloe.kg/robots.txt` — обычные правила, `Sitemap: https://aloe.kg/sitemap.xml`.
-- [ ] `https://aloe.kg/sitemap.xml` открывается и содержит `aloe.kg`-адреса.
+## Мелочи, когда дойдут руки
 
-### SEO
+- [ ] Supabase Dashboard → Authentication → URL Configuration: `Site URL = https://aloe.kg`,
+      из `Redirect URLs` убрать `https://new.aloe.kg/**`. В
+      [supabase/config.toml](supabase/config.toml) он уже убран, но источник истины — дашборд,
+      пока конфиг не запушен.
+- [ ] Search Console: после снятия `noindex` (п. 1) отправить sitemap для `aloe.kg`; добавить
+      `old.aloe.kg` и следить, что старые URL отдают 301, а не 404.
+- [ ] Прогреть ISR-кэш и OG-картинки заходом на основные страницы.
 
-- [ ] Search Console: добавить `aloe.kg` (если ещё нет) и `old.aloe.kg`, отправить sitemap.
-- [ ] **`old.aloe.kg` закрыть от индексации** — `noindex` или `Disallow: /` на старом сайте. Это
-      тот же каталог на своём домене, то есть полный дубль контента: две площадки будут
-      конкурировать в выдаче за одни и те же товары.
-- [ ] Проверить в Search Console, что старые URL-ы `aloe.kg` отдают 301, а не 404.
-
-## После переезда
-
-- [ ] Убрать из этого файла выполненное или удалить файл целиком.
-- [ ] Sitemap и OG-картинки прогреть заходом на страницы (ISR-кэш пустой после смены домена).
+Когда закрыты пункты 1–3, этот файл можно удалить — ссылка на него есть в
+[README.md](README.md).

@@ -3,19 +3,21 @@ import { SITE_URL } from "@/lib/constants";
 /**
  * The origin this deployment actually answers on, which is not always `SITE_URL`.
  *
- * During the cutover the new shop is served from `new.aloe.kg` while `SITE_URL` (aloe.kg) still
- * resolves to the old JoomShopping store, and canonical URLs, the sitemap and JSON-LD deliberately
- * point at the final domain. Anything that must address *this* deployment — a link in an admin
- * notification email, the decision whether this host may be indexed — needs the real origin
- * instead, so it is configured rather than hardcoded:
+ * Canonical URLs, the sitemap and JSON-LD all address `SITE_URL`. Anything that must address
+ * *this* deployment instead — a link in an admin notification email, the decision whether this
+ * host may be indexed — needs the real origin, so it is configured rather than hardcoded:
  *
- *   DEPLOY_ORIGIN=https://new.aloe.kg    # set in Vercel until aloe.kg points here
+ *   DEPLOY_ORIGIN=https://preview.example    # only where this build is NOT on aloe.kg
  *
- * Unset (and after the cutover, when the two are the same) it falls back to `SITE_URL`. That
- * direction of failure is the safe one: a missing variable then leaves the production shop
- * indexable, whereas defaulting to "not canonical" would quietly noindex the real site.
+ * It exists because the two were different during the cutover: the shop ran on `new.aloe.kg`
+ * while aloe.kg still resolved to the old JoomShopping store. That is over — aloe.kg serves this
+ * deployment — so **production must leave the variable unset**, and a leftover value there
+ * noindexes the live shop (MIGRATION.md records exactly that happening). What remains is preview
+ * deployments, which should not be indexed either.
  *
- * See MIGRATION.md for the cutover checklist.
+ * Unset or malformed, it falls back to `SITE_URL`. That direction of failure is the safe one: a
+ * missing variable leaves the production shop indexable, whereas defaulting to "not canonical"
+ * would quietly noindex the real site.
  */
 export function resolveDeployOrigin(raw: string | null | undefined, siteUrl: string = SITE_URL): string {
   const value = raw?.trim();

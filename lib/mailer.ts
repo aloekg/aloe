@@ -18,9 +18,9 @@ import type { OrderItem } from "@/types";
 const SMTP_CERT_NAME = process.env.SMTP_TLS_SERVERNAME || "mail.hoster.kg";
 
 /**
- * Addresses *this* deployment, not the canonical domain: until aloe.kg points here, SITE_URL still
- * resolves to the old shop, and a notification linking there would send the admin to a login page
- * for a different site. Configured via DEPLOY_ORIGIN — see lib/deploy-origin.ts and MIGRATION.md.
+ * Addresses *this* deployment, not the canonical domain, so the admin lands on the build that took
+ * the order rather than on whatever SITE_URL currently resolves to. On production the two are now
+ * the same; on a preview they are not. See lib/deploy-origin.ts and MIGRATION.md.
  */
 const ADMIN_ORDERS_URL = `${DEPLOY_ORIGIN}/admin/orders`;
 
