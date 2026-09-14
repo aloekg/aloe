@@ -1,3 +1,4 @@
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Lobster } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
@@ -117,6 +118,10 @@ export default async function RootLayout({ children, modal }: { children: React.
         <MobileBottomNav />
         <Toaster />
         {modal}
+        {/* Core Web Vitals from real visits, reported to Vercel. Measurement only — it records no
+            identity and sets no cookie, so it needs no consent banner, unlike page analytics.
+            Mounted last: it loads its script after hydration and must not delay anything above. */}
+        <SpeedInsights />
       </body>
     </html>
   );
