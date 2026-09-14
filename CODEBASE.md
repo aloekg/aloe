@@ -306,6 +306,8 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                      |
 | `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`)                |
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                     |
+| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                            |
+| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                           |
 | `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest                          |
 
 ### Cached Queries (ISR tags & TTLs)
@@ -453,6 +455,34 @@ tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop,
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
 other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
 
+**Legacy URLs from the old shop** are redirected in two places, split by whether the mapping can be
+computed or has to be looked up. The old sitemap (still submitted to Search Console from 2017)
+listed 2879 addresses, and until this was in place every one of them answered 404 on the new site:
+
+| shape                                                                                 | count | handled by                                |
+| ------------------------------------------------------------------------------------- | ----- | ----------------------------------------- |
+| `/catalog/<slug>/product/view/<cat>/<id>.html`                                        | 2415  | route handler → `redirectLegacyProduct()` |
+| `/brendy/manufacturer/view/<id>.html`                                                 | 384   | `proxy.ts` + `legacy-redirects.ts`        |
+| `/catalog/<slug>/category/view/<id>.html`                                             | 62    | same                                      |
+| `/catalog/<slug>.html`, `/catalog.html`, `/brendy.html`, `/oplata-i-dostavka.html`, … | 18    | same                                      |
+
+Products carry their old address in `products.product_url`, so they resolve per request against the
+database and stay correct as the catalogue changes — but only on the
+`/product/view/<cat>/<id>.html` **tail**: JoomShopping published each product both with and without
+a category segment, `product_url` recorded only the shorter form, and the longer one is what the
+sitemap submitted and Google indexed. Everything else has no such column, so
+`scripts/build-legacy-redirects.mjs` reads the old site once, matches its `<h1>` against `brands` /
+`categories`, and writes `lib/legacy-redirects.ts`; `proxy.ts` then answers from that map with no
+database round trip. Old JoomShopping ids never change, so the map is frozen history — regenerate it
+only if the old sitemap itself changes.
+
+`LEGACY_PERMANENT` is a 301 (an exact counterpart exists); `LEGACY_FALLBACK` is a 302 to the nearest
+listing, for the 193 brands this catalogue no longer carries and the three top-level categories the
+reorganisation dissolved ("Бытовая химия" split into Для стирки + Для уборки). The 302 matters: it
+keeps a URL from being permanently tied to a page it never had, so a brand that is stocked again can
+reclaim its own address. The same reasoning applies to an unpublished product in
+`redirectLegacyProduct()`.
+
 **Page metadata:** every indexable page builds its metadata with `pageMetadata()` (`lib/seo.ts`)
 rather than writing the fields out, because Next merges `openGraph` with the root layout's instead
 of deriving it from the page's own `title`/`description` — a page that omits the block silently
@@ -527,6 +557,7 @@ node scripts/prune-orphan-images.mjs                 # list bucket objects nothi
 node scripts/fix-orphan-categories.mjs               # products whose category_id was stripped (--execute assigns)
 node scripts/purge-test-data.mjs                     # pre-launch orders/accounts/counters (--execute deletes)
 node scripts/generate-app-icons.mjs                 # app/icon.svg → the manifest's PNG icons in public/
+node --env-file=.env.local scripts/build-legacy-redirects.mjs   # old site's URLs → lib/legacy-redirects.ts
 ```
 
 `normalize-product-images.mjs` is the one to run after a bulk import or whenever
