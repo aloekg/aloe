@@ -12,10 +12,6 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { insertOrder, markOrderNotified } from "@/services/order.service";
 
-// Re-exported for app/checkout/CheckoutForm.tsx, which reads a quote but has no business
-// importing the pricing module: the form only ever sees what an action returned.
-export type { Quote, RejectedLine };
-
 const LIMITS = { name: 120, phone: 32, address: 500, comment: 1000 } as const;
 
 type Failure = { ok: false; error: string };

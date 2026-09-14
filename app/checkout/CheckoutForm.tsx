@@ -8,8 +8,12 @@ import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import { useIsClient } from "@/hooks/useIsClient";
 import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+// Types come straight from the pricing module, not from ./actions: every export of a
+// "use server" file is registered as a server reference, and a re-exported type has nothing
+// behind it at runtime — which crashed the whole action module on evaluation.
+import type { Quote, RejectedLine } from "@/lib/order-pricing";
 import { useCart } from "@/store/cart";
-import { createOrder, quoteOrder, type Quote, type RejectedLine } from "./actions";
+import { createOrder, quoteOrder } from "./actions";
 
 type Props = {
   initial?: {
@@ -52,15 +56,23 @@ export default function CheckoutForm({ initial }: Props) {
 
     (async () => {
       setQuoting(true);
-      const result = await quoteOrder({ items: JSON.parse(linesKey), deliveryType });
-      if (cancelled) return;
-      if (result.ok) {
-        setQuote(result.quote);
-        setRejected(result.quote.rejected);
-      } else {
-        setError(result.error);
+      try {
+        const result = await quoteOrder({ items: JSON.parse(linesKey), deliveryType });
+        if (cancelled) return;
+        if (result.ok) {
+          setQuote(result.quote);
+          setRejected(result.quote.rejected);
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        // A thrown action (a deploy mid-session, a dropped connection) used to leave the promise
+        // rejected and `quoting` stuck true, so the submit button read "Считаем..." forever with
+        // nothing on screen explaining why.
+        if (cancelled) return;
+        setError("Не удалось рассчитать заказ. Обновите страницу и попробуйте ещё раз.");
       }
-      setQuoting(false);
+      if (!cancelled) setQuoting(false);
     })();
 
     return () => {
