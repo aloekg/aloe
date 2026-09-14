@@ -3,7 +3,7 @@ import { Geist, Lobster } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
 import { AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
 import { getCachedCategories } from "@/lib/cached-queries";
-import { BRAND_COLOR, SITE_URL } from "@/lib/constants";
+import { BRAND_COLOR, SITE_URL, WHATSAPP_LINK, WHATSAPP_NUMBER } from "@/lib/constants";
 import { IS_CANONICAL_HOST } from "@/lib/deploy-origin";
 import "./globals.css";
 
@@ -67,11 +67,26 @@ const websiteJsonLd = {
   },
 };
 
+// Only what the shop can actually back up: there is no storefront address or opening hours to
+// publish, so this stays an Organization rather than claiming LocalBusiness/Store — those are
+// judged on an address, and Google discounts the markup when it cannot be corroborated. Add
+// `address` + `openingHours` here and the type can be upgraded, which is what earns a map listing.
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "Aloe.kg",
   url: SITE_URL,
+  logo: `${SITE_URL}/icon-512.png`,
+  description: SITE_DESCRIPTION,
+  telephone: WHATSAPP_NUMBER,
+  areaServed: { "@type": "City", name: "Бишкек" },
+  contactPoint: {
+    "@type": "ContactPoint",
+    contactType: "customer service",
+    telephone: WHATSAPP_NUMBER,
+    availableLanguage: ["ru", "ky"],
+  },
+  sameAs: [WHATSAPP_LINK],
 };
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {

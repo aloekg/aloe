@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LabelProductsPage } from "@/components";
 import { parsePage } from "@/lib/page-params";
+import { pageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
   searchParams,
@@ -10,11 +11,11 @@ export async function generateMetadata({
   const page = parsePage((await searchParams).page);
   // Page 2+ served the identical title and description with no canonical — textbook
   // duplicate-content dilution on a page the sitemap submits at priority 0.8.
-  return {
+  return pageMetadata({
     title: page > 1 ? "Акции — страница " + page : "Акции",
     description: "Товары со скидкой в интернет-магазине Aloe.kg: бытовая химия и косметика по акционным ценам.",
-    alternates: { canonical: page > 1 ? "/sale?page=" + page : "/sale" },
-  };
+    path: page > 1 ? "/sale?page=" + page : "/sale",
+  });
 }
 
 export default async function SalePage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {

@@ -306,6 +306,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                      |
 | `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`)                |
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                     |
+| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest                          |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -451,6 +452,15 @@ Banners are re-encoded the same way: `uploadBannerImage(formData, type)` takes t
 tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop, ≤1000px q80 for mobile —
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
 other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
+
+**Page metadata:** every indexable page builds its metadata with `pageMetadata()` (`lib/seo.ts`)
+rather than writing the fields out, because Next merges `openGraph` with the root layout's instead
+of deriving it from the page's own `title`/`description` — a page that omits the block silently
+advertises the home page's name and URL in every WhatsApp/Telegram preview. Product pages are the
+exception that proves the rule: they pass `title: { absolute: ... }` to skip the root
+`"%s — Aloe.kg"` template, whose suffix would otherwise land on a title that already ends in
+`| Aloe.kg`. Paginated pages (`/new`, `/sale`, `/popular`) point the canonical at `?page=N` itself,
+not at page 1 — page 2 is not a duplicate of page 1, it is different products.
 
 **Primary color:** `#16a34a` (green-600) — `BRAND_COLOR` in `lib/constants.ts`, used by the manifest, the `viewport` export and `NextTopLoader`.
 

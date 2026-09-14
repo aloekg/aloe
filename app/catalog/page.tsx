@@ -7,6 +7,7 @@ import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
 import Title from "@/components/Title";
 import { getCachedCategories } from "@/lib/cached-queries";
+import { pageMetadata } from "@/lib/seo";
 
 const SPECIALS_BASE_URL = "https://dnlburbuchxzxdmhuczu.supabase.co/storage/v1/object/public/categories/specials";
 
@@ -17,11 +18,11 @@ const specials: Array<{ href: string; label: string; image_url?: string | null }
   { href: "/brands", label: "Бренды", image_url: `${SPECIALS_BASE_URL}/brands.webp` },
 ];
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Каталог",
   description: "Каталог бытовой химии и косметики: все категории товаров интернет-магазина Aloe.kg.",
-  alternates: { canonical: "/catalog" },
-};
+  path: "/catalog",
+});
 
 export default async function CatalogPage({
   searchParams,

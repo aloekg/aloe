@@ -35,11 +35,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const product = await getCachedProduct(Number(id));
   if (!product) return {};
+  // `absolute` skips the root layout's "%s — Aloe.kg" template, which used to append a second
+  // brand onto a title that already carries one: "… | Aloe.kg — Aloe.kg".
   const title = `${product.name} — купить в Бишкеке | Aloe.kg`;
   const description =
     product.seo_text || product.description || `${product.name} — цена ${product.price} с. Доставка по Бишкеку.`;
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `/product/${id}` },
     openGraph: {

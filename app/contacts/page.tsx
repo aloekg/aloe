@@ -1,13 +1,14 @@
 import { FaWhatsapp } from "react-icons/fa";
 import { MainContainer, MobileHeader, Title } from "@/components";
+import { WHATSAPP_LINK, WHATSAPP_NUMBER } from "@/lib/constants";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Контакты",
-};
-
-const WHATSAPP_NUMBER = "+996 556 400 656";
-// wa.me wants the number without spaces or a leading plus.
-const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, "")}`;
+  description:
+    "Связаться с Aloe.kg: WhatsApp для заказов, консультаций, поиска товара и оптовых заявок. Доставка по Бишкеку.",
+  path: "/contacts",
+});
 
 const topics = [
   "способах оплаты;",

@@ -7,6 +7,11 @@ export const SITE_URL = "https://aloe.kg";
  */
 export const LEGACY_SITE_URL = "https://old.aloe.kg";
 
+/** The shop's only contact channel — WhatsApp. Read by the contacts page and the Organization JSON-LD. */
+export const WHATSAPP_NUMBER = "+996 556 400 656";
+/** wa.me wants the number without spaces or a leading plus. */
+export const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, "")}`;
+
 /** The green everything brand-coloured keys off — matches Tailwind's green-600. */
 export const BRAND_COLOR = "#16a34a";
 

@@ -1,9 +1,13 @@
 import { CheckCircle2 } from "lucide-react";
 import { MainContainer, MobileHeader, Title } from "@/components";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Для юридических лиц",
-};
+  description:
+    "Работа с юридическими лицами: счета на оплату, электронные счета-фактуры, снабжение офисов и организаций. Aloe.kg, Бишкек.",
+  path: "/legal-entities",
+});
 
 const conditions = [
   "Выставляем счета на оплату.",

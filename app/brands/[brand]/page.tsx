@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumb, MainContainer, Title } from "@/components";
 import { getCachedBrandBySlug, getCachedProductsByBrand } from "@/lib/cached-queries";
+import { pageMetadata } from "@/lib/seo";
 import BrandProductsInfinite from "./BrandProductsInfinite";
 
 const PAGE_SIZE = 24;
@@ -10,13 +11,11 @@ export async function generateMetadata({ params }: { params: Promise<{ brand: st
   const { brand } = await params;
   const data = await getCachedBrandBySlug(brand);
   if (!data) return {};
-  const description = `Товары бренда ${data.name} в интернет-магазине Aloe.kg. Доставка по Бишкеку.`;
-  return {
+  return pageMetadata({
     title: `${data.name} — Бренды`,
-    description,
-    alternates: { canonical: `/brands/${brand}` },
-    openGraph: { title: data.name, description, url: `/brands/${brand}` },
-  };
+    description: `Товары бренда ${data.name} в интернет-магазине Aloe.kg. Доставка по Бишкеку.`,
+    path: `/brands/${brand}`,
+  });
 }
 
 export default async function BrandPage({ params }: { params: Promise<{ brand: string }> }) {

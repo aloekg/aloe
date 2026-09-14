@@ -1,8 +1,12 @@
 import { MainContainer, MobileHeader, Title } from "@/components";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "О нас",
-};
+  description:
+    "Aloe.kg — семейный магазин бытовой химии и косметики в Бишкеке с опытом более 15 лет. О нас и о том, как мы работаем.",
+  path: "/about",
+});
 
 const sections = [
   {

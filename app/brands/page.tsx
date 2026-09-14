@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { MainContainer, MobileHeader, Title } from "@/components";
 import { getCachedBrands } from "@/lib/cached-queries";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Бренды",
   description: "Все бренды бытовой химии и косметики, представленные в интернет-магазине Aloe.kg.",
-};
+  path: "/brands",
+});
 
 export default async function BrandsPage() {
   const list = await getCachedBrands();
