@@ -6,17 +6,43 @@ import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
 import { MIN_QUERY, useProductAutocomplete } from "@/hooks/useProductAutocomplete";
-import { updateOrderItems, type OrderItemInput } from "./actions";
+import { MAX_ITEM_NAME, money, parsePriceInput, type OrderItemInput } from "@/lib/order-pricing";
+import type { OrderItem } from "@/types";
+import { updateOrderItems } from "./actions";
+
+/**
+ * The price is held as the raw string, not a number: "", "12." and "12,5" are all states a field
+ * passes through while being typed, and every one of them is NaN as a number — which is how a
+ * half-typed price used to blank the line's subtotal.
+ */
+type Draft = { id: number; name: string; price: string; quantity: number; image_url: string | null };
 
 type Props = {
   orderId: number;
-  items: OrderItemInput[];
+  items: OrderItem[];
   onCancel: () => void;
-  onSaved: (items: OrderItemInput[], total: number) => void;
+  onSaved: (items: OrderItem[], total: number, deliveryCost: number) => void;
 };
 
+const toDraft = (item: {
+  id: number;
+  name: string;
+  price: number | null;
+  image_url: string | null;
+  quantity: number;
+}): Draft => ({
+  id: item.id,
+  name: item.name,
+  price: String(item.price ?? ""),
+  quantity: item.quantity,
+  image_url: item.image_url,
+});
+
+const inputClass =
+  "border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+
 export default function OrderItemsEditor({ orderId, items: initial, onCancel, onSaved }: Props) {
-  const [items, setItems] = useState<OrderItemInput[]>(initial);
+  const [items, setItems] = useState<Draft[]>(() => initial.map(toDraft));
   const [query, setQuery] = useState("");
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -24,17 +50,14 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
   const boxRef = useRef<HTMLDivElement>(null);
 
   const { results: suggestions } = useProductAutocomplete(query);
-  const results: OrderItemInput[] = useMemo(
-    () => suggestions.map((p) => ({ id: p.id, name: p.name, price: p.price, quantity: 1, image_url: p.image_url })),
-    [suggestions],
-  );
+  const results = useMemo(() => suggestions.map((p) => toDraft({ ...p, quantity: 1 })), [suggestions]);
 
   const close = useCallback(() => setDismissedFor(query), [query]);
   useOutsideClick(boxRef, close);
 
   const open = query.length >= MIN_QUERY && dismissedFor !== query;
 
-  function addProduct(product: OrderItemInput) {
+  function addProduct(product: Draft) {
     setItems((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) return prev.map((i) => (i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i));
@@ -43,64 +66,119 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
     setQuery("");
   }
 
+  function setField(id: number, patch: Partial<Draft>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  }
+
   function setQuantity(id: number, quantity: number) {
     if (quantity < 1) return;
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity } : i)));
+    setField(id, { quantity });
   }
 
   function removeItem(id: number) {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  const itemsTotal = items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
+  // Only the lines that currently parse; a price mid-keystroke contributes nothing rather than NaN.
+  const itemsTotal = money(items.reduce((sum, i) => sum + (parsePriceInput(i.price) ?? 0) * i.quantity, 0));
 
   async function handleSave() {
     if (items.length === 0) {
       setError("В заказе должен остаться хотя бы один товар");
       return;
     }
+    const payload: OrderItemInput[] = [];
+    for (const item of items) {
+      const price = parsePriceInput(item.price);
+      if (price == null) {
+        setError(`Укажите цену числом для «${item.name.trim() || "без названия"}», например 1250`);
+        return;
+      }
+      payload.push({ id: item.id, name: item.name, price, quantity: item.quantity, image_url: item.image_url });
+    }
+
     setSaving(true);
     setError("");
-    const result = await updateOrderItems(orderId, items);
+    const result = await updateOrderItems(orderId, payload);
     setSaving(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    onSaved(items, result.total);
+    // The server's normalized items, not the draft: trimmed names and rounded prices.
+    onSaved(result.items, result.total, result.deliveryCost);
   }
 
   return (
     <div className="mt-3 border-t border-gray-300 pt-3 space-y-3">
       <div className="space-y-2">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center gap-2 text-sm">
-            <span className="flex-1 line-clamp-1">{item.name}</span>
-            <div className="flex items-center gap-1 border border-gray-300 rounded shrink-0">
-              <Button
-                type="button"
-                onClick={() => setQuantity(item.id, item.quantity - 1)}
-                className="px-1.5 py-1 text-gray-500 hover:text-gray-800"
-              >
-                <Minus className="w-3 h-3" />
-              </Button>
-              <span className="w-6 text-center">{item.quantity}</span>
-              <Button
-                type="button"
-                onClick={() => setQuantity(item.id, item.quantity + 1)}
-                className="px-1.5 py-1 text-gray-500 hover:text-gray-800"
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
+        {items.map((item) => {
+          const price = parsePriceInput(item.price);
+          return (
+            <div key={item.id} className="rounded-lg border border-gray-200 p-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={item.name}
+                  maxLength={MAX_ITEM_NAME}
+                  onChange={(e) => setField(item.id, { name: e.target.value })}
+                  aria-label="Название товара"
+                  className={`min-w-0 flex-1 ${inputClass}`}
+                />
+                <Button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  aria-label="Удалить позицию"
+                  className="shrink-0 text-red-400 hover:text-red-600"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <div className="flex items-center gap-1 border border-gray-300 rounded shrink-0">
+                  <Button
+                    type="button"
+                    onClick={() => setQuantity(item.id, item.quantity - 1)}
+                    aria-label="Меньше"
+                    className="px-1.5 py-1 text-gray-500 hover:text-gray-800"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </Button>
+                  <span className="w-6 text-center">{item.quantity}</span>
+                  <Button
+                    type="button"
+                    onClick={() => setQuantity(item.id, item.quantity + 1)}
+                    aria-label="Больше"
+                    className="px-1.5 py-1 text-gray-500 hover:text-gray-800"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
+                <span className="text-gray-400">×</span>
+                {/* Not type="number": it scrolls under the wheel, rejects the ru-RU comma, and in
+                    some browsers hands back "" for "12." — the very NaN this editor avoids. */}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={item.price}
+                  onChange={(e) => setField(item.id, { price: e.target.value })}
+                  aria-label="Цена"
+                  className={`w-24 text-right ${inputClass} ${price == null ? "border-red-300" : ""}`}
+                />
+                <Currency />
+                <span className="ml-auto shrink-0 text-gray-500">
+                  {price == null ? (
+                    "—"
+                  ) : (
+                    <>
+                      {money(price * item.quantity)} <Currency />
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
-            <span className="text-gray-500 shrink-0 w-20 text-right">
-              {(item.price ?? 0) * item.quantity} <Currency />
-            </span>
-            <Button type="button" onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600">
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div ref={boxRef} className="relative">
@@ -132,7 +210,7 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
         )}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-500">
           Товары: <span className="font-medium text-gray-800">{itemsTotal}</span> <Currency />
         </p>
