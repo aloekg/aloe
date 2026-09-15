@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Download, Pencil, Search, X } from "lucide-react";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import Pagination from "@/components/Pagination";
-import { DELIVERY_OPTIONS, ORDER_STATUS } from "@/lib/constants";
+import { DELIVERY_OPTIONS, deliveryFreeNote, ORDER_STATUS } from "@/lib/constants";
+import { itemsTotalOf } from "@/lib/order-pricing";
 import { useToast } from "@/store/toast";
 import type { Order } from "@/types";
-import { downloadInvoice, resendOrderNotification, type OrderItemInput } from "./actions";
+import { downloadInvoice, resendOrderNotification } from "./actions";
+import OrderDeliveryEditor from "./OrderDeliveryEditor";
 import OrderItemsEditor from "./OrderItemsEditor";
 import OrderStatusSelect from "./OrderStatusSelect";
 import { useAdminListNav, useDebouncedSearch } from "./useAdminListNav";
+
+type OrderPatch = Partial<Pick<Order, "status" | "items" | "total" | "delivery_type" | "delivery_cost">>;
 
 type Props = {
   orders: Order[];
@@ -34,22 +38,21 @@ export default function AdminOrders({
 }: Props) {
   const navigate = useAdminListNav();
   const search = useDebouncedSearch(q, (value) => navigate({ q: value }));
-  const [localStatus, setLocalStatus] = useState<Record<number, string>>({});
-  const [localItems, setLocalItems] = useState<Record<number, { items: OrderItemInput[]; total: number }>>({});
+  // One patch per order rather than a map per field: the total, the items and the delivery fee all
+  // move together, and splitting them is how the card came to show a fresh total beside a stale
+  // delivery line whenever an edit crossed the free-delivery threshold.
+  const [patches, setPatches] = useState<Record<number, OrderPatch>>({});
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editingDeliveryId, setEditingDeliveryId] = useState<number | null>(null);
+
+  const patchOrder = useCallback(
+    (id: number, next: OrderPatch) => setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...next } })),
+    [],
+  );
 
   // Every keystroke in the search box used to recreate all order objects and re-render each
   // OrderItemsEditor and OrderStatusSelect.
-  const orders = useMemo(
-    () =>
-      initial.map((o) => ({
-        ...o,
-        status: localStatus[o.id] ?? o.status,
-        items: localItems[o.id]?.items ?? o.items,
-        total: localItems[o.id]?.total ?? o.total,
-      })),
-    [initial, localStatus, localItems],
-  );
+  const orders = useMemo(() => initial.map((o) => ({ ...o, ...patches[o.id] })), [initial, patches]);
 
   const show = useToast((s) => s.show);
   const [resending, setResending] = useState<number | null>(null);
@@ -77,7 +80,7 @@ export default function AdminOrders({
   }
 
   function handleStatusChange(orderId: number, status: string) {
-    setLocalStatus((prev) => ({ ...prev, [orderId]: status }));
+    patchOrder(orderId, { status });
   }
 
   async function handleDownloadInvoice(orderId: number) {
@@ -185,17 +188,41 @@ export default function AdminOrders({
                   <p className="mt-1 font-semibold break-words">{order.customer_name ?? "—"}</p>
                   <p className="text-sm text-gray-600">{order.customer_phone ?? "—"}</p>
                   <p className="text-sm break-words text-gray-600">{order.customer_address ?? "—"}</p>
-                  {order.delivery_type && (
+                  {editingDeliveryId === order.id ? (
+                    <OrderDeliveryEditor
+                      orderId={order.id}
+                      deliveryType={order.delivery_type}
+                      deliveryCost={order.delivery_cost}
+                      itemsTotal={itemsTotalOf(order.items ?? [])}
+                      onCancel={() => setEditingDeliveryId(null)}
+                      onSaved={(delivery_type, delivery_cost, total) => {
+                        patchOrder(order.id, { delivery_type, delivery_cost, total });
+                        setEditingDeliveryId(null);
+                      }}
+                    />
+                  ) : (
                     <p className="text-sm text-gray-500">
-                      🚚 {DELIVERY_OPTIONS.find((o) => o.id === order.delivery_type)?.label ?? order.delivery_type}
+                      🚚{" "}
+                      {DELIVERY_OPTIONS.find((o) => o.id === order.delivery_type)?.label ??
+                        order.delivery_type ??
+                        "не указана"}
                       {" — "}
-                      {order.delivery_cost ? (
+                      {order.delivery_cost > 0 ? (
                         <>
                           {order.delivery_cost} <Currency />
                         </>
                       ) : (
-                        "бесплатно"
-                      )}
+                        // Not a flat "бесплатно": regions is still to be agreed and urgent is paid
+                        // to the courier, which is what the customer reads in their own profile.
+                        deliveryFreeNote(order.delivery_type)
+                      )}{" "}
+                      <Button
+                        type="button"
+                        onClick={() => setEditingDeliveryId(order.id)}
+                        className="inline-flex items-center gap-1 align-baseline text-xs text-gray-400 hover:text-gray-700"
+                      >
+                        <Pencil className="w-3 h-3" /> Изменить
+                      </Button>
                     </p>
                   )}
                   {order.comment && <p className="text-sm text-gray-400 italic">💬 {order.comment}</p>}
@@ -227,8 +254,8 @@ export default function AdminOrders({
                   orderId={order.id}
                   items={order.items}
                   onCancel={() => setEditingOrderId(null)}
-                  onSaved={(items, orderTotal) => {
-                    setLocalItems((prev) => ({ ...prev, [order.id]: { items, total: orderTotal } }));
+                  onSaved={(items, total, delivery_cost) => {
+                    patchOrder(order.id, { items, total, delivery_cost });
                     setEditingOrderId(null);
                   }}
                 />
