@@ -42,10 +42,10 @@ pg_net` падает там, где расширения никогда не б�
 
 ## Два проекта
 
-| окружение  | project ref                            | env-файл     |
-| ---------- | -------------------------------------- | ------------ |
-| production | `dnlburbuchxzxdmhuczu`                 | `.env.prod`  |
-| staging    | см. `npm run db:linked` после линковки | `.env.local` |
+| окружение  | project ref            | env-файл     |
+| ---------- | ---------------------- | ------------ |
+| production | `dnlburbuchxzxdmhuczu` | `.env.prod`  |
+| staging    | `puqmkruyhjfvhyjfriig` | `.env.local` |
 
 CLI умеет держать связь ровно с одним проектом, и хранит её в **неотслеживаемом**
 `supabase/.temp/project-ref` — то есть на разных машинах она молча разная. Отсюда два правила:
