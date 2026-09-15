@@ -13,7 +13,7 @@ migrations/
   20260911120300_rate_limits.sql            # таблица + rate_limit_hit() (был 005)
   20260911120400_not_null_columns.sql       # NOT NULL + CHECK «опубликованный товар категоризован»
   20260911120500_products_category_fk_restrict.sql # FK категории: SET NULL → RESTRICT
-  20260911120600_orders_user_fk_set_null.sql # FK аккаунта у заказа: CASCADE → SET NULL (не применено на проде)
+  20260911120600_orders_user_fk_set_null.sql # FK аккаунта у заказа: CASCADE → SET NULL
   20260915090000_storage_buckets.sql        # три публичных бакета — были только в дашборде
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
@@ -26,7 +26,9 @@ sql/
 (`if not exists`, `drop policy if exists`, `create or replace`, `revoke`/`grant`), так что
 `db push` на прод — no-op, который просто выравнивает историю миграций. `..._not_null_columns.sql` и
 `..._products_category_fk_restrict.sql` реально меняли схему, применены 2026-09-11, типы после них
-перегенерированы. `..._orders_user_fk_set_null.sql` ещё не применена — нужен `db push`.
+перегенерированы. `..._orders_user_fk_set_null.sql` применена позже, к 2026-09-15 она на проде уже есть
+(сверено через `npx supabase migration list`) — пометка «не применено» в этом файле какое-то время
+держалась по инерции.
 
 Единственное, что не проверяется из репозитория — применён ли на проде
 `..._indexes.sql`: индексы не видны через PostgREST. Миграция идемпотентна, так что push
