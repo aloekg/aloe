@@ -203,7 +203,13 @@ Fixed-window counters for public server actions. RLS on with no policy and no gr
 service role touches it, through the `rate_limit_hit(bucket, key, limit, window)` function
 (`lib/rate-limit.ts`).
 
-**Storage buckets:** `product-images` (product photos), `banners` (banner images), `categories` (category images)
+**Storage buckets:** `product-images` (product photos), `banners` (banner images), `categories`
+(category images) — all three public, created by `supabase/migrations/20260915090000_storage_buckets.sql`.
+Their `file_size_limit` / `allowed_mime_types` are not the same as the checks in
+`app/admin/actions.ts` and are not meant to be: product and banner uploads are re-encoded by `sharp`
+first, so the action accepts a 15 MB phone original while the bucket only ever sees the WebP
+derivative. Category images are the exception — `uploadImage()` stores them as uploaded, so there
+the bucket's 2 MB is the real limit.
 
 ## TypeScript Types (`/types/index.ts`)
 
@@ -284,31 +290,31 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 
 ## Lib Utilities (`/lib/`)
 
-| file                      | purpose                                                                                                                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                   |
-| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                        |
-| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                   |
-| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                       |
-| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                     |
-| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                 |
-| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), and the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()` |
-| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                                                             |
-| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                            |
-| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                 |
-| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                                                          |
-| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                              |
-| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                    |
-| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                      |
-| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                               |
-| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                         |
-| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                 |
-| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                      |
-| `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`)                |
-| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                     |
-| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                            |
-| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                           |
-| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest                          |
+| file                      | purpose                                                                                                                                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                                       |
+| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                                            |
+| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                                       |
+| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                                           |
+| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                                         |
+| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                                     |
+| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`/`SPECIALS_BASE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), and the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()` |
+| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                                                                                 |
+| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                                                |
+| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                                     |
+| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                                                                              |
+| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                                                  |
+| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                        |
+| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                                          |
+| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                                                   |
+| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                                             |
+| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                                     |
+| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                          |
+| `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`)                                    |
+| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                         |
+| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                |
+| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                               |
+| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest                                              |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -372,10 +378,32 @@ cache.
 - **Client sync:** `AuthSync` component listens to `onAuthStateChange` and calls `setUser()` on both the cart and favorites stores
 - **Protected routes:** `/admin/*` (401 redirect if not admin), `/admin/users` (`requireSuperAdmin()` — `notFound()` for an ordinary admin, and `AdminNav` hides the tab), `/profile` (redirect to `/auth`)
 
+## Environments
+
+Two independent Supabase projects and two Vercel deployments:
+
+|            | host                               | Supabase ref           | `DEPLOY_ORIGIN`         | indexed |
+| ---------- | ---------------------------------- | ---------------------- | ----------------------- | ------- |
+| production | `aloe.kg` (branch `main`)          | `dnlburbuchxzxdmhuczu` | **unset**               | yes     |
+| staging    | `stage.aloe.kg` (branch `staging`) | its own project        | `https://stage.aloe.kg` | no      |
+
+Staging sits behind Vercel Authentication and holds a copy of the production **catalogue only** —
+no orders, profiles, favorites or carts. Product photos are the deliberate exception to the
+isolation: rows keep their absolute production storage URLs and staging reads the images out of
+production's public buckets, because copying 6000+ objects on every reseed buys nothing and nothing
+in the app can delete a storage object (`.remove(` appears only in `scripts/prune-orphan-images.mjs`).
+Anything uploaded through staging's admin lands in staging's own bucket, so the upload path is still
+exercised end to end.
+
+Which file holds what: **`.env.local` → staging** (what `next dev` loads) and **`.env.prod` →
+production** (scripts only). `.env.prod` is spelled that way because Next auto-loads
+`.env.production` and `.env.production.local`, so production keys under either name would be picked
+up by a local `npm run build`. `.env.example` is the committed template.
+
 ## Environment Variables
 
 ```
-NEXT_PUBLIC_SUPABASE_URL        # https://dnlburbuchxzxdmhuczu.supabase.co
+NEXT_PUBLIC_SUPABASE_URL        # prod: https://dnlburbuchxzxdmhuczu.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # public/client-safe
 SUPABASE_SERVICE_ROLE_KEY       # server-only, used in admin actions + guest checkout to bypass RLS
 
@@ -383,13 +411,17 @@ SMTP_HOST                       # mail.aloe.kg — order notifications to the ad
 SMTP_PORT
 SMTP_USER
 SMTP_PASS
-ADMIN_NOTIFICATION_EMAIL        # recipient; unset → notifications are skipped, not failed
+ADMIN_NOTIFICATION_EMAIL        # recipient; unset → notifications are skipped, not failed.
+                                # On staging and locally this MUST be a test inbox — it is the
+                                # owner's real address on production.
 SMTP_TLS_SERVERNAME             # optional, defaults to mail.hoster.kg (certificate name, see lib/mailer.ts)
 
 DEPLOY_ORIGIN                   # optional; the origin THIS deployment serves on when it is not
                                 # SITE_URL (aloe.kg). Unset means "this is the canonical domain",
                                 # which is what production wants now that aloe.kg points here —
                                 # a leftover value noindexes the live shop. See MIGRATION.md.
+                                # staging: https://stage.aloe.kg. Read at BUILD time, so changing
+                                # it on Vercel needs a redeploy, not a restart.
 ```
 
 **`SITE_URL` vs `DEPLOY_ORIGIN`:** `SITE_URL` (`lib/constants.ts`, hardcoded `https://aloe.kg`) is
@@ -407,9 +439,22 @@ allows a URL-only index entry. That guard has teeth in both directions: a stale 
 production silently hides the live shop from search (see MIGRATION.md). An unset or malformed value
 falls back to `SITE_URL` on purpose — a missing variable must not noindex the live shop.
 
+Because `SITE_URL` is compile-time, **canonical tags on staging point at `aloe.kg`**. That is
+correct and deliberate — the pages are `noindex` anyway, and a canonical naming the staging host
+would be worse. Do not "fix" it.
+
+`SPECIALS_BASE_URL` (also `lib/constants.ts`) is the third URL here and the only one pinned to a
+Supabase project rather than a domain: the four fixed `/catalog` tiles live under
+`categories/specials/` in production's bucket, which the catalogue seed does not copy. Deriving it
+from `NEXT_PUBLIC_SUPABASE_URL` would leave staging with four broken tiles and gain nothing.
+
 The old store stays reachable at `LEGACY_SITE_URL` (`https://old.aloe.kg`), linked from the footer
 with `rel="nofollow"`; old JoomShopping product URLs on the main domain are 301d to `/product/[id]`
-by `app/catalog/product/view/[...path]/route.ts`.
+by `app/catalog/product/view/[...path]/route.ts`. Those redirects send a **relative** `Location`
+(`lib/legacy-redirect.ts`, `proxy.ts`), so they land on whichever host was asked — production,
+staging or localhost. An absolute one would be wrong either way: built from `SITE_URL` it bounces
+staging traffic into the live shop, and built from the request it bakes the first caller's host into
+a response the route caches for a day (`revalidate = 86400`).
 
 ## Key Patterns
 
@@ -519,16 +564,33 @@ npm run format      # Prettier write
 npm run format:check
 npm run typecheck   # tsc --noEmit
 npm run test        # vitest run
-npm run db:types    # regenerate types/database.ts from the linked Supabase project
+npm run db:types    # regenerate types/database.ts from the LINKED project (prints which, to stderr)
+```
+
+### Environment-aware commands
+
+```bash
+npm run db:linked       # which Supabase project the CLI is linked to right now
+npm run db:link:prod    # relink to production (do this when you finish with staging)
+npm run db:link:stage   # relink to staging — ref read from .env.local
+npm run db:push:stage   # link + apply supabase/migrations/ to staging
+npm run db:push:prod    # link + apply to production
+npm run db:types:prod   # the ONLY correct way to regenerate types/database.ts
+npm run backup:prod     # dump production into backups/<timestamp>-prod/
+npm run seed:stage      # dry-run the catalogue seed; --execute writes
 ```
 
 ### Schema changes
 
 ```bash
-npx supabase migration list   # compare local history with the linked project
-npx supabase db push          # apply supabase/migrations/
-npm run db:types              # then regenerate the types and typecheck
+npm run db:push:stage                   # rehearse on staging first
+npm run db:push:prod                    # then production
+npm run db:types:prod && npm run typecheck
 ```
+
+`types/database.ts` is committed and must describe the schema **production** runs, which is why it
+is regenerated with `db:types:prod` and not bare `db:types` — the latter reads whichever project the
+CLI is linked to, recorded in the untracked `supabase/.temp/project-ref`.
 
 ### Old-site sync (`scripts/joomla/`)
 
@@ -538,11 +600,11 @@ keeps moving while this site is built. These scripts pull from it. Credentials l
 `scripts/joomla/data/` (also git-ignored). Products are matched on `products.external_id`.
 
 ```bash
-node backups/backup-db.mjs                        # always first — dumps every table (see below)
-node scripts/joomla/scrape-products.mjs           # admin product list → data/joomla-products.json
-node scripts/joomla/diff-products.mjs             # vs Supabase → data/diff.json + a report
-node scripts/joomla/sync-products.mjs --execute   # apply name/price/published, insert new, unpublish gone
-node scripts/joomla/reimage-products.mjs          # rebuild both image variants from the originals
+npm run backup:prod                                          # always first — dumps every table
+node scripts/joomla/scrape-products.mjs                      # admin list → data/joomla-products.json
+node scripts/joomla/diff-products.mjs --env=prod             # vs Supabase → data/diff.json + report
+node scripts/joomla/sync-products.mjs --env=prod --execute --i-know-this-is-production
+node scripts/joomla/reimage-products.mjs --env=prod          # rebuild both image variants
 ```
 
 `reimage-products.mjs` reads JoomShopping's `full_<name>` file — the untouched original upload — and
@@ -552,13 +614,28 @@ product whose current image came from the new admin, so manual re-uploads are ne
 Two maintenance scripts finish the job for anything the old site cannot supply:
 
 ```bash
-node scripts/normalize-product-images.mjs --execute  # any row not yet a WebP pair → build it from the file in Storage
-node scripts/prune-orphan-images.mjs                 # list bucket objects nothing references (--execute deletes)
-node scripts/fix-orphan-categories.mjs               # products whose category_id was stripped (--execute assigns)
-node scripts/purge-test-data.mjs                     # pre-launch orders/accounts/counters (--execute deletes)
-node scripts/generate-app-icons.mjs                 # app/icon.svg → the manifest's PNG icons in public/
-node --env-file=.env.local scripts/build-legacy-redirects.mjs   # old site's URLs → lib/legacy-redirects.ts
+node scripts/normalize-product-images.mjs --env=prod   # row not yet a WebP pair → build it from Storage
+node scripts/prune-orphan-images.mjs --env=prod        # bucket objects nothing references (--execute deletes)
+node scripts/fix-orphan-categories.mjs --env=prod      # products whose category_id was stripped
+node scripts/purge-test-data.mjs --env=prod            # pre-launch orders/accounts/counters
+node scripts/seed-staging.mjs --env=stage              # production catalogue → staging (no personal data)
+node scripts/generate-app-icons.mjs                    # app/icon.svg → the manifest's PNG icons
+node scripts/build-legacy-redirects.mjs --env=prod     # old site's URLs → lib/legacy-redirects.ts
 ```
+
+**Every script that opens the database requires `--env=prod` or `--env=stage`, with no default** —
+the right default differs per script, so there isn't one. `scripts/lib/target.mjs` loads `.env.prod`
+or `.env.local` accordingly, re-derives the project ref from the URL it actually read rather than
+trusting the file name, and refuses the mismatches (`--env=stage` against a file pointing at
+production, and the reverse). Destructive scripts additionally need `--i-know-this-is-production`
+before `--execute` may write to production. Every run announces the target on stderr.
+
+That guard exists for `prune-orphan-images.mjs` specifically: it subtracts what `products`
+references from what the bucket holds and deletes the rest, so a database and a bucket belonging to
+different projects make every object look orphaned. It is the only irreversible action in the repo,
+and storage is not covered by the backups. Both it and `normalize-product-images.mjs` now build
+their storage prefix from the same URL the client opened, so the rows and the bucket cannot name
+different projects.
 
 `normalize-product-images.mjs` is the one to run after a bulk import or whenever
 `image_url`/`thumbnail_url` disagree; it leaves existing WebP rows alone so nothing is re-encoded
@@ -572,7 +649,16 @@ accounts by email, and an account with `role=admin` is never deleted.
 
 `backups/backup-db.mjs` covers `orders`, `profiles`, `favorites`, `cart_items`, `brands` and
 `banners` as well as the catalogue — the catalogue can be re-pulled from the old site, an order
-cannot. The dump includes customer names, phones and addresses; `backups/` is git-ignored.
+cannot. The dump includes customer names, phones and addresses; the dumps are git-ignored (the
+script itself is not). The directory is named `<timestamp>-<env>`, because a staging dump and a
+production dump are otherwise indistinguishable and `seed-staging.mjs` picks the newest `-prod` one.
+
+`seed-staging.mjs` loads four tables of such a dump — `categories`, `brands`, `banners`, `products`
+— into staging and never the other four, which are personal data. Ids are preserved (storage objects
+are named `<product-id>.webp`, `product_url` feeds the legacy 301s), categories go in parent-first
+because `parent_id` is a non-deferrable self-FK, and the script prints a `setval` block to run in the
+SQL Editor afterwards — writing explicit ids does not advance the sequences, and nothing looks wrong
+until the first insert from the admin collides.
 
 `fix-orphan-categories.mjs` cleans up after the category FK's old `ON DELETE SET NULL`: 91 products
 lost their `category_id` when a category was deleted and keep only the denormalised `category`

@@ -4,31 +4,17 @@
 // gel, deodorant, shaving). See conversation / CODEBASE.md for the target tree.
 //
 // Usage:
-//   node scripts/migrate-categories.mjs             (dry run — prints the plan, no writes)
-//   node scripts/migrate-categories.mjs --execute    (performs the migration)
+//   node scripts/migrate-categories.mjs --env=prod             (dry run — prints the plan)
+//   node scripts/migrate-categories.mjs --env=prod --execute --i-know-this-is-production
 //
-// Always run `node backups/backup-db.mjs` first.
+// Always run `node backups/backup-db.mjs --env=prod` first.
 
-import { readFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
+import { resolveTarget } from "./lib/target.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const EXECUTE = process.argv.includes("--execute");
-
-const envPath = path.join(__dirname, "..", ".env.local");
-const env = Object.fromEntries(
-  readFileSync(envPath, "utf8")
-    .split("\n")
-    .filter((line) => line.includes("=") && !line.trim().startsWith("#"))
-    .map((line) => {
-      const idx = line.indexOf("=");
-      return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()];
-    }),
-);
-
-const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+const target = resolveTarget({ destructive: true });
+const EXECUTE = target.execute;
+const supabase = createClient(target.url, target.key);
 
 // ---------------------------------------------------------------------------
 // 1. New categories to insert. `parent_id` is a literal id, `parent_ref` points

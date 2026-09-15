@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { resolveTarget } from "../lib/target.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,11 +31,13 @@ export function readJoomlaEnv() {
   return env;
 }
 
+/**
+ * Which Supabase project the sync writes into. Pass --env=prod: syncing the live catalogue from the
+ * old shop is the whole point, and .env.local now names staging, so without the flag these scripts
+ * would quietly rewrite the wrong catalogue and report success.
+ */
 export function readSupabaseEnv() {
-  const env = parseEnvFile(path.join(ROOT, ".env.local"));
-  const url = env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase url/service-role key in .env.local");
+  const { url, key } = resolveTarget({ destructive: true });
   return { url, key };
 }
 

@@ -33,12 +33,17 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template. .env.local points at staging and .env.prod at production —
+# both stay local, .env.example is the only one that says which keys they need.
+!.env.example
 
 # vercel
 .vercel
 
-# local db backups
-/backups
+# local db backups — the dumps, not the tool that makes them. They carry customer names,
+# phones and addresses; backup-db.mjs is ordinary source and belongs in the repository.
+/backups/*
+!/backups/backup-db.mjs
 
 # typescript
 *.tsbuildinfo

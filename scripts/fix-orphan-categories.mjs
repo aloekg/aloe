@@ -1,8 +1,8 @@
 // Re-attaches products whose `category_id` was stripped to a category in the current tree.
 //
 // Usage:
-//   node scripts/fix-orphan-categories.mjs              report only (default)
-//   node scripts/fix-orphan-categories.mjs --execute    write category_id + category
+//   node scripts/fix-orphan-categories.mjs --env=prod              report only (default)
+//   node scripts/fix-orphan-categories.mjs --env=prod --execute    write category_id + category
 //
 // Where the orphans come from: `fk_products_category_id` used to be ON DELETE SET NULL, so
 // deleting an in-use category silently cleared category_id on its products. The FK is RESTRICT as
@@ -30,13 +30,11 @@
 // Only leaf categories are eligible, matching the product editor: a category with children is an
 // organisational node, not somewhere a product may live (see app/admin/products/page.tsx).
 
-import { readFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
+import { resolveTarget } from "./lib/target.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const EXECUTE = process.argv.includes("--execute");
+const target = resolveTarget();
+const EXECUTE = target.execute;
 
 /**
  * Renames the normaliser cannot see through. Each is a judgement call backed by the product names
@@ -49,19 +47,7 @@ const EXECUTE = process.argv.includes("--execute");
  */
 const OVERRIDES = [{ label: "Кондиционеры, ополаскиватели и маски", categoryId: 70 }];
 
-const env = Object.fromEntries(
-  readFileSync(path.join(__dirname, "..", ".env.local"), "utf8")
-    .split("\n")
-    .filter((line) => line.includes("=") && !line.trim().startsWith("#"))
-    .map((line) => {
-      const i = line.indexOf("=");
-      return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-    }),
-);
-
-const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-});
+const db = createClient(target.url, target.key, { auth: { persistSession: false } });
 
 /**
  * The old labels and the current tree differ in case, ё/е and punctuation only — "Молочки,

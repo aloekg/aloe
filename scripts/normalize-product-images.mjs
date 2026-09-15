@@ -12,35 +12,22 @@
 // quality a second time.
 //
 // Usage:
-//   node scripts/normalize-product-images.mjs             dry run
-//   node scripts/normalize-product-images.mjs --execute   apply
+//   node scripts/normalize-product-images.mjs --env=prod             dry run
+//   node scripts/normalize-product-images.mjs --env=prod --execute --i-know-this-is-production
 
-import { readFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const EXECUTE = process.argv.includes("--execute");
+import { resolveTarget } from "./lib/target.mjs";
 
 const BUCKET = "product-images";
 const FULL = { width: 1200, quality: 82 };
 const THUMB = { width: 500, quality: 76 };
 
-const env = Object.fromEntries(
-  readFileSync(path.join(__dirname, "..", ".env.local"), "utf8")
-    .split("\n")
-    .filter((line) => line.includes("=") && !line.trim().startsWith("#"))
-    .map((line) => {
-      const i = line.indexOf("=");
-      return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-    }),
-);
-
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const supabase = createClient(SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-const prefix = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+const target = resolveTarget({ destructive: true });
+const EXECUTE = target.execute;
+const supabase = createClient(target.url, target.key);
+// Same project as the rows below, by construction rather than by convention.
+const prefix = `${target.url}/storage/v1/object/public/${BUCKET}/`;
 
 const rows = [];
 for (let from = 0; ; from += 1000) {

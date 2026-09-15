@@ -2,9 +2,9 @@
 // references any more — chiefly the pre-WebP files superseded by the re-image run.
 //
 // Usage:
-//   node scripts/prune-orphan-images.mjs                      list only
-//   node scripts/prune-orphan-images.mjs --execute            delete the superseded files
-//   node scripts/prune-orphan-images.mjs --execute --originals also delete admin-uploaded originals
+//   node scripts/prune-orphan-images.mjs --env=prod                      list only
+//   node scripts/prune-orphan-images.mjs --env=prod --execute --i-know-this-is-production
+//   node scripts/prune-orphan-images.mjs --env=prod --execute --originals --i-know-this-is-production
 //
 // Held back unless --originals is passed: files named `<epoch-ms>-<rand>.<ext>`, i.e. what an admin
 // uploaded through the product editor. Normalizing a product to a WebP pair leaves its original
@@ -12,34 +12,25 @@
 // WebP derivative is not. Everything else orphaned here is a superseded derivative.
 //
 // Deletion is irreversible and storage is not covered by backups/backup-db.mjs, so the dry run is
-// the default.
+// the default — and --env is mandatory. This script subtracts what `products` references from what
+// the bucket holds, so a database and a bucket belonging to different projects make every object
+// look orphaned: run it with staging's rows against production's bucket and it deletes the entire
+// catalogue's photography. resolveTarget() loads both from one file to make that unrepresentable.
 
-import { readFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
+import { resolveTarget } from "./lib/target.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const EXECUTE = process.argv.includes("--execute");
 const INCLUDE_ORIGINALS = process.argv.includes("--originals");
 
 /** `uploadProductImage()` names its uploads `${Date.now()}-${rand}.${ext}`. */
 const ADMIN_UPLOAD = /^\d{13}-[a-z0-9]+\.[a-z]+$/i;
 const BUCKET = "product-images";
 
-const env = Object.fromEntries(
-  readFileSync(path.join(__dirname, "..", ".env.local"), "utf8")
-    .split("\n")
-    .filter((line) => line.includes("=") && !line.trim().startsWith("#"))
-    .map((line) => {
-      const i = line.indexOf("=");
-      return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-    }),
-);
-
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const supabase = createClient(SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-const prefix = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+const target = resolveTarget({ destructive: true });
+const EXECUTE = target.execute;
+const supabase = createClient(target.url, target.key);
+// Built from the same URL the client opened, so the rows and the bucket provably name one project.
+const prefix = `${target.url}/storage/v1/object/public/${BUCKET}/`;
 
 // Every path any product currently points at, in either column.
 const referenced = new Set();

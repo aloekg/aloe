@@ -7,9 +7,8 @@ import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
 import Title from "@/components/Title";
 import { getCachedCategories } from "@/lib/cached-queries";
+import { SPECIALS_BASE_URL } from "@/lib/constants";
 import { pageMetadata } from "@/lib/seo";
-
-const SPECIALS_BASE_URL = "https://dnlburbuchxzxdmhuczu.supabase.co/storage/v1/object/public/categories/specials";
 
 const specials: Array<{ href: string; label: string; image_url?: string | null }> = [
   { href: "/popular", label: "Популярное", image_url: `${SPECIALS_BASE_URL}/popular.webp` },
