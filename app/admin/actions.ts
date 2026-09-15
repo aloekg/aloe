@@ -2,14 +2,25 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import sharp from "sharp";
-import { DELIVERY_OPTIONS, getDeliveryCost, ORDER_STATUS } from "@/lib/constants";
+import { DELIVERY_OPTIONS, ORDER_STATUS } from "@/lib/constants";
 import { generateInvoicePdf, type InvoiceItem } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
+import {
+  isManualDeliveryCost,
+  itemsTotalOf,
+  money,
+  normalizeOrderItems,
+  priceOrder,
+  validateDeliveryInput,
+  validateOrderItems,
+  type OrderItemInput,
+} from "@/lib/order-pricing";
 import { adminRole } from "@/lib/roles";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { getAdminBrands } from "@/services/brand.service";
 import { getOrderForNotification, markOrderNotified } from "@/services/order.service";
+import type { OrderItem } from "@/types";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -22,11 +33,6 @@ async function assertAdmin() {
 }
 
 const adminDb = createAdminClient;
-
-/** Money is `numeric` in Postgres; keep two decimals so float artefacts never reach a document. */
-function money(value: number): number {
-  return Math.round(value * 100) / 100;
-}
 
 /**
  * The storage buckets are public, so the stored Content-Type decides whether an object is
@@ -102,51 +108,84 @@ export async function updateOrderStatus(orderId: number, status: string) {
   if (error) throw new Error(error.message);
 }
 
-export type OrderItemInput = {
-  id: number;
-  name: string;
-  price: number | null;
-  quantity: number;
-  image_url: string | null;
-};
-
 export async function updateOrderItems(
   orderId: number,
   items: OrderItemInput[],
-  /** Set for "regions", where the fee is agreed by phone and nothing else can supply it. */
-  deliveryCostOverride?: number,
-): Promise<{ ok: true; total: number; deliveryCost: number } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; items: OrderItem[]; itemsTotal: number; deliveryCost: number; total: number }
+  | { ok: false; error: string }
+> {
   await assertAdmin();
   const db = adminDb();
 
-  if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity <= 0)) {
-    return { ok: false, error: "Количество должно быть целым положительным числом" };
-  }
+  const invalid = validateOrderItems(items);
+  if (invalid) return { ok: false, error: invalid };
 
   const { data: order, error: fetchError } = await db
     .from("orders")
-    .select("delivery_type, delivery_cost")
+    .select("items, delivery_type, delivery_cost")
     .eq("id", orderId)
     .single();
   if (fetchError || !order) return { ok: false, error: "Заказ не найден" };
 
-  const itemsTotal = money(items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0));
-
   // Recompute rather than reuse: the free-delivery threshold has to be re-evaluated, otherwise
   // removing a line keeps free delivery the order no longer qualifies for, and adding one keeps
   // charging for delivery the site advertises as free.
-  const deliveryCost = money(
-    deliveryCostOverride != null && Number.isFinite(deliveryCostOverride) && deliveryCostOverride >= 0
-      ? deliveryCostOverride
-      : getDeliveryCost(order.delivery_type ?? "", itemsTotal),
-  );
-  const total = money(itemsTotal + deliveryCost);
+  //
+  // Unless the fee was agreed by phone — nothing in the schema records that, so it is inferred from
+  // the fee the *previous* basket would have been charged. Without this, editing the items of a
+  // regions order silently wipes the 500 с someone negotiated back to the tariff's 0.
+  const stored = order.items as OrderItemInput[];
+  const manual = isManualDeliveryCost(order.delivery_cost, order.delivery_type, itemsTotalOf(stored))
+    ? order.delivery_cost
+    : null;
 
-  const { error } = await db.from("orders").update({ items, total, delivery_cost: deliveryCost }).eq("id", orderId);
+  const normalized = normalizeOrderItems(items);
+  const pricing = priceOrder(normalized, order.delivery_type, manual);
+
+  const { error } = await db
+    .from("orders")
+    .update({ items: normalized, total: pricing.total, delivery_cost: pricing.deliveryCost })
+    .eq("id", orderId);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/orders");
-  return { ok: true, total, deliveryCost };
+  // The normalized items go back so the card renders what was persisted, not the admin's draft.
+  return { ok: true, items: normalized, ...pricing };
+}
+
+/**
+ * The delivery zone and its fee, which the customer picks at checkout and often picks wrongly.
+ * Separate from the items editor because the two are corrected on different occasions — and because
+ * "regions" has no computable fee at all: it is agreed on the phone and can only be typed in.
+ */
+export async function updateOrderDelivery(
+  orderId: number,
+  deliveryType: string,
+  /** null — charge the tariff; a number — a fee agreed by phone. */
+  costOverride: number | null,
+): Promise<{ ok: true; deliveryType: string; deliveryCost: number; total: number } | { ok: false; error: string }> {
+  await assertAdmin();
+  const db = adminDb();
+
+  const invalid = validateDeliveryInput(deliveryType, costOverride);
+  if (invalid) return { ok: false, error: invalid };
+
+  // The basket is read from the row, never taken from the caller: a stale card must not be able to
+  // rewrite what was ordered through the delivery form.
+  const { data: order, error: fetchError } = await db.from("orders").select("items").eq("id", orderId).single();
+  if (fetchError || !order) return { ok: false, error: "Заказ не найден" };
+
+  const pricing = priceOrder(order.items as OrderItemInput[], deliveryType, costOverride);
+
+  const { error } = await db
+    .from("orders")
+    .update({ delivery_type: deliveryType, delivery_cost: pricing.deliveryCost, total: pricing.total })
+    .eq("id", orderId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/orders");
+  return { ok: true, deliveryType, deliveryCost: pricing.deliveryCost, total: pricing.total };
 }
 
 export async function downloadInvoice(orderId: number): Promise<{ ok: true; base64: string } | { ok: false }> {
@@ -156,12 +195,7 @@ export async function downloadInvoice(orderId: number): Promise<{ ok: true; base
 
   // price is nullable in the schema; multiplying it unguarded produced NaN as the invoice's
   // itemsTotal while `total` on the same document stayed correct — three lines that didn't add up.
-  const itemsTotal = money(
-    (order.items as { price: number | null; quantity: number }[]).reduce(
-      (sum, i) => sum + (i.price ?? 0) * i.quantity,
-      0,
-    ),
-  );
+  const itemsTotal = itemsTotalOf(order.items as OrderItemInput[]);
 
   const pdf = await generateInvoicePdf({
     orderId: String(order.id),
@@ -191,8 +225,8 @@ export async function resendOrderNotification(orderId: number): Promise<{ ok: tr
   const { data: order, error } = await getOrderForNotification(db, orderId);
   if (error || !order) return { ok: false, error: "Заказ не найден" };
 
-  const items = (order.items ?? []) as OrderItemInput[];
-  const itemsTotal = money(items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0));
+  const items = normalizeOrderItems((order.items ?? []) as OrderItemInput[]);
+  const itemsTotal = itemsTotalOf(items);
   const deliveryCost = order.delivery_cost ?? 0;
   const deliveryLabel = DELIVERY_OPTIONS.find((o) => o.id === order.delivery_type)?.label ?? order.delivery_type ?? "—";
 
@@ -202,7 +236,7 @@ export async function resendOrderNotification(orderId: number): Promise<{ ok: tr
     phone: order.customer_phone ?? "",
     address: order.customer_address ?? "",
     comment: order.comment ?? "",
-    items: items.map((i) => ({ ...i, price: i.price ?? 0, image_url: i.image_url ?? "" })),
+    items,
     itemsTotal,
     deliveryLabel,
     deliveryCost,

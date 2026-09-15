@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getDeliveryCost } from "@/lib/constants";
+import { DELIVERY_OPTIONS, getDeliveryCost } from "@/lib/constants";
 import type { OrderItem } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -125,4 +125,128 @@ export function publishedPriceLookup(admin: SupabaseClient<Database>): ProductLo
     if (error) throw new Error(`[checkout] product lookup failed: ${error.message}`);
     return data ?? [];
   };
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * Admin order editing
+ *
+ * Everything above prices a *customer's* cart, where the client may only send ids and quantities.
+ * An admin editing a placed order is the opposite case: they type the name and the price, because
+ * the whole point is to correct what the catalogue says. `assertAdmin()` is then the only thing
+ * between a crafted request and an arbitrary order total, which is why the caps below exist rather
+ * than a bare "is it a number".
+ * ---------------------------------------------------------------------------------------------- */
+
+/** An order line as the admin editor sends it. Unlike `OrderItem`, still unvalidated. */
+export type OrderItemInput = {
+  id: number;
+  name: string;
+  price: number | null;
+  quantity: number;
+  image_url: string | null;
+};
+
+export const MAX_ITEM_NAME = 200;
+export const MAX_ITEM_PRICE = 1_000_000;
+export const MAX_DELIVERY_COST = 100_000;
+
+export type OrderMoney = { itemsTotal: number; deliveryCost: number; total: number };
+
+/** The goods total of a stored or edited order. `price` is nullable in the schema; null is not NaN. */
+export function itemsTotalOf(items: readonly { price: number | null; quantity: number }[]): number {
+  return money(items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0));
+}
+
+/** First failing rule, as the message the admin is shown, or null when the basket is sound. */
+export function validateOrderItems(items: OrderItemInput[]): string | null {
+  if (!Array.isArray(items) || items.length === 0) return "В заказе должен остаться хотя бы один товар";
+  if (items.length > MAX_LINES) return `Слишком много позиций — не больше ${MAX_LINES}`;
+
+  const seen = new Set<number>();
+  for (const item of items) {
+    if (!Number.isInteger(item?.id) || item.id <= 0) return "Некорректная позиция заказа";
+    if (seen.has(item.id)) return "Один товар не может быть в заказе дважды";
+    seen.add(item.id);
+
+    if (typeof item.name !== "string" || !item.name.trim()) return "Укажите название товара";
+    if (item.name.trim().length > MAX_ITEM_NAME) return `Название товара длиннее ${MAX_ITEM_NAME} символов`;
+
+    // A zero price is allowed here and rejected at checkout: there the catalogue supplies it, so a
+    // zero means a broken row; here the admin typed it, to write off a line or replace it with a gift.
+    if (item.price == null || !Number.isFinite(item.price)) return "Укажите цену товара числом";
+    if (item.price < 0) return "Цена товара не может быть отрицательной";
+    if (item.price > MAX_ITEM_PRICE) return "Цена товара не может превышать 1 000 000";
+
+    if (!Number.isInteger(item.quantity) || item.quantity <= 0)
+      return "Количество должно быть целым положительным числом";
+    if (item.quantity > MAX_QUANTITY) return `Количество не может превышать ${MAX_QUANTITY}`;
+  }
+  return null;
+}
+
+/**
+ * Collapses validated input into the strict `OrderItem` the `orders.items` column is typed as.
+ * Persist this, not the raw payload: it is what keeps a nullable price or a stray space out of a
+ * document that `Order` promises is neither.
+ */
+export function normalizeOrderItems(items: OrderItemInput[]): OrderItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name.trim(),
+    price: money(item.price ?? 0),
+    quantity: item.quantity,
+    image_url: item.image_url ?? "",
+  }));
+}
+
+export function validateDeliveryInput(deliveryType: string, costOverride: number | null): string | null {
+  if (!DELIVERY_OPTIONS.some((o) => o.id === deliveryType)) return "Неизвестный способ доставки";
+  if (costOverride == null) return null;
+  if (!Number.isFinite(costOverride)) return "Укажите стоимость доставки числом";
+  if (costOverride < 0) return "Стоимость доставки не может быть отрицательной";
+  if (costOverride > MAX_DELIVERY_COST) return "Стоимость доставки не может превышать 100 000";
+  return null;
+}
+
+/**
+ * The money on a placed order. `manualDeliveryCost` is a fee agreed by phone — null means charge the
+ * tariff, which re-evaluates the free-delivery threshold against the goods total.
+ */
+export function priceOrder(
+  items: readonly { price: number | null; quantity: number }[],
+  deliveryType: string | null,
+  manualDeliveryCost?: number | null,
+): OrderMoney {
+  const itemsTotal = itemsTotalOf(items);
+  const deliveryCost = money(
+    manualDeliveryCost != null && Number.isFinite(manualDeliveryCost) && manualDeliveryCost >= 0
+      ? manualDeliveryCost
+      : getDeliveryCost(deliveryType ?? "", itemsTotal),
+  );
+  return { itemsTotal, deliveryCost, total: money(itemsTotal + deliveryCost) };
+}
+
+/**
+ * Whether a stored delivery fee was typed in rather than derived from the tariff — the difference
+ * between "the admin accepted 200" and "the admin fixed it at 200", which nothing in the schema
+ * records. Without it, editing the items of a regions order would wipe the fee agreed by phone back
+ * to the tariff's 0.
+ *
+ * Exact for every order created through checkout, which always stores the tariff value. The one
+ * blind spot is a manual fee that happens to equal the tariff, which then recomputes to itself.
+ */
+export function isManualDeliveryCost(storedCost: number, deliveryType: string | null, itemsTotal: number): boolean {
+  return money(storedCost) !== money(getDeliveryCost(deliveryType ?? "", itemsTotal));
+}
+
+/**
+ * A money field as typed: accepts the ru-RU comma and grouping spaces, rejects anything still being
+ * typed. Returning null rather than NaN is what lets the editor show "—" mid-keystroke instead of
+ * writing a broken total.
+ */
+export function parsePriceInput(input: string): number | null {
+  const normalized = input.replace(/\s/g, "").replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
 }
