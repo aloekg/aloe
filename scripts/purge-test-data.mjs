@@ -2,12 +2,12 @@
 // those orders inflated.
 //
 // Usage:
-//   node scripts/purge-test-data.mjs                                    report only (default)
-//   node scripts/purge-test-data.mjs --orders=all --reset-counts        still a report
-//   node scripts/purge-test-data.mjs --orders=all --reset-counts --execute
-//   node scripts/purge-test-data.mjs --orders=41,44,65 --execute        only those orders
-//   node scripts/purge-test-data.mjs --users=a@b.com,c@d.com --execute  accounts too
-//   node scripts/purge-test-data.mjs --rate-limits --execute            also clear the limiter rows
+//   node scripts/purge-test-data.mjs --env=prod                            report only (default)
+//   node scripts/purge-test-data.mjs --env=prod --orders=all --reset-counts    still a report
+//   node scripts/purge-test-data.mjs --env=prod --orders=all --reset-counts --execute --i-know-this-is-production
+//   node scripts/purge-test-data.mjs --env=prod --orders=41,44,65 --execute ...   only those orders
+//   node scripts/purge-test-data.mjs --env=prod --users=a@b.com,c@d.com --execute ...  accounts too
+//   node scripts/purge-test-data.mjs --env=stage --rate-limits --execute       also the limiter rows
 //
 // Nothing is selected by pattern. An order is deleted because its id is listed (or `all` is
 // passed), an account because its email is listed — guessing which "Наргиза" is a test and which
@@ -33,10 +33,11 @@
 // An account with role=admin is never deleted — losing the last admin locks everyone out of
 // /admin, and the recovery is a dashboard visit.
 
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
+import { resolveTarget } from "./lib/target.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -48,7 +49,8 @@ const flag = (name) =>
     ?.split("=")
     .slice(1)
     .join("=") ?? null;
-const EXECUTE = args.includes("--execute");
+const target = resolveTarget({ destructive: true });
+const EXECUTE = target.execute;
 const RESET_COUNTS = args.includes("--reset-counts");
 const CLEAR_RATE_LIMITS = args.includes("--rate-limits");
 const ORDERS = flag("orders");
@@ -57,19 +59,7 @@ const USERS = (flag("users") ?? "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
-const env = Object.fromEntries(
-  readFileSync(path.join(ROOT, ".env.local"), "utf8")
-    .split("\n")
-    .filter((line) => line.includes("=") && !line.trim().startsWith("#"))
-    .map((line) => {
-      const i = line.indexOf("=");
-      return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-    }),
-);
-
-const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-});
+const db = createClient(target.url, target.key, { auth: { persistSession: false } });
 
 /** The most recent backups/<timestamp>/ that actually contains orders.json. */
 function latestOrderBackup() {

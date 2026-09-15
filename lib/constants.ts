@@ -7,6 +7,19 @@ export const SITE_URL = "https://aloe.kg";
  */
 export const LEGACY_SITE_URL = "https://old.aloe.kg";
 
+/**
+ * Where the four fixed /catalog tiles live (Популярное, Новинки, Акции, Бренды). They are artwork,
+ * not rows — there is no category to hang an `image_url` on — so the path is written down.
+ *
+ * Pinned to production's storage origin rather than derived from NEXT_PUBLIC_SUPABASE_URL, which
+ * looks like a bug and is not. Staging runs its own database but reads product photos straight out
+ * of these same public buckets, and its catalogue seed copies rows, never objects — so
+ * `categories/specials/` exists in exactly one project. Deriving the origin would leave staging
+ * with four broken tiles and gain nothing.
+ */
+export const SPECIALS_BASE_URL =
+  "https://dnlburbuchxzxdmhuczu.supabase.co/storage/v1/object/public/categories/specials";
+
 /** The shop's only contact channel — WhatsApp. Read by the contacts page and the Organization JSON-LD. */
 export const WHATSAPP_NUMBER = "+996 556 400 656";
 /** wa.me wants the number without spaces or a leading plus. */

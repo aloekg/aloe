@@ -6,11 +6,17 @@
  * brands, categories and the static pages — has no such column to match on, so the mapping is
  * resolved once, here, by reading the old site and matching on the name it prints in its <h1>.
  *
- * Run:  node --env-file=.env.local scripts/build-legacy-redirects.mjs
+ * Run:  node scripts/build-legacy-redirects.mjs --env=prod
  * The old sitemap is the source of which URLs exist; nothing is invented.
+ *
+ * --env=prod because the output is committed and has to describe the live catalogue. Reads only;
+ * the only thing it writes is lib/legacy-redirects.ts.
  */
 import { writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { resolveTarget } from "./lib/target.mjs";
+
+const target = resolveTarget();
 
 const OLD = "https://old.aloe.kg";
 const SITEMAP = `${OLD}/index.php?option=com_xmap&view=xml&tmpl=component&id=1`;
@@ -104,7 +110,7 @@ async function h1(path) {
   return null;
 }
 
-const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const db = createClient(target.url, target.key);
 
 const sitemap = await (await fetch(SITEMAP, { signal: AbortSignal.timeout(60000) })).text();
 const paths = [...sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].replace(/^https?:\/\/[^/]+/, ""));

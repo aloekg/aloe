@@ -2,11 +2,24 @@
 -- Transaction mode: transactional
 -- Boundary reason: default
 
+-- This file is a `db pull` of production as it stood on 2026-08-17, with one deliberate departure
+-- from the dump: four statements were made idempotent so the file can also build an EMPTY project.
+-- It could not before — `DROP EXTENSION pg_net` fails where the extension was never installed,
+-- and Supabase creates `rls_auto_enable` + `ensure_rls` on new projects itself, so the dump's
+-- bare CREATEs collided with them. Staging exists because of that, and so would any future
+-- environment. Each departure is marked `-- idempotent:` below.
+--
+-- Production is unaffected: this version is already recorded in supabase_migrations.schema_migrations
+-- and the CLI neither re-runs nor checksums an applied migration. A future `db pull` will drop
+-- these guards again — put them back.
+
 SET check_function_bodies = false;
 
-DROP EXTENSION pg_net;
+-- idempotent: a fresh project has no pg_net to drop.
+DROP EXTENSION IF EXISTS pg_net;
 
-CREATE EXTENSION pg_trgm WITH SCHEMA public;
+-- idempotent: pg_trgm may already be installed. It backs products_name_trgm_idx (/search).
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT DELETE, INSERT, SELECT, UPDATE ON TABLES TO anon;
 
@@ -56,7 +69,8 @@ REVOKE ALL ON FUNCTION public.increment_product_purchase_counts(jsonb) FROM PUBL
 
 GRANT ALL ON FUNCTION public.increment_product_purchase_counts(jsonb) TO service_role;
 
-CREATE FUNCTION public.rls_auto_enable()
+-- idempotent: Supabase ships this function on new projects; `db pull` captured it as if it were ours.
+CREATE OR REPLACE FUNCTION public.rls_auto_enable()
   RETURNS event_trigger
   LANGUAGE plpgsql
   SECURITY DEFINER
@@ -428,6 +442,12 @@ CREATE POLICY "Users can update own profile" ON public.profiles
 CREATE POLICY "Users can view own profile" ON public.profiles
   FOR SELECT
   USING ((auth.uid() = id));
+
+-- idempotent: same story as the function above — the trigger already exists on a new project.
+-- Event triggers have no CREATE OR REPLACE, so it is dropped first. Should that hit
+-- "must be owner of event trigger ensure_rls", replace this pair with a DO block that swallows
+-- duplicate_object: what matters is that the trigger ends up installed, not who installed it.
+DROP EVENT TRIGGER IF EXISTS ensure_rls;
 
 CREATE EVENT TRIGGER ensure_rls
   ON ddl_command_end
