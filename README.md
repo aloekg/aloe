@@ -60,12 +60,20 @@ npm run db:types:prod      # types/database.ts ВСЕГДА генерирует
 ### Поток веток
 
 ```
-feature/* ──PR──▶ staging ──auto──▶ stage.aloe.kg  (проверка)
-                     └── git checkout main && git merge --ff-only staging && git push ──▶ aloe.kg
+feature/* ──PR──▶ staging ──auto──▶ stage.aloe.kg  (проверка руками)
+                     └────PR────▶ main ──auto──▶ aloe.kg
 ```
 
-`--ff-only` гарантирует, что в прод уезжает ровно то, что проверено на стейдже. Миграции идут тем же
-маршрутом: `db:push:stage` при мерже в `staging`, `db:push:prod` при перемотке `main`.
+`main` защищён ruleset'ом: прямой push отклоняется, форс-push и удаление запрещены, влить можно
+только через PR с зелёным джобом `verify`. Ревью не требуется (approvals = 0) — мейнтейнер один, а
+собственный PR GitHub одобрить не даёт. Смысл правила не в ревью, а в том, что в прод не попадёт
+код, у которого падают типы, линт, формат или тесты.
+
+GitHub не умеет fast-forward при мерже PR, так что в `main` появится merge-коммит. Дерево при этом
+идентично проверенному на стейдже — это то, ради чего раньше стоял `--ff-only`.
+
+Миграции идут тем же маршрутом: `db:push:stage` при мерже в `staging`, `db:push:prod` после того,
+как PR в `main` влит.
 
 ## Команды
 
