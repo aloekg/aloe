@@ -1,8 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import type { ProductInput } from "./actions";
 import { Field, adminInputCls as inp } from "./admin-ui";
 import AdminDrawer from "./AdminDrawer";
+import DescriptionImageButton from "./DescriptionImageButton";
 import ImageDropzone from "./ImageDropzone";
 
 const LABELS = [
@@ -36,6 +38,35 @@ export default function ProductEditDrawer({
   onFileSelect,
   onSave,
 }: Props) {
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  /**
+   * Drops `snippet` where the caret is, rather than appending, so an image can be placed between
+   * two paragraphs. The textarea is controlled, so the caret has to be restored after React has
+   * rendered the new value — otherwise it jumps to the end and the next insert lands in the wrong
+   * place. Falls back to appending if the field was never focused.
+   */
+  function insertIntoDescription(snippet: string) {
+    const el = descriptionRef.current;
+    const current = editing.description ?? "";
+
+    if (!el) {
+      onChange("description", current ? `${current}\n\n${snippet}` : snippet);
+      return;
+    }
+
+    const start = el.selectionStart ?? current.length;
+    const end = el.selectionEnd ?? start;
+    onChange("description", `${current.slice(0, start)}${snippet}${current.slice(end)}`);
+
+    requestAnimationFrame(() => {
+      el.focus();
+      // Between the brackets of `![](…)`, where the alt text goes.
+      const caret = start + 2;
+      el.setSelectionRange(caret, caret);
+    });
+  }
+
   return (
     <AdminDrawer
       title={editing.id ? "Редактировать товар" : "Добавить товар"}
@@ -134,8 +165,9 @@ export default function ProductEditDrawer({
         </Field>
       </div>
 
-      <Field label="Описание (Markdown)">
+      <Field label="Описание (Markdown)" action={<DescriptionImageButton onInsert={insertIntoDescription} />}>
         <textarea
+          ref={descriptionRef}
           value={editing.description ?? ""}
           onChange={(e) => onChange("description", e.target.value || null)}
           className={`${inp} min-h-35 resize-y font-mono text-xs`}
