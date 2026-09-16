@@ -117,18 +117,26 @@ export async function getProduct(supabase: SupabaseClient<Database>, id: number)
   return supabase.from("products").select("*, brands(name, slug)").eq("id", id).eq("published", true).maybeSingle();
 }
 
+/** How many "Похожие товары" the product page shows. */
+export const RELATED_PRODUCTS_LIMIT = 4;
+
+/**
+ * The pool "Похожие товары" is drawn from — a whole category's first few products, with the product
+ * being viewed still in it. Excluding it here instead would put its id in the cache key, and the
+ * caller caches this: one entry per product (2400+) rather than one per category (~90), each
+ * rewritten on every expiry. The caller drops itself from the pool, which is why this fetches one
+ * more row than it shows — so a product inside its own pool still has four neighbours left.
+ */
 export async function getRelatedProducts(
   supabase: SupabaseClient<Database>,
   categoryId: number,
-  excludeId: number,
-  limit = 4,
+  limit = RELATED_PRODUCTS_LIMIT + 1,
 ) {
   const res = await supabase
     .from("products")
     .select(LIST_COLUMNS)
     .eq("published", true)
     .eq("category_id", categoryId)
-    .neq("id", excludeId)
     .order("id")
     .limit(limit);
   if (res.error) console.error(`[related-products] ${res.error.message}`);
