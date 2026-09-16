@@ -16,7 +16,6 @@ export type InvoiceData = {
   phone: string;
   address: string;
   comment: string;
-  deliveryLabel: string;
   deliveryCost: number;
   items: InvoiceItem[];
   itemsTotal: number;
@@ -84,7 +83,6 @@ export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
   doc.text(`Имя: ${data.name}`);
   doc.text(`Телефон: ${data.phone}`);
   doc.text(`Адрес: ${data.address}`);
-  doc.text(`Способ доставки: ${data.deliveryLabel}`);
   if (data.comment) doc.text(`Комментарий: ${data.comment}`);
   doc.moveDown(1);
 

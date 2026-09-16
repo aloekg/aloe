@@ -169,7 +169,6 @@ export async function createOrder({
         phone: customerPhone,
         address: customerAddress,
         comment: customerComment,
-        deliveryLabel,
         deliveryCost,
         items: orderItems,
         itemsTotal,
