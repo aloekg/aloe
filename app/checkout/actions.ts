@@ -2,10 +2,10 @@
 
 import { updateTag } from "next/cache";
 import { after } from "next/server";
-import { DELIVERY_OPTIONS } from "@/lib/constants";
+import { DELIVERY_OPTIONS, MIN_ORDER_TOTAL } from "@/lib/constants";
 import { generateInvoicePdf } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
-import { buildQuote, money, parseLines, publishedPriceLookup } from "@/lib/order-pricing";
+import { buildQuote, minOrderShortfall, money, parseLines, publishedPriceLookup } from "@/lib/order-pricing";
 import type { OrderLine, Quote, RejectedLine } from "@/lib/order-pricing";
 import { rateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -112,6 +112,14 @@ export async function createOrder({
   // left the customer retrying the same broken cart forever.
   if (quote.rejected.length > 0) {
     return { ok: false as const, error: "Часть товаров больше не доступна.", rejected: quote.rejected };
+  }
+
+  // Checked after the rejected lines, not before: the minimum is about the goods that can actually
+  // be delivered, so a cart that only clears 500 сом thanks to a product just taken off sale is
+  // below it. The customer prunes those first and sees the real total.
+  const shortfall = minOrderShortfall(quote.itemsTotal);
+  if (shortfall > 0) {
+    return fail(`Минимальная сумма заказа — ${MIN_ORDER_TOTAL} сом. Добавьте товаров ещё на ${shortfall} сом.`);
   }
 
   // The client showed a server quote before submitting. If prices moved in between, don't charge

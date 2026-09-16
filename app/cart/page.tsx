@@ -10,6 +10,7 @@ import MobileHeader from "@/components/MobileHeader";
 import QuantityStepper from "@/components/QuantityStepper";
 import Title from "@/components/Title";
 import { useIsClient } from "@/hooks/useIsClient";
+import { MIN_ORDER_TOTAL } from "@/lib/constants";
 import { useCart } from "@/store/cart";
 
 export default function CartPage() {
@@ -85,6 +86,14 @@ export default function CartPage() {
             </div>
           ))}
         </div>
+        {/* A hint, not a gate: these are the cart's own localStorage prices, which can lag the
+            catalogue. Checkout decides — it re-quotes on the server and names the exact shortfall,
+            so a stale price here can never leave a qualifying basket stuck on this page. */}
+        {total() < MIN_ORDER_TOTAL && (
+          <p className="mt-4 text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-amber-900">
+            Минимальная сумма заказа — {MIN_ORDER_TOTAL} <Currency />
+          </p>
+        )}
         <div className="mt-6 md:border-t md:pt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-gray-500 text-sm">Итого:</p>
