@@ -9,6 +9,8 @@ import {
   passwordStrength,
   RESEND_COOLDOWN_SECONDS,
   validateAuthForm,
+  validateNewPassword,
+  validateResetForm,
 } from "@/app/auth/validation";
 
 const ok = (password: string) => passwordRules(password).every((rule) => rule.ok);
@@ -128,5 +130,40 @@ describe("agreement with supabase/config.toml", () => {
 
     expect(maxFrequency, "[auth.email] max_frequency not found or not in whole seconds").not.toBeNull();
     expect(RESEND_COOLDOWN_SECONDS).toBeGreaterThanOrEqual(Number(maxFrequency![1]));
+  });
+});
+
+describe("validateResetForm", () => {
+  it("asks for an address and checks it for typos", () => {
+    expect(validateResetForm("")).toEqual({ email: "Введите email" });
+    expect(validateResetForm("  ")).toEqual({ email: "Введите email" });
+    expect(validateResetForm("ivan@gmail")).toEqual({ email: "Похоже, в адресе опечатка" });
+    expect(validateResetForm(" ivan@gmail.com ")).toEqual({});
+  });
+});
+
+describe("validateNewPassword", () => {
+  it("applies the same rules the registration form applies", () => {
+    expect(validateNewPassword({ password: "short", confirm: "short" }).password).toBeTruthy();
+    expect(validateNewPassword({ password: "Parol123", confirm: "Parol123" })).toEqual({});
+  });
+
+  it("requires the repeat to match", () => {
+    expect(validateNewPassword({ password: "Parol123", confirm: "" }).confirm).toBe("Повторите пароль");
+    expect(validateNewPassword({ password: "Parol123", confirm: "Parol124" }).confirm).toBe("Пароли не совпадают");
+  });
+
+  // The reset screen knows the address from the link rather than from a field, so the
+  // password-equals-email rule has to survive the address being absent.
+  it("only compares against the email when one is given", () => {
+    expect(validateNewPassword({ password: "Ivan1234", confirm: "Ivan1234", email: "Ivan1234" }).password).toBe(
+      "Пароль не должен совпадать с email",
+    );
+    expect(validateNewPassword({ password: "Ivan1234", confirm: "Ivan1234" })).toEqual({});
+  });
+
+  it("still rejects a password past the bcrypt byte ceiling", () => {
+    const long = `Aa1${"я".repeat(40)}`;
+    expect(validateNewPassword({ password: long, confirm: long }).password).toBe("Пароль слишком длинный");
   });
 });

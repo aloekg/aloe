@@ -90,11 +90,52 @@ export function passwordStrength(password: string): PasswordStrength {
 export type AuthField = "email" | "password" | "confirm";
 export type AuthFieldErrors = Partial<Record<AuthField, string>>;
 
+/** The reset form asks for an address and nothing else. */
+export function validateResetForm(email: string): AuthFieldErrors {
+  const value = email.trim();
+  if (!value) return { email: "Введите email" };
+  if (!isValidEmail(value)) return { email: "Похоже, в адресе опечатка" };
+  return {};
+}
+
+/**
+ * The rules for a password being *set* — registration, a reset, or a change from the profile.
+ * One definition so the three screens cannot drift apart, and so a password accepted by one is
+ * accepted by all of them.
+ *
+ * `email` is optional because the reset screen does not ask for one: at that point the address is
+ * established by the recovery link rather than typed.
+ */
+export function validateNewPassword(values: { password: string; confirm: string; email?: string }): AuthFieldErrors {
+  const errors: AuthFieldErrors = {};
+
+  if (!values.password) {
+    errors.password = "Введите пароль";
+    return errors;
+  }
+
+  // No need to spell the failure out — the live checklist sits directly under the field and
+  // already marks which requirement is missing.
+  if (passwordRules(values.password).some((rule) => !rule.ok)) errors.password = "Пароль не отвечает требованиям ниже";
+  else if (passwordByteLength(values.password) > PASSWORD_MAX_BYTES) errors.password = "Пароль слишком длинный";
+  else if (values.email && values.password.toLowerCase() === values.email.trim().toLowerCase())
+    errors.password = "Пароль не должен совпадать с email";
+
+  if (!values.confirm) errors.confirm = "Повторите пароль";
+  else if (values.confirm !== values.password) errors.confirm = "Пароли не совпадают";
+
+  return errors;
+}
+
 /**
  * `mode` matters: the registration rules must NOT be applied when signing in. Accounts created
  * before these rules existed have 6-character passwords, and validating them on the login form
  * would lock those users out of their own accounts with a message about a password they cannot
  * change without first logging in.
+ *
+ * That last clause stopped being true: /auth/new-password now changes a password without one.
+ * The reasoning still holds for the login form itself — an old short password must keep working
+ * until its owner chooses to replace it.
  */
 export function validateAuthForm(
   mode: "login" | "register",
@@ -113,15 +154,5 @@ export function validateAuthForm(
 
   if (mode === "login") return errors;
 
-  // No need to spell the failure out — the live checklist sits directly under the field and
-  // already marks which requirement is missing.
-  if (passwordRules(values.password).some((rule) => !rule.ok)) errors.password = "Пароль не отвечает требованиям ниже";
-  else if (passwordByteLength(values.password) > PASSWORD_MAX_BYTES) errors.password = "Пароль слишком длинный";
-  else if (email && values.password.toLowerCase() === email.toLowerCase())
-    errors.password = "Пароль не должен совпадать с email";
-
-  if (!values.confirm) errors.confirm = "Повторите пароль";
-  else if (values.confirm !== values.password) errors.confirm = "Пароли не совпадают";
-
-  return errors;
+  return { ...errors, ...validateNewPassword({ ...values, email }) };
 }

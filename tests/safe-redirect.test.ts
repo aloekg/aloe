@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveOrigin, safeRedirect } from "@/lib/safe-redirect";
 
 const BASE = "https://aloe.kg";
@@ -57,5 +57,27 @@ describe("resolveOrigin", () => {
     expect(resolveOrigin("attacker.vercel.app", "https://x")).toBe("https://aloe.kg");
     // Only the first entry of a comma-joined header is considered.
     expect(resolveOrigin("evil.com, aloe.kg", "https://x")).toBe("https://aloe.kg");
+  });
+});
+
+describe("resolveOrigin in development", () => {
+  // Next sets x-forwarded-host from the Host header even with nothing proxying, so a dev server
+  // used to fail every allow-list check and fall back to SITE_URL — sending anyone who opened a
+  // confirmation or password-reset link locally to the live shop instead.
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("honours localhost only outside production", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    expect(resolveOrigin("localhost:3000", "http://localhost:3000")).toBe("http://localhost:3000");
+    expect(resolveOrigin("127.0.0.1:3000", "http://127.0.0.1:3000")).toBe("http://127.0.0.1:3000");
+
+    vi.stubEnv("NODE_ENV", "production");
+    expect(resolveOrigin("localhost:3000", "http://localhost:3000")).toBe("https://aloe.kg");
+  });
+
+  it("still refuses a lookalike host that merely contains localhost", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    expect(resolveOrigin("localhost.evil.com", "http://localhost:3000")).toBe("https://aloe.kg");
+    expect(resolveOrigin("evil.com", "http://localhost:3000")).toBe("https://aloe.kg");
   });
 });

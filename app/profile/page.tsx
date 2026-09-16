@@ -14,6 +14,13 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const { supabase, user } = await requireAuth();
   const page = parsePage((await searchParams).page);
 
+  // A Google-only account has no password to change, and offering the form would end in
+  // "invalid credentials" against a password that never existed.
+  const hasPassword =
+    user.identities?.some((identity) => identity.provider === "email") ??
+    (user.app_metadata?.providers as string[] | undefined)?.includes("email") ??
+    false;
+
   const [{ orders, total }, profile] = await Promise.all([
     getUserOrders(supabase, user.id, { page, pageSize: ORDERS_PAGE_SIZE }),
     getProfile(supabase, user.id),
@@ -60,6 +67,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           page={page}
           totalPages={Math.ceil(total / ORDERS_PAGE_SIZE)}
           totalOrders={total}
+          passwordEmail={hasPassword ? (user.email ?? null) : null}
         />
       </MainContainer>
     </>

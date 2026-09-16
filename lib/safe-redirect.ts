@@ -29,6 +29,16 @@ export function resolveOrigin(forwardedHost: string | null | undefined, requestO
   // Explicit hosts only. A blanket `*.vercel.app` allowance let the redirect be steered to any
   // attacker-owned Vercel deployment, which undercut the point of validating this header at all.
   const deployments = [process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_URL].filter(Boolean);
-  const isAllowed = host === allowed || host.endsWith(`.${allowed}`) || deployments.includes(host);
-  return isAllowed ? `https://${host}` : SITE_URL;
+  if (host === allowed || host.endsWith(`.${allowed}`) || deployments.includes(host)) return `https://${host}`;
+
+  // Next sets x-forwarded-host from the Host header even when nothing is proxying, so a local
+  // server sees `localhost:3000` here, fails every check above, and falls back to SITE_URL — which
+  // means an email confirmation or password-reset link opened against a dev server redirects to
+  // the live shop. Honouring localhost in development makes those flows testable without touching
+  // production behaviour: the branch cannot be reached in a production build.
+  if (process.env.NODE_ENV !== "production" && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) {
+    return requestOrigin;
+  }
+
+  return SITE_URL;
 }
