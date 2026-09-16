@@ -3,12 +3,12 @@ import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
 import MobileSearchInput from "@/components/MobileSearchInput";
 import SearchResults from "@/components/SearchResults";
-import { parseBrandIds, parsePage } from "@/lib/page-params";
+import { parseBrandIds, parsePage, parseQuery } from "@/lib/page-params";
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }): Promise<Metadata> {
-  const { q } = await searchParams;
+  const q = parseQuery((await searchParams).q);
   return {
-    title: q?.trim() ? `${q} — поиск` : "Поиск",
+    title: q ? `${q} — поиск` : "Поиск",
     robots: { index: false, follow: true },
   };
 }
@@ -19,11 +19,11 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string; page?: string; brand?: string | string[] }>;
 }) {
   const sp = await searchParams;
-  const q = sp.q ?? "";
+  const q = parseQuery(sp.q);
   const currentPage = parsePage(sp.page);
   const selectedBrandIds = parseBrandIds(sp.brand);
 
-  if (!q.trim()) {
+  if (!q) {
     return (
       <>
         <MobileHeader>
