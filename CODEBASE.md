@@ -325,20 +325,33 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedBrands()`                                 | 1 hour | `brands`                      |
 | `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`                      |
 | `getCachedActiveBanners()`                          | 1 hour | `banners`                     |
-| `getCachedProductsByLabel(label, limit?)`           | 60 s   | `products`                    |
-| `getCachedProductsByLabelPaginated(label, page, …)` | 60 s   | `products`                    |
-| `getCachedPopularProducts(limit?)`                  | 60 s   | `products` `products-popular` |
-| `getCachedPopularProductsPaginated(page, pageSize)` | 60 s   | `products` `products-popular` |
-| `getCachedHomePageCategoryProducts(groups, limit?)` | 60 s   | `products`                    |
-| `getCachedCategoryProducts(categoryIds, sort)`      | 60 s   | `products`                    |
-| `getCachedProductsByBrand(id, page, pageSize)`      | 60 s   | `products`                    |
-| `getCachedProduct(id)`                              | 60 s   | `products`                    |
-| `getCachedRelatedProducts(categoryId, excludeId)`   | 60 s   | `products`                    |
+| `getCachedProductsByLabel(label, limit?)`           | 10 min | `products`                    |
+| `getCachedProductsByLabelPaginated(label, page, …)` | 10 min | `products`                    |
+| `getCachedPopularProducts(limit?)`                  | 10 min | `products` `products-popular` |
+| `getCachedPopularProductsPaginated(page, pageSize)` | 10 min | `products` `products-popular` |
+| `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
+| `getCachedCategoryProducts(categoryIds, sort)`      | 10 min | `products`                    |
+| `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
+| `getCachedProduct(id)`                              | 10 min | `products`                    |
+| `getCachedRelatedProducts(categoryId)`              | 10 min | `products`                    |
+
+The two TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min) and `REFERENCE_TTL`
+(1 hour). Neither is what keeps the site fresh: every write path invalidates by tag
+(`updateTag("products")` on each admin mutation, `updateTag("products-popular")` at checkout), so
+the TTL only backstops a row edited straight in the Supabase dashboard. It was 60 s until that cost
+became visible — an entry that expires every minute is an entry **rewritten** every minute, and
+Vercel's Hobby plan meters those against 200K ISR writes a month. See "Cache budget" below.
 
 `getCachedCategoryProducts` returns tuples rather than the `Map` the service produces — a `Map`
 cannot cross the `unstable_cache` boundary, so the caller rebuilds it. The extra `products-popular`
 tag lets checkout expire the two purchase-count-ranked queries without dropping the whole catalogue
 cache.
+
+`getCachedRelatedProducts` is keyed by **category alone**. Its `excludeId` used to be in the key,
+which made the cache hold one entry per product (2400+) where one per category (~90) says the same
+thing; `getRelatedProducts` therefore fetches `RELATED_PRODUCTS_LIMIT + 1` rows with the viewed
+product still among them, and `/product/[id]` filters itself out — so a product inside its own pool
+still has four neighbours to show. The rendered result is identical to the old query's.
 
 ## Zustand Stores (`/store/`)
 
@@ -497,6 +510,21 @@ recomputes to itself.
 **Drag-to-reorder** for admin categories and banners shares one hook, `useDragReorder()` — tracks drag/drop indices per group and hands back a reordered array; the caller persists the new `sort_order` via a server action (`reorderSubcategories()` / `reorderBanners()`).
 
 **Product quick-view modal:** `ProductCard` links to `/product/[id]` normally; the `@modal` parallel route (`app/@modal/(.)product/[id]/page.tsx`) intercepts that soft navigation and renders it inside `ProductModal` instead, so browsing stays on the originating grid/carousel while the URL still updates. See "Quick-view modal" note under App Routes.
+
+**Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
+both for regenerating an ISR page and for filling a Data Cache entry — `unstable_cache` included.
+That is the only metric this project has come close to (174K in a 30-day window; nothing else was
+above ~35%), and the cause was never traffic, it was key cardinality times expiry rate. A single
+product view that finds everything stale costs three writes: the `/product/[id]` ISR entry,
+`getCachedProduct(id)`, and `getCachedRelatedProducts(...)`. So two things are load-bearing and
+should be weighed before either is changed:
+
+- **`revalidate` on `/product/[id]` tracks `CATALOGUE_TTL`.** Both are 10 min, so the page and the
+  data it reads expire together — a shorter page TTL just rebuilds a page around unchanged data.
+- **A cache key must not carry anything per-product that the query does not need.** `excludeId` on
+  related products was the whole difference between ~90 entries and 2400.
+
+Neither costs freshness, because tag invalidation, not the TTL, is what publishes an admin edit.
 
 **Image optimization is intentionally disabled** — `next.config.ts` sets `images.unoptimized: true` (Vercel Hobby plan quota on Image Optimization source images). Do not re-enable without checking the plan/hosting situation first. Because nothing resizes at request time, **the browser downloads exactly the bytes that were uploaded**, so every product photo is stored at two sizes instead:
 
