@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DELIVERY_OPTIONS, getDeliveryCost } from "@/lib/constants";
+import { DELIVERY_OPTIONS, getDeliveryCost, MIN_ORDER_TOTAL } from "@/lib/constants";
 import type { OrderItem } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -57,6 +57,17 @@ export function parseLines(items: unknown): OrderLine[] | null {
     byId.set(id, Math.min(MAX_QUANTITY, (byId.get(id) ?? 0) + quantity));
   }
   return [...byId].map(([id, quantity]) => ({ id, quantity }));
+}
+
+/**
+ * How much the goods are short of `MIN_ORDER_TOTAL`, or 0 when the basket qualifies. Measured on
+ * `itemsTotal`, so it is decided by the lines that survived pricing, never by delivery.
+ *
+ * The checkout form shows it and `createOrder` refuses on it — the same function, so the button a
+ * customer sees disabled and the order the server rejects can never disagree by a сом.
+ */
+export function minOrderShortfall(itemsTotal: number): number {
+  return money(Math.max(0, MIN_ORDER_TOTAL - itemsTotal));
 }
 
 /** A published product's priced columns, as the database returns them. */

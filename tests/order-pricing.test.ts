@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD, MIN_ORDER_TOTAL } from "@/lib/constants";
 import {
   buildQuote,
   isManualDeliveryCost,
@@ -7,6 +7,7 @@ import {
   MAX_ITEM_NAME,
   MAX_ITEM_PRICE,
   MAX_QUANTITY,
+  minOrderShortfall,
   money,
   normalizeOrderItems,
   parseLines,
@@ -341,5 +342,28 @@ describe("parsePriceInput", () => {
 
   it.each([[""], ["   "], ["12."], ["abc"], ["-5"], ["1.005"], ["1,2,3"]])("rejects %s", (input) => {
     expect(parsePriceInput(input)).toBeNull();
+  });
+});
+
+describe("minOrderShortfall", () => {
+  it("is 0 exactly at the minimum and above it", () => {
+    expect(minOrderShortfall(MIN_ORDER_TOTAL)).toBe(0);
+    expect(minOrderShortfall(MIN_ORDER_TOTAL + 1)).toBe(0);
+  });
+
+  it("names how much the basket is short", () => {
+    expect(minOrderShortfall(MIN_ORDER_TOTAL - 1)).toBe(1);
+    expect(minOrderShortfall(0)).toBe(MIN_ORDER_TOTAL);
+  });
+
+  it("keeps the shortfall to two decimals, so no customer is told to add 0.30000000000001 сом", () => {
+    expect(minOrderShortfall(499.7)).toBe(0.3);
+  });
+
+  it("measures the goods alone — delivery must not top the basket up to the minimum", async () => {
+    // 450 сом of goods plus a 200 сом delivery fee totals 650, and is still short.
+    const quote = await buildQuote(lookup([product(1, 450)]), [{ id: 1, quantity: 1 }], "center");
+    expect(quote.total).toBe(650);
+    expect(minOrderShortfall(quote.itemsTotal)).toBe(50);
   });
 });

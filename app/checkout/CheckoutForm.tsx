@@ -7,10 +7,11 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import { useIsClient } from "@/hooks/useIsClient";
-import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD, MIN_ORDER_TOTAL } from "@/lib/constants";
 // Types come straight from the pricing module, not from ./actions: every export of a
 // "use server" file is registered as a server reference, and a re-exported type has nothing
 // behind it at runtime — which crashed the whole action module on evaluation.
+import { minOrderShortfall } from "@/lib/order-pricing";
 import type { Quote, RejectedLine } from "@/lib/order-pricing";
 import { useCart } from "@/store/cart";
 import { createOrder, quoteOrder } from "./actions";
@@ -146,6 +147,9 @@ export default function CheckoutForm({ initial }: Props) {
   const deliveryCost = quote?.deliveryCost ?? 0;
   const orderTotal = quote?.total ?? 0;
   const priceById = new Map((quote?.items ?? []).map((i) => [i.id, i.price]));
+  // Measured on the server's quote, never on the cart's own prices — the same function
+  // `createOrder` refuses with, so the disabled button and the server's answer always agree.
+  const shortfall = quote ? minOrderShortfall(itemsTotal) : 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -324,6 +328,19 @@ export default function CheckoutForm({ initial }: Props) {
         </div>
       )}
 
+      {shortfall > 0 && rejected.length === 0 && (
+        <p role="alert" className="text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-3 text-amber-900">
+          Минимальная сумма заказа — {MIN_ORDER_TOTAL} <Currency />. Добавьте товаров ещё на{" "}
+          <span className="font-medium">
+            {shortfall} <Currency />
+          </span>
+          .{" "}
+          <Link href="/catalog" className="text-green-700 underline">
+            Перейти в каталог
+          </Link>
+        </p>
+      )}
+
       {error && rejected.length === 0 && (
         <p role="alert" className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           {error}
@@ -334,7 +351,7 @@ export default function CheckoutForm({ initial }: Props) {
         type="submit"
         variant="primary"
         size="md"
-        disabled={loading || quoting || !quote || rejected.length > 0}
+        disabled={loading || quoting || !quote || rejected.length > 0 || shortfall > 0}
         className="w-full py-2.5 md:py-3"
       >
         {loading ? "Оформляем..." : quoting ? "Считаем..." : "Подтвердить заказ"}
