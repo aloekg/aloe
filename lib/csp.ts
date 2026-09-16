@@ -104,8 +104,9 @@ export function buildContentSecurityPolicy({ supabaseUrl, isDev, isPreview }: Cs
 
   if (isDev) {
     // React uses eval in development to rebuild server stacks; Turbopack's HMR runs over a ws:
-    // socket; @vercel/speed-insights loads its debug script from va.vercel-scripts.com in dev and
-    // from a same-origin path in production.
+    // socket; @vercel/speed-insights and @vercel/analytics both load their debug script from
+    // va.vercel-scripts.com in dev and from a same-origin /_vercel path in production, which is
+    // also where they beacon to, so 'self' covers both of them once deployed.
     directives["script-src"].push("'unsafe-eval'", "https://va.vercel-scripts.com");
     directives["connect-src"].push("ws:", "https://va.vercel-scripts.com");
   }

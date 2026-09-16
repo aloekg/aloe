@@ -628,6 +628,20 @@ Because `viewport` sets `viewport-fit: cover`, `app/globals.css` carries the mat
 insets: left/right on `body`, and the `safe-area-pb` utility that `MobileBottomNav` uses to stay
 clear of the iPhone home indicator in standalone.
 
+**Vercel measurement — `<SpeedInsights />` and `<Analytics />`, both in `app/layout.tsx`.** Speed
+Insights reports Core Web Vitals from real visits; Web Analytics reports page views, referrers,
+geography and devices. Neither sets a cookie or stores an identity — a visitor is a daily rotating
+hash of IP + user agent — so no consent banner is required, and both talk to a same-origin
+`/_vercel/…` path in production, which is why the CSP needs nothing beyond `'self'` there (`lib/csp.ts`
+allows `va.vercel-scripts.com` in dev only, where both load a debug script instead).
+
+What Analytics can answer is set by the plan, not by the code: Hobby meters **events**, one per page
+view, and keeps 30 days; `track()` custom events are Pro-only. So there is deliberately no
+add-to-cart / checkout instrumentation — that funnel already exists exactly and permanently in
+Supabase `orders` and `purchase_count`, and duplicating it into a 30-day sampled counter would be
+worse data in a second place. This is a separate meter from the ISR writes in “Cache budget” above;
+the two do not draw on each other.
+
 ## Scripts
 
 ```bash

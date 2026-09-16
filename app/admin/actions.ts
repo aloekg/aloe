@@ -65,6 +65,13 @@ const PRODUCT_THUMB = { width: 500, quality: 76 };
  * ever has to cover one breakpoint: desktop spans the `container` (≤1536px, minus padding), mobile
  * spans the viewport (≤~500px CSS, doubled for retina). One file per banner, no thumbnail pair.
  */
+/**
+ * An image placed inside a product's Markdown description renders in the prose column, which is
+ * narrower than the photo above it and never full-bleed. One size, no thumbnail pair: unlike a
+ * product photo it is rendered at exactly one place.
+ */
+const DESCRIPTION_IMAGE = { width: 900, quality: 80 };
+
 const BANNER_DESKTOP = { width: 1600, quality: 82 };
 const BANNER_MOBILE = { width: 1000, quality: 80 };
 
@@ -632,6 +639,49 @@ export async function uploadProductImage(
     url: db.storage.from("product-images").getPublicUrl(`${base}.webp`).data.publicUrl,
     thumbnailUrl: db.storage.from("product-images").getPublicUrl(`thumb/${base}.webp`).data.publicUrl,
   };
+}
+
+/**
+ * Uploads one image for a product's Markdown description and returns its URL. It writes no column —
+ * the admin pastes the returned `![](url)` into the description text itself.
+ *
+ * It exists because there was no way to get an image *into* a description. The dropzone at the top
+ * of the editor sets the product photo (image_url/thumbnail_url); nothing offered a URL to put in
+ * the text. So the descriptions imported from the old shop hotlink the manufacturers' sites
+ * instead — 27 such images across nine products, half of them already returning 404, and every one
+ * of them blocked the moment the CSP stops being Report-Only, because `img-src` names only this
+ * project's own origin (lib/csp.ts).
+ *
+ * Stored under `inline/` rather than beside the photos: scripts/prune-orphan-images.mjs decides
+ * what to delete by subtracting referenced paths from the bucket, and a description image is
+ * referenced from free text rather than from a column. That script now reads the text too — the
+ * prefix is what makes these objects recognisable while looking at the bucket rather than the rows.
+ */
+export async function uploadDescriptionImage(
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  await assertAdmin();
+
+  const file = formData.get("file") as File | null;
+  if (!file || !file.size) return { ok: false, error: "Файл не выбран" };
+  if (!ALLOWED_IMAGE_TYPES[file.type]) return { ok: false, error: "Допустимы только JPEG, PNG, WebP и AVIF" };
+  if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: "Файл больше 15 МБ" };
+
+  let body: Buffer;
+  try {
+    body = await encodeWebp(Buffer.from(await file.arrayBuffer()), DESCRIPTION_IMAGE);
+  } catch {
+    return { ok: false, error: "Не удалось обработать изображение — возможно, файл повреждён" };
+  }
+
+  const path = `inline/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+  const db = adminDb();
+  const { error } = await db.storage
+    .from("product-images")
+    .upload(path, body, { contentType: "image/webp", cacheControl: "2592000" });
+  if (error) return { ok: false, error: error.message };
+
+  return { ok: true, url: db.storage.from("product-images").getPublicUrl(path).data.publicUrl };
 }
 
 /**

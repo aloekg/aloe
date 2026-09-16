@@ -1,5 +1,9 @@
-// Lists (and optionally deletes) objects in the `product-images` bucket that no product row
-// references any more — chiefly the pre-WebP files superseded by the re-image run.
+// Lists (and optionally deletes) objects in the `product-images` bucket that nothing references
+// any more — chiefly the pre-WebP files superseded by the re-image run.
+//
+// "References" means: products.image_url, products.thumbnail_url, any bucket URL appearing in
+// products.description or products.seo_text (images inserted into a Markdown description live
+// under `inline/` and are pointed at by text alone), and orders.items[].image_url.
 //
 // Usage:
 //   node scripts/prune-orphan-images.mjs --env=prod                      list only
@@ -32,18 +36,28 @@ const supabase = createClient(target.url, target.key);
 // Built from the same URL the client opened, so the rows and the bucket provably name one project.
 const prefix = `${target.url}/storage/v1/object/public/${BUCKET}/`;
 
-// Every path any product currently points at, in either column.
+// Every path any product currently points at — from its two columns, and from its free text.
+//
+// The text matters as much as the columns. An image placed in a Markdown description
+// (uploadDescriptionImage in app/admin/actions.ts, stored under `inline/`) is referenced by
+// nothing but the description itself, so a version of this script that reads only image_url and
+// thumbnail_url would class every one of them as an orphan and delete it on the next --execute.
+const inBucket = new RegExp(`${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^\\s)"'<]+`, "g");
 const referenced = new Set();
 for (let from = 0; ; from += 1000) {
   const { data, error } = await supabase
     .from("products")
-    .select("image_url,thumbnail_url")
+    .select("image_url,thumbnail_url,description,seo_text")
     .order("id")
     .range(from, from + 999);
   if (error) throw error;
   for (const row of data) {
     for (const url of [row.image_url, row.thumbnail_url]) {
       if (url?.startsWith(prefix)) referenced.add(decodeURIComponent(url.slice(prefix.length)));
+    }
+    for (const text of [row.description, row.seo_text]) {
+      if (typeof text !== "string") continue;
+      for (const url of text.match(inBucket) ?? []) referenced.add(decodeURIComponent(url.slice(prefix.length)));
     }
   }
   if (data.length < 1000) break;
@@ -68,7 +82,7 @@ for (let from = 0; ; from += 1000) {
   if (data.length < 1000) break;
 }
 
-console.log(`referenced by products + order history: ${referenced.size} objects`);
+console.log(`referenced by product columns + descriptions + order history: ${referenced.size} objects`);
 
 const orphans = [];
 const protectedOriginals = [];

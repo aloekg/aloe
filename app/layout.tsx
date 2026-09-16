@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Lobster } from "next/font/google";
@@ -118,10 +119,19 @@ export default async function RootLayout({ children, modal }: { children: React.
         <MobileBottomNav />
         <Toaster />
         {modal}
-        {/* Core Web Vitals from real visits, reported to Vercel. Measurement only — it records no
-            identity and sets no cookie, so it needs no consent banner, unlike page analytics.
-            Mounted last: it loads its script after hydration and must not delay anything above. */}
+        {/* Core Web Vitals and page views from real visits, reported to Vercel. Both are
+            measurement only — they set no cookie and store no identity: a visitor is a daily
+            rotating hash of IP + user agent, which cannot be joined across days or sites, so
+            neither needs a consent banner. Mounted last: they load their scripts after hydration
+            and must not delay anything above.
+
+            Analytics bills per event and a page view is one event, so what it can answer is capped
+            by the plan, not by this file: on Hobby it is 50K events a month kept for 30 days, and
+            custom events (track()) are Pro-only. Hence no attempt to instrument add-to-cart or
+            checkout here — that funnel is already in Supabase `orders`, exactly, forever, and this
+            only answers where visitors come from and what they browse. */}
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
