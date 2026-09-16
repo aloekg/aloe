@@ -599,9 +599,14 @@ this app generates from data, `components/JsonLd.tsx`, escapes its input. `style
 `'unsafe-inline'` regardless: `nextjs-toploader` renders a real inline `<style>`, and `style={{…}}`
 props become style _attributes_, which nonces do not cover.
 
-It ships as `Content-Security-Policy-Report-Only` first — one constant, `CSP_HEADER`, flips it to
-enforcing. There is deliberately no `report-uri`: that would be an unauthenticated public POST
-endpoint fed a steady stream of junk from browser extensions.
+It shipped as `Content-Security-Policy-Report-Only` and is now enforcing — one constant,
+`CSP_HEADER`, switches between the two. There is deliberately no `report-uri`: that would be an
+unauthenticated public POST endpoint fed a steady stream of junk from browser extensions.
+
+The one thing enforcing changes for content: `img-src` allows `'self'` and the two Supabase
+origins, so an image hotlinked from a third-party host inside a Markdown product description no
+longer renders. Nine products inherited such images from the old JoomShopping descriptions and half
+of those URLs are already dead; the answer is to fix those rows, not to widen the policy.
 
 **Page metadata:** every indexable page builds its metadata with `pageMetadata()` (`lib/seo.ts`)
 rather than writing the fields out, because Next merges `openGraph` with the root layout's instead
