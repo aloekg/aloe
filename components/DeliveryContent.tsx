@@ -1,4 +1,5 @@
 import { Truck } from "lucide-react";
+import { MIN_ORDER_TOTAL } from "@/lib/constants";
 
 type Props = {
   compact?: boolean;
@@ -17,7 +18,7 @@ export default function DeliveryContent({ compact = false }: Props) {
           <div className="flex items-center gap-3">
             <Truck className="w-5 h-5 text-gray-400 shrink-0" />
             <span className="font-semibold text-gray-900 min-w-35">Доставка 200 сом</span>
-            <span className="text-gray-500 text-sm">при заказе от 500 сом</span>
+            <span className="text-gray-500 text-sm">при заказе от {MIN_ORDER_TOTAL} сом</span>
           </div>
           <div className="flex items-center gap-3">
             <Truck className="w-5 h-5 text-gray-400 shrink-0" />
@@ -32,7 +33,7 @@ export default function DeliveryContent({ compact = false }: Props) {
         <div className="flex items-center gap-3">
           <Truck className="w-5 h-5 text-gray-400 shrink-0" />
           <span className="font-semibold text-gray-900 min-w-35">Доставка 300 сом</span>
-          <span className="text-gray-500 text-sm">при заказе от 500 сом</span>
+          <span className="text-gray-500 text-sm">при заказе от {MIN_ORDER_TOTAL} сом</span>
         </div>
       </section>
 

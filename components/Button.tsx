@@ -19,9 +19,9 @@ export default function Button({
   return (
     <button
       className={cn(
-        "cursor-pointer disabled:opacity-50",
+        "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
         variant === "primary" && [
-          "bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors",
+          "bg-green-600 hover:bg-green-700 disabled:hover:bg-green-600 text-white font-medium rounded-lg transition-colors",
           size === "sm" && "px-3 py-1.5 text-xs",
           size === "md" && "px-4 py-1.5 text-sm",
           size === "lg" && "px-4 py-2.5 text-base",

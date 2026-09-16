@@ -211,7 +211,6 @@ export async function downloadInvoice(orderId: number): Promise<{ ok: true; base
     phone: order.customer_phone ?? "",
     address: order.customer_address ?? "",
     comment: order.comment ?? "",
-    deliveryLabel: DELIVERY_OPTIONS.find((o) => o.id === order.delivery_type)?.label ?? order.delivery_type ?? "—",
     deliveryCost: order.delivery_cost ?? 0,
     items: order.items as InvoiceItem[],
     itemsTotal,
