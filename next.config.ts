@@ -7,16 +7,20 @@ const csp = buildContentSecurityPolicy({
   isPreview: process.env.VERCEL_ENV === "preview",
 });
 
-// Report-Only first: the policy is derived from a full sweep of what the app loads, but real
-// traffic has two sources a click-through cannot reach — an externally hosted image pasted into a
-// Markdown product description, and browser extensions. Report-Only turns those into console
-// lines instead of a broken shop. Flip this one constant to "Content-Security-Policy" once a week
-// on production has produced no genuine violations; nothing else changes.
+// Enforcing. It shipped as Report-Only on 2026-09-16 and was flipped once the policy had been
+// checked against what the site actually loads.
+//
+// The one behaviour change to know about: `img-src` no longer allows arbitrary third-party hosts,
+// and nine products carry markdown images hotlinked from manufacturers' sites, inherited from the
+// old JoomShopping descriptions. Half of those URLs are already dead — they render as broken
+// images today — and the rest leak a referrer to eight external hosts on every product view. The
+// fix is to clean up those descriptions, not to widen the policy; widening it would bless
+// hotlinking to anywhere, permanently, for nine rows.
 //
 // Deliberately no report-uri/report-to: that would be an unauthenticated public POST endpoint,
 // and extensions generate a steady stream of junk violations against the same function budget
 // CODEBASE.md → "Cache budget" is about. Read violations from the DevTools console instead.
-const CSP_HEADER = "Content-Security-Policy-Report-Only";
+const CSP_HEADER = "Content-Security-Policy";
 
 const nextConfig: NextConfig = {
   images: {
