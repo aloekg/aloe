@@ -19,14 +19,23 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
-    if (!error) {
-      // verifyOtp sets session cookies, so signing out keeps this consistent with the PKCE branch
-      // below — otherwise the page says "now you can log in" while the header already shows the
-      // user as logged in. `scope: "local"` so confirming on one device doesn't revoke the others.
-      await supabase.auth.signOut({ scope: "local" });
-      return NextResponse.redirect(`${resolvedOrigin}/auth?confirmed=true`);
+    if (error) return NextResponse.redirect(`${resolvedOrigin}/auth?error=confirmation_failed`);
+
+    // Recovery is the one type whose session IS the point. verifyOtp is what proves the person
+    // reading the mailbox owns the account, and /auth/new-password spends that proof on a single
+    // updateUser call. Signing out here, as every other type does, is precisely what made the
+    // password-reset link a dead end: it arrived, it verified, and it left nothing behind to set a
+    // password with — while the sign-in form offered no way to ask for one in the first place.
+    if (type === "recovery") {
+      const next = searchParams.get("next");
+      return NextResponse.redirect(next ? safeRedirect(next, resolvedOrigin) : `${resolvedOrigin}/auth/new-password`);
     }
-    return NextResponse.redirect(`${resolvedOrigin}/auth?error=confirmation_failed`);
+
+    // verifyOtp sets session cookies, so signing out keeps this consistent with the PKCE branch
+    // below — otherwise the page says "now you can log in" while the header already shows the
+    // user as logged in. `scope: "local"` so confirming on one device doesn't revoke the others.
+    await supabase.auth.signOut({ scope: "local" });
+    return NextResponse.redirect(`${resolvedOrigin}/auth?confirmed=true`);
   }
 
   // PKCE / OAuth flow: code exchange
