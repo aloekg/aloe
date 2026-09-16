@@ -17,7 +17,7 @@ export default function ProductSearchBar({ value, onChange, onClear }: Props) {
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Поиск по названию..."
+        placeholder="Поиск по названию или ID..."
         className="w-full border border-gray-300 rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
       />
       {value && (
