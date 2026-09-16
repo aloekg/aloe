@@ -1,0 +1,54 @@
+-- Customers could still INSERT their own orders — with any total, any status, any items.
+--
+-- 20260911120000_orders_rls_and_grants.sql closed the write hole it went looking for:
+--
+--   revoke update, delete, truncate, trigger on public.orders from anon, authenticated;
+--
+-- INSERT is not in that list, and "own orders insert" (remote_schema.sql:346) was never dropped —
+-- only "Users manage own orders", "Admin can view all orders" and "Admin can update orders" were.
+-- The baseline `GRANT ALL ON public.orders TO anon/authenticated` (remote_schema.sql:329-331)
+-- therefore still carries INSERT, and the policy still admits it:
+--
+--   CREATE POLICY "own orders insert" ON public.orders FOR INSERT WITH CHECK (auth.uid() = user_id);
+--
+-- So any signed-in customer could POST /rest/v1/orders straight from DevTools with the public anon
+-- key and land a row in /admin/orders reading {"total": 0, "status": "delivered"} — orders.status
+-- has no CHECK constraint (remote_schema.sql:302), so "delivered" is as writable as "new". That
+-- bypasses every guard the checkout action has: the server-side re-pricing in buildQuote() /
+-- publishedPriceLookup() (lib/order-pricing.ts), the delivery-zone whitelist, the field length
+-- caps, and rateLimit("create-order", …). anon is unaffected — auth.uid() is NULL there, and
+-- NULL = user_id is NULL, not true.
+--
+-- Removing both is safe because the application never used either. The one and only order insert
+-- is insertOrder(admin, …) at app/checkout/actions.ts:127, and `admin` is createAdminClient() —
+-- the service-role key, which bypasses RLS entirely. That is what makes guest checkout work
+-- (orders.user_id is nullable by design), and it means the customer-facing INSERT path has been
+-- dead weight since guest checkout was introduced.
+--
+-- SELECT stays exactly as it is: /profile reads the customer's own orders with the anon client
+-- under "own orders read", which is the one orders policy the app genuinely depends on.
+--
+-- Idempotent, and it only narrows access, so it is safe to run against production as-is.
+
+drop policy if exists "own orders insert" on public.orders;
+
+revoke insert on public.orders from anon, authenticated;
+
+--------------------------------------------------------------------------------
+-- Verification — expect a single SELECT policy, and SELECT as the only privilege.
+--------------------------------------------------------------------------------
+-- select policyname, cmd, roles, qual, with_check
+-- from pg_policies where schemaname = 'public' and tablename = 'orders';
+--   -> "own orders read" | SELECT | {public} | (auth.uid() = user_id) | NULL
+--
+-- select grantee, string_agg(privilege_type, ', ' order by privilege_type)
+-- from information_schema.role_table_grants
+-- where table_schema = 'public' and table_name = 'orders' and grantee in ('anon', 'authenticated')
+-- group by grantee;
+--   -> anon, authenticated | SELECT   (REFERENCES/MAINTAIN may also appear; neither reads or writes rows)
+--
+-- And from outside, with a *signed-in* session's access token — expect 42501, not 201:
+--   curl -X POST "$SUPABASE_URL/rest/v1/orders" \
+--     -H "apikey: $ANON_KEY" -H "Authorization: Bearer $USER_ACCESS_TOKEN" \
+--     -H "Content-Type: application/json" \
+--     -d '{"user_id":"<own uid>","items":[],"total":0,"status":"delivered"}'

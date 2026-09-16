@@ -1,4 +1,22 @@
 import type { NextConfig } from "next";
+import { buildContentSecurityPolicy } from "@/lib/csp";
+
+const csp = buildContentSecurityPolicy({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  isDev: process.env.NODE_ENV === "development",
+  isPreview: process.env.VERCEL_ENV === "preview",
+});
+
+// Report-Only first: the policy is derived from a full sweep of what the app loads, but real
+// traffic has two sources a click-through cannot reach — an externally hosted image pasted into a
+// Markdown product description, and browser extensions. Report-Only turns those into console
+// lines instead of a broken shop. Flip this one constant to "Content-Security-Policy" once a week
+// on production has produced no genuine violations; nothing else changes.
+//
+// Deliberately no report-uri/report-to: that would be an unauthenticated public POST endpoint,
+// and extensions generate a steady stream of junk violations against the same function budget
+// CODEBASE.md → "Cache budget" is about. Read violations from the DevTools console instead.
+const CSP_HEADER = "Content-Security-Policy-Report-Only";
 
 const nextConfig: NextConfig = {
   images: {
@@ -27,6 +45,53 @@ const nextConfig: NextConfig = {
     "/admin/orders": ["./lib/fonts/**"],
   },
   poweredByHeader: false,
+
+  // Headers are matched before the filesystem and before proxy.ts, so this also covers
+  // /_next/static, /public and the metadata routes — every one of which proxy.ts's matcher
+  // deliberately excludes. Setting them here rather than in the proxy also keeps that file's three
+  // early returns (the legacy redirects, and the anonymous-visitor fast path that is most of the
+  // storefront's traffic) from each needing their own copy of the header block, and costs no
+  // function invocation at all.
+  //
+  // Deliberately NOT set: Strict-Transport-Security. Vercel already sends max-age=63072000 on
+  // aloe.kg, so ours would only duplicate it — and the tempting `includeSubDomains` would make
+  // https://mail.aloe.kg permanently unopenable. That host presents a *.hoster.kg certificate
+  // (see lib/mailer.ts), and HSTS turns a name mismatch into an error no browser lets you click
+  // through, for max-age. With `preload` on top it would take months to undo.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: CSP_HEADER, value: csp },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Superseded by frame-ancestors above, kept for pre-CSP2 browsers. Nothing here is ever
+          // framed — there is no <iframe> in the repository — and /admin's mutations are one-click
+          // server actions, which is exactly what clickjacking targets.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // None of these APIs are used. The admin photo upload is <input type="file"> (an OS
+          // picker), not getUserMedia, so camera=() does not touch it.
+          {
+            key: "Permissions-Policy",
+            value:
+              "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), display-capture=(), midi=()",
+          },
+        ],
+      },
+      // Must come after the entry above — where two rules set the same key for the same path, the
+      // last one wins.
+      //
+      // /auth/confirm reads `token_hash` and `code` straight out of the query string: live auth
+      // secrets in a URL. strict-origin-when-cross-origin already truncates those to the bare
+      // origin off-site; no-referrer additionally keeps them out of same-origin Referer headers and
+      // out of document.referrer. Nothing under /auth depends on a referrer.
+      {
+        source: "/auth/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

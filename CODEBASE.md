@@ -315,6 +315,8 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                            |
 | `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                           |
 | `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest                                                                                                                                                                                          |
+| `csp.ts`                  | `buildContentSecurityPolicy()` — the CSP `next.config.ts` serves, assembled at **build** time from `NEXT_PUBLIC_SUPABASE_URL` (see the security-headers note below)                                                                                                                                                                                                                            |
+| `text.ts`                 | `CONTACT_LIMITS`, `normalizeText()` — the caps on the customer contact fields, shared by checkout and the profile form, because a server action's argument types are erased at runtime                                                                                                                                                                                                         |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -567,6 +569,39 @@ reorganisation dissolved ("Бытовая химия" split into Для стир
 keeps a URL from being permanently tied to a page it never had, so a brand that is stocked again can
 reclaim its own address. The same reasoning applies to an unpublished product in
 `redirectLegacyProduct()`.
+
+**Security headers live in `next.config.ts` `headers()`, not in `proxy.ts`.** Headers are matched
+before the filesystem and before the proxy, so one `/:path*` rule also covers `/_next/static`,
+`/public` and the metadata routes — every one of which the proxy's matcher deliberately excludes —
+and it costs no function invocation. The proxy would have needed the same block on each of its three
+early returns, including the anonymous-visitor fast path that is most of the storefront's traffic.
+A second rule sets `Referrer-Policy: no-referrer` on `/auth/:path*`, because `/auth/confirm` reads
+`token_hash` and `code` out of the query string; where two rules set the same key, the last wins.
+
+`Strict-Transport-Security` is **deliberately absent**: Vercel already sends it on `aloe.kg`, and
+adding `includeSubDomains` would make `https://mail.aloe.kg` permanently unopenable — that host
+presents a `*.hoster.kg` certificate (`lib/mailer.ts`), and HSTS turns a name mismatch into an error
+no browser lets you click through.
+
+The CSP itself is built by `lib/csp.ts` and is **baked in at build time**, like `DEPLOY_ORIGIN`:
+changing `NEXT_PUBLIC_SUPABASE_URL` on Vercel needs a redeploy, not a restart. It is derived from
+that variable rather than hardcoded because production and staging are different Supabase projects,
+and `img-src` additionally names production's storage origin unconditionally, since staging reads
+product photos and the four `/catalog` tiles out of production's public buckets. A missing variable
+**fails the production build** — the opposite of `DEPLOY_ORIGIN`'s fallback, because here a wrong
+default would block the API the whole shop runs on rather than merely noindexing it.
+
+`script-src` is `'self' 'unsafe-inline'` rather than nonce-based on purpose. A nonce is applied at
+render time, so it cannot match the inline RSC payload baked into a prerendered page — every route
+would have to go dynamic, trading CDN-served HTML for a serverless render per view (see "Cache
+budget" above). `'self'` still blocks injection of an external script, and the only inline script
+this app generates from data, `components/JsonLd.tsx`, escapes its input. `style-src` needs
+`'unsafe-inline'` regardless: `nextjs-toploader` renders a real inline `<style>`, and `style={{…}}`
+props become style _attributes_, which nonces do not cover.
+
+It ships as `Content-Security-Policy-Report-Only` first — one constant, `CSP_HEADER`, flips it to
+enforcing. There is deliberately no `report-uri`: that would be an unauthenticated public POST
+endpoint fed a steady stream of junk from browser extensions.
 
 **Page metadata:** every indexable page builds its metadata with `pageMetadata()` (`lib/seo.ts`)
 rather than writing the fields out, because Next merges `openGraph` with the root layout's instead

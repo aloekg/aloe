@@ -10,9 +10,11 @@ import type { OrderLine, Quote, RejectedLine } from "@/lib/order-pricing";
 import { rateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
+import { CONTACT_LIMITS, normalizeText } from "@/lib/text";
 import { insertOrder, markOrderNotified } from "@/services/order.service";
 
-const LIMITS = { name: 120, phone: 32, address: 500, comment: 1000 } as const;
+// The comment field is checkout-only; the other three are shared with the profile form.
+const LIMITS = { ...CONTACT_LIMITS, comment: 1000 } as const;
 
 type Failure = { ok: false; error: string };
 
@@ -20,10 +22,6 @@ type CreateOrderResult = { ok: true; orderId: string } | (Failure & { rejected?:
 
 function fail(error: string): Failure {
   return { ok: false, error };
-}
-
-function normalizeText(value: unknown, max: number): string {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
 /**
