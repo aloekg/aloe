@@ -15,6 +15,7 @@ import {
 } from "@/components";
 import { getCachedCategoriesWithSlug, getCachedProduct, getCachedRelatedProducts } from "@/lib/cached-queries";
 import { LABEL_MAP, SITE_URL } from "@/lib/constants";
+import { MERCHANT_RETURN_POLICY, OFFER_SHIPPING_DETAILS } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
 import type { ProductRow } from "@/types";
 import { withBrandName } from "@/types";
@@ -129,6 +130,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       // No priceValidUntil: Google only warns about its absence, and every way to produce one
       // here is either impure in render or a date we cannot actually stand behind. Add it once
       // the schema carries a real price validity or stock field.
+      shippingDetails: OFFER_SHIPPING_DETAILS,
+      hasMerchantReturnPolicy: MERCHANT_RETURN_POLICY,
     },
   };
 

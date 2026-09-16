@@ -314,7 +314,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                     |
 | `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                            |
 | `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                           |
-| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest                                                                                                                                                                                          |
+| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                    |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -548,6 +548,22 @@ exception that proves the rule: they pass `title: { absolute: ... }` to skip the
 `"%s — Aloe.kg"` template, whose suffix would otherwise land on a title that already ends in
 `| Aloe.kg`. Paginated pages (`/new`, `/sale`, `/popular`) point the canonical at `?page=N` itself,
 not at page 1 — page 2 is not a duplicate of page 1, it is different products.
+
+**Product Offer markup** carries `shippingDetails` and `hasMerchantReturnPolicy` (`lib/seo.ts`),
+which is what Search Console's merchant-listing report asks an Offer for. Both are derived from
+`lib/constants.ts` so the markup cannot drift from what checkout charges. Shipping is a **single**
+`OfferShippingDetails` at the highest city rate: `DefinedRegion` cannot name a Bishkek microdistrict,
+so the 200/300 zones would both come out addressed to "Бишкек" and read as a duplicate rather than a
+choice — and overstating the rate can only surprise a customer in their favour. "regions" and
+"urgent" are excluded because neither has a rate to state.
+
+The return policy is a **placeholder**: no one has stated the shop's real terms, so
+`RETURN_WINDOW_DAYS` is the legal default (14 days, return shipping on the buyer) and is published
+both in the markup and in the "Возврат товара" section of `DeliveryContent` — replace all of it once
+the owner answers. Two of the five reported issues are deliberately left open: `review` and
+`aggregateRating` have no source of truth here, and inventing them breaks Google's policy. "No global
+identifier" is a data gap, not a code one — 413 of 2403 published products have no `brand_id`, and
+the schema has no GTIN column.
 
 **Primary color:** `#16a34a` (green-600) — `BRAND_COLOR` in `lib/constants.ts`, used by the manifest, the `viewport` export and `NextTopLoader`.
 

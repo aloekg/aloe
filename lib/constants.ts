@@ -71,6 +71,20 @@ export function getDeliveryCost(id: string, orderTotal: number): number {
   return option.cost;
 }
 
+/**
+ * PLACEHOLDER — the legal default, not a policy the shop has stated. Nothing on the old site or the
+ * new one describes returns, so this is article 25 of the KR consumer-protection act for
+ * non-food goods of proper quality: 14 days, return shipping on the buyer. It is published on
+ * /delivery and in every product's JSON-LD (Google's merchant-listing report asks for
+ * hasMerchantReturnPolicy), which makes it a public commitment — replace both the number and the
+ * wording as soon as the owner says what the real terms are.
+ *
+ * Cosmetics and household chemicals are on the non-returnable list in several neighbouring
+ * jurisdictions; if that applies here too, this whole block goes and the markup says
+ * MerchantReturnNotPermitted instead.
+ */
+export const RETURN_WINDOW_DAYS = 14;
+
 export const ORDER_STATUS: Record<string, { label: string; cls: string }> = {
   new: { label: "Новый", cls: "bg-blue-100 text-blue-700" },
   confirmed: { label: "Подтверждён", cls: "bg-yellow-100 text-yellow-700" },

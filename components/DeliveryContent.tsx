@@ -1,4 +1,5 @@
-import { Truck } from "lucide-react";
+import { RotateCcw, Truck } from "lucide-react";
+import { RETURN_WINDOW_DAYS } from "@/lib/constants";
 
 type Props = {
   compact?: boolean;
@@ -56,6 +57,24 @@ export default function DeliveryContent({ compact = false }: Props) {
           <p>Доставляем по предварительной договорённости с 13:00 до 20:00</p>
           <p>Срочная доставка отправляется с 10:00 до 18:00</p>
           <p>Понедельник — выходной</p>
+        </div>
+      </section>
+
+      {/* id="returns" is what MERCHANT_RETURN_POLICY.merchantReturnLink points at. The wording is
+          the placeholder described on RETURN_WINDOW_DAYS — replace it together with the constant. */}
+      <section id="returns" className={py}>
+        <H className={`${hSize} font-bold text-gray-900 mb-3`}>Возврат товара</H>
+        <div className="space-y-2 text-sm text-gray-700">
+          <div className="flex items-center gap-3">
+            <RotateCcw className="w-5 h-5 text-gray-400 shrink-0" />
+            <span className="font-semibold text-gray-900">{RETURN_WINDOW_DAYS} дней на возврат</span>
+          </div>
+          <p>
+            Товар надлежащего качества можно вернуть в течение {RETURN_WINDOW_DAYS} дней, если он не был в употреблении,
+            сохранены его товарный вид, упаковка и потребительские свойства.
+          </p>
+          <p>Обратная доставка оплачивается покупателем. Деньги возвращаем после получения товара.</p>
+          <p>Если товар пришёл повреждённым или не тем — напишите нам в WhatsApp, заменим или вернём деньги.</p>
         </div>
       </section>
 
