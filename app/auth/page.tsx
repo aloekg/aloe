@@ -4,6 +4,7 @@ import { Suspense, useEffect, useId, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
+import InstallAppIos from "@/components/InstallAppIos";
 import MainContainer from "@/components/MainContainer";
 import Title from "@/components/Title";
 import { cn } from "@/lib/cn";
@@ -307,6 +308,11 @@ function AuthForm() {
           )}
         </p>
       </form>
+
+      {/* The best page to offer this on, though the copy does not say why: an installed iOS web app
+          gets its own storage, so a session started here in Safari does not follow it in. Install
+          first and you sign in once. That is our problem to know, not the customer's to read. */}
+      <InstallAppIos className="mt-6" />
     </MainContainer>
   );
 }

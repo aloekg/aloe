@@ -1,4 +1,4 @@
-import { MainContainer, MobileHeader, Title } from "@/components";
+import { InstallAppIos, MainContainer, MobileHeader, Title } from "@/components";
 import { requireAuth } from "@/lib/auth";
 import { parsePage } from "@/lib/page-params";
 import { getUserOrders } from "@/services/order.service";
@@ -60,6 +60,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
           <LogoutButton />
         </div>
+
+        <InstallAppIos className="mb-6" />
 
         <ProfileTabs
           initial={profile}
