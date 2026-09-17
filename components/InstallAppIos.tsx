@@ -55,25 +55,13 @@ const STEPS = [
   { icon: null, before: "Нажмите", strong: "«Добавить»", after: "в правом верхнем углу" },
 ];
 
-const DEFAULT_DESCRIPTION = "Магазин откроется как приложение — во весь экран, с иконкой рядом с остальными.";
-
-type Props = {
-  className?: string;
-  /**
-   * Overridable because the reason to install differs by page. On `/auth` it is not "it looks
-   * nicer": an installed iOS web app gets its own storage, separate from Safari's, so a session
-   * started in the browser does not carry into it — install first and you sign in once, not twice.
-   */
-  description?: string;
-};
-
 /**
  * Tells an iPhone visitor how to install the shop, because iOS has no install API at all — Safari
  * offers nothing to call, so the only thing a site can do is describe the share sheet. Android is
  * deliberately not handled here: there the browser fires `beforeinstallprompt` and the right answer
  * is a button, not a set of steps.
  */
-export default function InstallAppIos({ className, description = DEFAULT_DESCRIPTION }: Props) {
+export default function InstallAppIos({ className }: { className?: string }) {
   // Rendered as nothing on the server, so the hint appears only once the client has looked.
   const show = useSyncExternalStore(subscribeToDisplayMode, applies, () => false);
   const [dismissed, setDismissed] = useState(() => {
@@ -110,7 +98,9 @@ export default function InstallAppIos({ className, description = DEFAULT_DESCRIP
       </Button>
 
       <p className="pr-7 font-semibold text-gray-900">Установите Aloe.kg на телефон</p>
-      <p className="mt-1 text-sm text-gray-600">{description}</p>
+      <p className="mt-1 text-sm text-gray-600">
+        Магазин откроется как приложение — во весь экран, с иконкой рядом с остальными.
+      </p>
 
       <ol className="mt-3 space-y-2">
         {STEPS.map((step, i) => {

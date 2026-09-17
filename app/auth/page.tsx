@@ -309,12 +309,10 @@ function AuthForm() {
         </p>
       </form>
 
-      {/* Before the form is filled in, not after: an installed iOS web app has its own storage, so
-          a session started here in Safari does not follow it in. */}
-      <InstallAppIos
-        className="mt-6"
-        description="Установите сейчас и войдите уже в приложении — вход в Safari в него не переносится, иначе входить придётся дважды."
-      />
+      {/* The best page to offer this on, though the copy does not say why: an installed iOS web app
+          gets its own storage, so a session started here in Safari does not follow it in. Install
+          first and you sign in once. That is our problem to know, not the customer's to read. */}
+      <InstallAppIos className="mt-6" />
     </MainContainer>
   );
 }
