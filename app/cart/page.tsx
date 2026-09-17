@@ -10,6 +10,7 @@ import MobileHeader from "@/components/MobileHeader";
 import QuantityStepper from "@/components/QuantityStepper";
 import Title from "@/components/Title";
 import { useIsClient } from "@/hooks/useIsClient";
+import { MIN_ORDER_TOTAL } from "@/lib/constants";
 import { useCart } from "@/store/cart";
 
 export default function CartPage() {
@@ -45,6 +46,8 @@ export default function CartPage() {
       </>
     );
   }
+  const shortfall = Math.max(0, MIN_ORDER_TOTAL - total());
+
   return (
     <>
       <MobileHeader title="Корзина">
@@ -85,6 +88,21 @@ export default function CartPage() {
             </div>
           ))}
         </div>
+        {/* Gated on the cart's own localStorage prices, which is what "Итого" above shows too — so
+            the button matches the number on screen. Checkout re-quotes on the server and refuses
+            there as well; this only saves the trip. */}
+        {shortfall > 0 && (
+          <p className="mt-4 text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-amber-900">
+            Минимальная сумма заказа — {MIN_ORDER_TOTAL} <Currency />. Добавьте ещё на{" "}
+            <span className="font-medium">
+              {shortfall} <Currency />
+            </span>
+            .{" "}
+            <Link href="/catalog" className="text-green-700 underline">
+              Перейти в каталог
+            </Link>
+          </p>
+        )}
         <div className="mt-6 md:border-t md:pt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-gray-500 text-sm">Итого:</p>
@@ -99,13 +117,20 @@ export default function CartPage() {
             <Button
               variant="primary"
               onClick={() => router.push("/checkout")}
+              disabled={shortfall > 0}
               className="min-w-40 flex-1 sm:flex-none sm:px-6"
             >
               Оформить заказ
             </Button>
           </div>
           <div className="md:hidden fixed bottom-20 left-0 right-0 px-8 flex">
-            <Button variant="primary" size="lg" onClick={() => router.push("/checkout")} className="min-w-40 flex-1">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => router.push("/checkout")}
+              disabled={shortfall > 0}
+              className="min-w-40 flex-1"
+            >
               Оформить заказ
             </Button>
           </div>

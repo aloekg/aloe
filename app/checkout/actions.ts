@@ -2,17 +2,19 @@
 
 import { updateTag } from "next/cache";
 import { after } from "next/server";
-import { DELIVERY_OPTIONS } from "@/lib/constants";
+import { DELIVERY_OPTIONS, MIN_ORDER_TOTAL } from "@/lib/constants";
 import { generateInvoicePdf } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
-import { buildQuote, money, parseLines, publishedPriceLookup } from "@/lib/order-pricing";
+import { buildQuote, minOrderShortfall, money, parseLines, publishedPriceLookup } from "@/lib/order-pricing";
 import type { OrderLine, Quote, RejectedLine } from "@/lib/order-pricing";
 import { rateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
+import { CONTACT_LIMITS, normalizeText } from "@/lib/text";
 import { insertOrder, markOrderNotified } from "@/services/order.service";
 
-const LIMITS = { name: 120, phone: 32, address: 500, comment: 1000 } as const;
+// The comment field is checkout-only; the other three are shared with the profile form.
+const LIMITS = { ...CONTACT_LIMITS, comment: 1000 } as const;
 
 type Failure = { ok: false; error: string };
 
@@ -20,10 +22,6 @@ type CreateOrderResult = { ok: true; orderId: string } | (Failure & { rejected?:
 
 function fail(error: string): Failure {
   return { ok: false, error };
-}
-
-function normalizeText(value: unknown, max: number): string {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
 /**
@@ -116,6 +114,14 @@ export async function createOrder({
     return { ok: false as const, error: "Часть товаров больше не доступна.", rejected: quote.rejected };
   }
 
+  // Checked after the rejected lines, not before: the minimum is about the goods that can actually
+  // be delivered, so a cart that only clears 500 сом thanks to a product just taken off sale is
+  // below it. The customer prunes those first and sees the real total.
+  const shortfall = minOrderShortfall(quote.itemsTotal);
+  if (shortfall > 0) {
+    return fail(`Минимальная сумма заказа — ${MIN_ORDER_TOTAL} сом. Добавьте товаров ещё на ${shortfall} сом.`);
+  }
+
   // The client showed a server quote before submitting. If prices moved in between, don't charge
   // silently — hand back the new quote and let the customer confirm it.
   if (quotedTotal != null && money(quotedTotal) !== quote.total) {
@@ -171,7 +177,6 @@ export async function createOrder({
         phone: customerPhone,
         address: customerAddress,
         comment: customerComment,
-        deliveryLabel,
         deliveryCost,
         items: orderItems,
         itemsTotal,

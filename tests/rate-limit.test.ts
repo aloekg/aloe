@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// `server-only` throws outside an RSC bundle; the rest stands in for the request context and the
-// service-role client so the fail-open contract can be asserted without a database.
-vi.mock("server-only", () => ({}));
-
+// `server-only` is neutralised once in vitest.config.mts. These stand in for the request context
+// and the service-role client so the fail-open contract can be asserted without a database.
 const headerValues = new Map<string, string>();
 vi.mock("next/headers", () => ({
   headers: async () => ({ get: (name: string) => headerValues.get(name) ?? null }),

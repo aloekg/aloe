@@ -2,55 +2,16 @@
 
 import { Suspense, useEffect, useId, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
-import { Check, Circle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
 import MainContainer from "@/components/MainContainer";
 import Title from "@/components/Title";
 import { cn } from "@/lib/cn";
 import { createClient } from "@/lib/supabase-browser";
+import { NETWORK_ERROR, translateError } from "./errors";
 import PasswordField from "./PasswordField";
-import {
-  passwordRules,
-  passwordStrength,
-  RESEND_COOLDOWN_SECONDS,
-  validateAuthForm,
-  type AuthFieldErrors,
-} from "./validation";
-
-/**
- * Matched on `error.code`, not on the message: GoTrue's English strings get reworded between
- * releases, while the codes are a stable contract. `message` is only a fallback for the few
- * errors that arrive without one.
- */
-const ERROR_BY_CODE: Record<string, string> = {
-  invalid_credentials: "Неверный email или пароль",
-  email_not_confirmed: "Email не подтверждён. Проверьте почту и перейдите по ссылке в письме.",
-  user_already_exists: "Пользователь с таким email уже зарегистрирован",
-  email_exists: "Пользователь с таким email уже зарегистрирован",
-  email_address_invalid: "Некорректный email",
-  weak_password: "Слишком простой пароль — добавьте символов или цифр",
-  over_email_send_rate_limit: "Слишком много писем за короткое время. Подождите минуту и попробуйте снова.",
-  over_request_rate_limit: "Слишком много попыток. Подождите немного и попробуйте снова.",
-  signup_disabled: "Регистрация временно недоступна",
-  email_provider_disabled: "Вход по email временно недоступен",
-  user_banned: "Аккаунт заблокирован. Свяжитесь с нами.",
-  otp_expired: "Ссылка устарела. Запросите письмо заново.",
-  validation_failed: "Проверьте правильность заполнения полей",
-};
-
-const ERROR_BY_MESSAGE: Record<string, string> = {
-  "Invalid login credentials": "Неверный email или пароль",
-  "Email not confirmed": "Email не подтверждён. Проверьте почту и перейдите по ссылке в письме.",
-  "User already registered": "Пользователь с таким email уже зарегистрирован",
-};
-
-const NETWORK_ERROR = "Не удалось связаться с сервером. Проверьте соединение и попробуйте снова.";
-
-function translateError(error: { message: string; code?: string }): string {
-  if (error.code && ERROR_BY_CODE[error.code]) return ERROR_BY_CODE[error.code];
-  return ERROR_BY_MESSAGE[error.message] ?? error.message;
-}
+import PasswordHints from "./PasswordHints";
+import { RESEND_COOLDOWN_SECONDS, validateAuthForm, validateResetForm, type AuthFieldErrors } from "./validation";
 
 export default function AuthPage() {
   return (
@@ -61,13 +22,14 @@ export default function AuthPage() {
 }
 
 function AuthForm() {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   /**
    * Field errors stay quiet until the first submit — flagging "введите email" while someone is
    * still typing the first character is noise. After that they update on every keystroke, so a
@@ -83,9 +45,14 @@ function AuthForm() {
   const supabase = createClient();
 
   const isRegister = mode === "register";
-  const fieldErrors: AuthFieldErrors = submitted ? validateAuthForm(mode, { email, password, confirm }) : {};
-  const strength = passwordStrength(password);
-  const rules = passwordRules(password);
+  const isReset = mode === "reset";
+  // The reset form has no password field, so it is validated on the email alone rather than
+  // through validateAuthForm, whose contract is "login or register".
+  const fieldErrors: AuthFieldErrors = !submitted
+    ? {}
+    : isReset
+      ? validateResetForm(email)
+      : validateAuthForm(mode, { email, password, confirm });
 
   async function handleGoogleSignIn() {
     setError("");
@@ -112,7 +79,8 @@ function AuthForm() {
 
     setSubmitted(true);
     setError("");
-    if (Object.keys(validateAuthForm(mode, { email, password, confirm })).length > 0) return;
+    const errors = isReset ? validateResetForm(email) : validateAuthForm(mode, { email, password, confirm });
+    if (Object.keys(errors).length > 0) return;
 
     // GoTrue stores addresses lowercased; normalising here keeps "Ivan@" and "ivan@" from looking
     // like two different accounts on the client.
@@ -120,7 +88,16 @@ function AuthForm() {
     setLoading(true);
 
     try {
-      if (isRegister) {
+      if (isReset) {
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: `${window.location.origin}/auth/confirm?next=/auth/new-password`,
+        });
+        // Anything but a rate limit is reported as success on purpose: GoTrue stays silent about
+        // whether an address has an account, and saying "нет такого пользователя" here would hand
+        // a stranger the account-enumeration oracle the registration form is careful to deny.
+        if (error) setError(translateError(error));
+        else setResetSent(true);
+      } else if (isRegister) {
         const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
@@ -157,8 +134,8 @@ function AuthForm() {
     }
   }
 
-  function switchMode() {
-    setMode(isRegister ? "login" : "register");
+  function goTo(next: "login" | "register" | "reset") {
+    setMode(next);
     setError("");
     setSubmitted(false);
     // The email is almost always the same one — retyping it is pure friction. The passwords are
@@ -167,16 +144,27 @@ function AuthForm() {
     setConfirm("");
   }
 
+  if (resetSent) {
+    return (
+      <CheckMailboxNotice
+        kind="recovery"
+        email={email.trim().toLowerCase()}
+        onBackToLogin={() => {
+          setResetSent(false);
+          goTo("login");
+        }}
+      />
+    );
+  }
+
   if (registered) {
     return (
-      <ConfirmEmailNotice
+      <CheckMailboxNotice
+        kind="signup"
         email={email.trim().toLowerCase()}
         onBackToLogin={() => {
           setRegistered(false);
-          setMode("login");
-          setPassword("");
-          setConfirm("");
-          setSubmitted(false);
+          goTo("login");
         }}
       />
     );
@@ -196,10 +184,18 @@ function AuthForm() {
           Ссылка для подтверждения недействительна или устарела.
         </div>
       )}
-      <Title className="mb-6 text-center">{isRegister ? "Регистрация" : "Вход"}</Title>
+      <Title className="mb-6 text-center">
+        {isReset ? "Восстановление пароля" : isRegister ? "Регистрация" : "Вход"}
+      </Title>
 
       {/* A real <form>: Enter submits from any field, and password managers recognise the pair. */}
       <form onSubmit={handleSubmit} noValidate className="border border-gray-300 rounded-xl p-6 flex flex-col gap-4">
+        {isReset && (
+          <p className="text-sm text-gray-600">
+            Укажите email, на который зарегистрирован аккаунт — пришлём ссылку для смены пароля.
+          </p>
+        )}
+
         <div>
           <label htmlFor={emailId} className="text-sm text-gray-600 block mb-1">
             Email
@@ -228,37 +224,26 @@ function AuthForm() {
           )}
         </div>
 
-        <PasswordField
-          label="Пароль"
-          name="password"
-          value={password}
-          onChange={setPassword}
-          autoComplete={isRegister ? "new-password" : "current-password"}
-          placeholder={isRegister ? "Придумайте пароль" : "Ваш пароль"}
-          error={fieldErrors.password}
-        >
-          {isRegister && password.length > 0 && (
-            <div className="mt-2">
-              <div className="h-1 w-full overflow-hidden rounded-full bg-gray-200">
-                <div className={cn("h-full rounded-full transition-all duration-300", strength.barClass)} />
-              </div>
-              <p className="mt-1 text-xs text-gray-500" aria-live="polite">
-                Надёжность: {strength.label}
+        {!isReset && (
+          <PasswordField
+            label="Пароль"
+            name="password"
+            value={password}
+            onChange={setPassword}
+            autoComplete={isRegister ? "new-password" : "current-password"}
+            placeholder={isRegister ? "Придумайте пароль" : "Ваш пароль"}
+            error={fieldErrors.password}
+          >
+            {isRegister && <PasswordHints password={password} />}
+            {!isRegister && (
+              <p className="mt-2 text-right">
+                <Button type="button" variant="ghost" onClick={() => goTo("reset")} className="text-xs hover:underline">
+                  Забыли пароль?
+                </Button>
               </p>
-              <ul className="mt-2 space-y-1">
-                {rules.map((rule) => (
-                  <li
-                    key={rule.label}
-                    className={cn("flex items-center gap-1.5 text-xs", rule.ok ? "text-green-600" : "text-gray-500")}
-                  >
-                    {rule.ok ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Circle className="w-3.5 h-3.5 shrink-0" />}
-                    {rule.label}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </PasswordField>
+            )}
+          </PasswordField>
+        )}
 
         {isRegister && (
           <PasswordField
@@ -279,37 +264,67 @@ function AuthForm() {
         )}
 
         <Button type="submit" variant="primary" disabled={loading} className="w-full py-2">
-          {loading ? "Загрузка..." : isRegister ? "Зарегистрироваться" : "Войти"}
+          {loading ? "Загрузка..." : isReset ? "Отправить ссылку" : isRegister ? "Зарегистрироваться" : "Войти"}
         </Button>
 
-        <div className="flex items-center gap-3">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400">или</span>
-          <div className="flex-1 border-t border-gray-200" />
-        </div>
+        {!isReset && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-gray-200" />
+            <span className="text-xs text-gray-400">или</span>
+            <div className="flex-1 border-t border-gray-200" />
+          </div>
+        )}
 
-        <Button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors hover:cursor-pointer"
-        >
-          <FcGoogle className="text-base" />
-          Продолжить с Google
-        </Button>
+        {!isReset && (
+          <Button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors hover:cursor-pointer"
+          >
+            <FcGoogle className="text-base" />
+            Продолжить с Google
+          </Button>
+        )}
 
         <p className="text-center text-sm text-gray-500">
-          {isRegister ? "Уже есть аккаунт?" : "Нет аккаунта?"}{" "}
-          <Button type="button" variant="ghost" onClick={switchMode} className="hover:underline">
-            {isRegister ? "Войти" : "Зарегистрироваться"}
-          </Button>
+          {isReset ? (
+            <Button type="button" variant="ghost" onClick={() => goTo("login")} className="hover:underline">
+              Вернуться ко входу
+            </Button>
+          ) : (
+            <>
+              {isRegister ? "Уже есть аккаунт?" : "Нет аккаунта?"}{" "}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => goTo(isRegister ? "login" : "register")}
+                className="hover:underline"
+              >
+                {isRegister ? "Войти" : "Зарегистрироваться"}
+              </Button>
+            </>
+          )}
         </p>
       </form>
     </MainContainer>
   );
 }
 
-function ConfirmEmailNotice({ email, onBackToLogin }: { email: string; onBackToLogin: () => void }) {
+/**
+ * "We sent you a letter" — shown after registration and after a reset request. One component
+ * because the two differ only in wording and in which call the resend button repeats; the
+ * cooldown, the rate-limit handling and the spam-folder hint are the same problem either way.
+ */
+function CheckMailboxNotice({
+  kind,
+  email,
+  onBackToLogin,
+}: {
+  kind: "signup" | "recovery";
+  email: string;
+  onBackToLogin: () => void;
+}) {
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [status, setStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [sending, setSending] = useState(false);
@@ -328,11 +343,16 @@ function ConfirmEmailNotice({ email, onBackToLogin }: { email: string; onBackToL
     setSending(true);
     setStatus(null);
     try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
-      });
+      const { error } =
+        kind === "signup"
+          ? await supabase.auth.resend({
+              type: "signup",
+              email,
+              options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+            })
+          : await supabase.auth.resetPasswordForEmail(email, {
+              redirectTo: `${window.location.origin}/auth/confirm?next=/auth/new-password`,
+            });
       if (error) {
         setStatus({ kind: "error", text: translateError(error) });
       } else {
@@ -352,11 +372,13 @@ function ConfirmEmailNotice({ email, onBackToLogin }: { email: string; onBackToL
         <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto text-green-600 text-2xl">
           ✉
         </div>
-        <Title>Подтвердите email</Title>
+        <Title>{kind === "signup" ? "Подтвердите email" : "Письмо отправлено"}</Title>
         <p className="text-sm text-gray-600">
           Мы отправили письмо на <span className="font-medium text-gray-800">{email}</span>.
           <br />
-          Перейдите по ссылке в письме, чтобы завершить регистрацию.
+          {kind === "signup"
+            ? "Перейдите по ссылке в письме, чтобы завершить регистрацию."
+            : "Перейдите по ссылке в письме, чтобы задать новый пароль."}
         </p>
         <p className="text-xs text-gray-400">Не пришло письмо? Проверьте папку «Спам».</p>
 

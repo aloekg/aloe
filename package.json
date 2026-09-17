@@ -21,6 +21,7 @@
     "backup:prod": "node backups/backup-db.mjs --env=prod",
     "backup:stage": "node backups/backup-db.mjs --env=stage",
     "seed:stage": "node scripts/seed-staging.mjs --env=stage",
+    "seed:stage:orders": "node scripts/seed-staging-orders.mjs --env=stage",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -29,6 +30,7 @@
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/react-virtual": "^3.14.4",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
     "embla-carousel-autoplay": "^8.6.0",
@@ -42,6 +44,7 @@
     "react-dom": "19.2.4",
     "react-icons": "^5.6.0",
     "react-markdown": "^10.1.0",
+    "server-only": "^0.0.1",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14"

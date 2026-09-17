@@ -34,6 +34,23 @@ export function escapeLike(value: string): string {
   return value.replace(/\*/g, "").replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
+/**
+ * An admin search term made only of digits also names a product id.
+ *
+ * Returned separately rather than switched on inside the query so the caller can *add* an exact-id
+ * match without taking anything away: searching "500" must still find "500 мл". The id is returned
+ * as the validated string because it goes straight into a PostgREST `.or()` filter — that filter is
+ * a parsed expression, not a bound parameter (see escapeOrFilterValue in order.service.ts for what
+ * happens when user text reaches one), and digits are the one input that needs no escaping at all.
+ *
+ * Capped at 15 digits: anything wider than bigint makes Postgres reject the whole query rather than
+ * simply match nothing.
+ */
+export function parseProductId(q: string): string | null {
+  const value = q.trim();
+  return /^\d{1,15}$/.test(value) ? value : null;
+}
+
 function range(page: number, pageSize: number): [number, number] {
   const from = (page - 1) * pageSize;
   return [from, from + pageSize - 1];
@@ -117,18 +134,26 @@ export async function getProduct(supabase: SupabaseClient<Database>, id: number)
   return supabase.from("products").select("*, brands(name, slug)").eq("id", id).eq("published", true).maybeSingle();
 }
 
+/** How many "Похожие товары" the product page shows. */
+export const RELATED_PRODUCTS_LIMIT = 4;
+
+/**
+ * The pool "Похожие товары" is drawn from — a whole category's first few products, with the product
+ * being viewed still in it. Excluding it here instead would put its id in the cache key, and the
+ * caller caches this: one entry per product (2400+) rather than one per category (~90), each
+ * rewritten on every expiry. The caller drops itself from the pool, which is why this fetches one
+ * more row than it shows — so a product inside its own pool still has four neighbours left.
+ */
 export async function getRelatedProducts(
   supabase: SupabaseClient<Database>,
   categoryId: number,
-  excludeId: number,
-  limit = 4,
+  limit = RELATED_PRODUCTS_LIMIT + 1,
 ) {
   const res = await supabase
     .from("products")
     .select(LIST_COLUMNS)
     .eq("published", true)
     .eq("category_id", categoryId)
-    .neq("id", excludeId)
     .order("id")
     .limit(limit);
   if (res.error) console.error(`[related-products] ${res.error.message}`);
@@ -275,7 +300,11 @@ export async function getAdminProducts(
 
   // Stays `select("*")` — the edit drawer needs description/seo_text/published.
   let query = supabase.from("products").select("*", { count: "exact" });
-  if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
+  // A digits-only term matches the id as well as the name, so pasting an id from a report or a URL
+  // finds the row. Additive on purpose — nothing that matched before stops matching.
+  const idTerm = parseProductId(q);
+  if (idTerm) query = query.or(`id.eq.${idTerm},name.ilike.%${idTerm}%`);
+  else if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
   // "none" mirrors the label filter: the products orphaned by the category FK's old
   // ON DELETE SET NULL are otherwise unreachable — nothing else in the admin can single out a
   // row whose category is missing, and they cannot be published until one is assigned.

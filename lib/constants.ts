@@ -35,6 +35,14 @@ export const LABEL_MAP = {
 
 export const FREE_DELIVERY_THRESHOLD = 10000;
 
+/**
+ * The smallest basket the shop accepts, in сом, counted on the goods alone — delivery is what the
+ * threshold pays for, so letting it top the basket up would defeat the point. The number is not new:
+ * `DeliveryContent` has promised "при заказе от 500 сом" since the old site, and until now nothing
+ * enforced it.
+ */
+export const MIN_ORDER_TOTAL = 500;
+
 export const DELIVERY_OPTIONS = [
   {
     id: "center",

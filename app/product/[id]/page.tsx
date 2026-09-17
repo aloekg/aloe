@@ -17,10 +17,14 @@ import { getCachedCategoriesWithSlug, getCachedProduct, getCachedRelatedProducts
 import { LABEL_MAP, SITE_URL } from "@/lib/constants";
 import { MERCHANT_RETURN_POLICY, OFFER_SHIPPING_DETAILS } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
+import { RELATED_PRODUCTS_LIMIT } from "@/services/product.service";
 import type { ProductRow } from "@/types";
 import { withBrandName } from "@/types";
 
-export const revalidate = 60;
+// Matches CATALOGUE_TTL in lib/cached-queries.ts: this page's own ISR entry and the data-cache
+// entries it reads expire together, so a stale page is not rebuilt only to reread stale data —
+// and on Vercel's Hobby plan both count against the same 200K/month ISR-write budget.
+export const revalidate = 600;
 
 export async function generateStaticParams() {
   const { data } = await supabase
@@ -64,10 +68,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const brandInfo = (rawProduct as unknown as { brands?: { name: string; slug: string } | null }).brands;
   const product = withBrandName([rawProduct as unknown as ProductRow])[0];
 
-  const [related, allCategories] = await Promise.all([
-    getCachedRelatedProducts(product.category_id, Number(id)),
+  const [relatedPool, allCategories] = await Promise.all([
+    getCachedRelatedProducts(product.category_id),
     getCachedCategoriesWithSlug(),
   ]);
+
+  // The pool is cached per category and still contains this product — see getRelatedProducts.
+  const related = relatedPool.filter((p) => p.id !== product.id).slice(0, RELATED_PRODUCTS_LIMIT);
 
   // product.category_id may point at a subcategory (2 levels) or a sub-subcategory (3 levels,
   // no page of its own) — walk up to find the top-level category and the subcategory whose

@@ -9,16 +9,20 @@ import { deliveryFreeNote, ORDER_STATUS } from "@/lib/constants";
 import { useCart } from "@/store/cart";
 import { useToast } from "@/store/toast";
 import type { Order, ProfileFields } from "@/types";
+import PasswordChangeForm from "./PasswordChangeForm";
 import ProfileForm from "./ProfileForm";
 
 export default function ProfileTabs({
   initial,
+  passwordEmail,
   orders,
   page,
   totalPages,
   totalOrders,
 }: {
   initial: ProfileFields | null;
+  /** The account's address, or null when it signs in through Google and has no password. */
+  passwordEmail: string | null;
   orders: Order[];
   page: number;
   totalPages: number;
@@ -61,9 +65,12 @@ export default function ProfileTabs({
       </div>
 
       {tab === "profile" && (
-        <ProfileForm
-          initial={{ name: initial?.name ?? "", phone: initial?.phone ?? "", address: initial?.address ?? "" }}
-        />
+        <>
+          <ProfileForm
+            initial={{ name: initial?.name ?? "", phone: initial?.phone ?? "", address: initial?.address ?? "" }}
+          />
+          {passwordEmail && <PasswordChangeForm email={passwordEmail} />}
+        </>
       )}
 
       {tab === "orders" && (

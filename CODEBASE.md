@@ -55,6 +55,7 @@
 /popular                    # Auto-derived from purchase_count (see note below), not a label
 /new /sale                  # Label-based product pages
 /admin                      # Admin dashboard (role: admin)
+/admin/analytics            # Sales dashboard — totals vs previous period, trends, catalogue and customer insights
 /admin/orders               # Order management
 /admin/products             # Product CRUD
 /admin/categories           # Category management (drag-to-reorder)
@@ -276,45 +277,50 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 
 ## Services (`/services/`)
 
-| file                   | purpose                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing |
-| `brand.service.ts`     | Brand queries (public + admin)                                                  |
-| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                 |
-| `order.service.ts`     | Order creation & listing, admin listing + status counts                         |
-| `profile.service.ts`   | User profile read/write                                                         |
-| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                   |
-| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list         |
-| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                            |
-| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only     |
+| file                   | purpose                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing      |
+| `brand.service.ts`     | Brand queries (public + admin)                                                       |
+| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                      |
+| `order.service.ts`     | Order creation & listing, admin listing + status counts                              |
+| `profile.service.ts`   | User profile read/write                                                              |
+| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                        |
+| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list              |
+| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                                 |
+| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only          |
+| `analytics.service.ts` | Rows the admin dashboard aggregates — orders, customer history, catalogue, favorites |
 
 ## Lib Utilities (`/lib/`)
 
-| file                      | purpose                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                                                                                                                                                                                   |
-| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                                                                                                                                                                                        |
-| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                                                                                                                                                                                   |
-| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                                                                                                                                                                                       |
-| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                                                                                                                                                                                     |
-| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                                                                                                                                                                                 |
-| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`/`SPECIALS_BASE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), and the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()`                                                                                                                                             |
-| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                                                                                                                                                                                                                             |
-| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                                                                                                                                                                                            |
-| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                                                                                                                                                                                 |
-| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                                                                                                                                                                                                                          |
-| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                                                                                                                                                                                              |
-| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                                                                                                                                                                    |
-| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                                                                                                                                                                                      |
-| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                                                                                                                                                                                               |
-| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                                                                                                                                                                                         |
-| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                                                                                                                                                                                 |
-| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                                                                                                                                                                      |
-| `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below) |
-| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                     |
-| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                            |
-| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                           |
-| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                    |
+| file                      | purpose                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                                                                                                                                                                                                          |
+| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                                                                                                                                                                                                               |
+| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                                                                                                                                                                                                          |
+| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                                                                                                                                                                                                              |
+| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                                                                                                                                                                                                            |
+| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                                                                                                                                                                                                        |
+| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`/`SPECIALS_BASE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()`, and `MIN_ORDER_TOTAL` (the smallest basket checkout accepts)                                                                                                          |
+| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers                                                                                                                                                                                                                                                                                                                                                    |
+| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                                                                                                                                                                                                                   |
+| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                                                                                                                                                                                                        |
+| `db.ts`                   | `soft()` / `strict()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`)                                                                                                                                                                                                                                                                 |
+| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                                                                                                                                                                                                                     |
+| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                                                                                                                                                                                           |
+| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                                                                                                                                                                                                             |
+| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                                                                                                                                                                                                                      |
+| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                                                                                                                                                                                                                |
+| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                                                                                                                                                                                                        |
+| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                                                                                                                                                                                             |
+| `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `minOrderShortfall()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below) |
+| `analytics.ts`            | Pure aggregation behind `/admin/analytics`: shop-day/period helpers and `buildReport()` — kept free of the database so `tests/analytics.test.ts` can exercise the arithmetic                                                                                                                                                                                                                                          |
+| `analytics-insights.ts`   | `buildInsights()` — the dashboard's catalogue- and history-dependent sections (categories, brands, heatmap, promo, free-delivery threshold, cancellations, repeat purchases, favorites vs sales, unsold products); pure, tested in `tests/analytics-insights.test.ts`                                                                                                                                                 |
+| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                            |
+| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                   |
+| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                                                  |
+| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                                           |
+| `csp.ts`                  | `buildContentSecurityPolicy()` — the CSP `next.config.ts` serves, assembled at **build** time from `NEXT_PUBLIC_SUPABASE_URL` (see the security-headers note below)                                                                                                                                                                                                                                                   |
+| `text.ts`                 | `CONTACT_LIMITS`, `normalizeText()` — the caps on the customer contact fields, shared by checkout and the profile form, because a server action's argument types are erased at runtime                                                                                                                                                                                                                                |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -325,20 +331,33 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedBrands()`                                 | 1 hour | `brands`                      |
 | `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`                      |
 | `getCachedActiveBanners()`                          | 1 hour | `banners`                     |
-| `getCachedProductsByLabel(label, limit?)`           | 60 s   | `products`                    |
-| `getCachedProductsByLabelPaginated(label, page, …)` | 60 s   | `products`                    |
-| `getCachedPopularProducts(limit?)`                  | 60 s   | `products` `products-popular` |
-| `getCachedPopularProductsPaginated(page, pageSize)` | 60 s   | `products` `products-popular` |
-| `getCachedHomePageCategoryProducts(groups, limit?)` | 60 s   | `products`                    |
-| `getCachedCategoryProducts(categoryIds, sort)`      | 60 s   | `products`                    |
-| `getCachedProductsByBrand(id, page, pageSize)`      | 60 s   | `products`                    |
-| `getCachedProduct(id)`                              | 60 s   | `products`                    |
-| `getCachedRelatedProducts(categoryId, excludeId)`   | 60 s   | `products`                    |
+| `getCachedProductsByLabel(label, limit?)`           | 10 min | `products`                    |
+| `getCachedProductsByLabelPaginated(label, page, …)` | 10 min | `products`                    |
+| `getCachedPopularProducts(limit?)`                  | 10 min | `products` `products-popular` |
+| `getCachedPopularProductsPaginated(page, pageSize)` | 10 min | `products` `products-popular` |
+| `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
+| `getCachedCategoryProducts(categoryIds, sort)`      | 10 min | `products`                    |
+| `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
+| `getCachedProduct(id)`                              | 10 min | `products`                    |
+| `getCachedRelatedProducts(categoryId)`              | 10 min | `products`                    |
+
+The two TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min) and `REFERENCE_TTL`
+(1 hour). Neither is what keeps the site fresh: every write path invalidates by tag
+(`updateTag("products")` on each admin mutation, `updateTag("products-popular")` at checkout), so
+the TTL only backstops a row edited straight in the Supabase dashboard. It was 60 s until that cost
+became visible — an entry that expires every minute is an entry **rewritten** every minute, and
+Vercel's Hobby plan meters those against 200K ISR writes a month. See "Cache budget" below.
 
 `getCachedCategoryProducts` returns tuples rather than the `Map` the service produces — a `Map`
 cannot cross the `unstable_cache` boundary, so the caller rebuilds it. The extra `products-popular`
 tag lets checkout expire the two purchase-count-ranked queries without dropping the whole catalogue
 cache.
+
+`getCachedRelatedProducts` is keyed by **category alone**. Its `excludeId` used to be in the key,
+which made the cache hold one entry per product (2400+) where one per category (~90) says the same
+thing; `getRelatedProducts` therefore fetches `RELATED_PRODUCTS_LIMIT + 1` rows with the viewed
+product still among them, and `/product/[id]` filters itself out — so a product inside its own pool
+still has four neighbours to show. The rendered result is identical to the old query's.
 
 ## Zustand Stores (`/store/`)
 
@@ -492,11 +511,73 @@ would have charged the _previous_ basket; without it, editing the items of a reg
 wipe the negotiated fee back to 0. The blind spot is a manual fee equal to the tariff, which
 recomputes to itself.
 
+**Admin analytics** (`/admin/analytics`) is computed in JS, not in SQL. `analytics.service.ts`
+pulls the orders of the period _and the one before it_ in a single paged fetch (PostgREST caps a
+request at 1000 rows), a four-column scan of the whole order history, the whole catalogue (~3
+narrow requests) and the favorites table. Two pure modules turn that into the page:
+`lib/analytics.ts` builds the core report — revenue split into goods and delivery, a bucketed time
+series, top products, delivery zones, statuses, new-vs-returning customers, and the previous
+period's summary for the tiles' deltas — and `lib/analytics-insights.ts` everything that needs the
+catalogue or the history: categories, brands, a weekday × hour heatmap, promo share, the
+free-delivery threshold histogram, cancellations, repeat purchases, favorites against sales and
+products with no sale. An RPC would be faster but would put a migration
+between the shop and every change to a formula, and this way the arithmetic is exercised by
+`tests/analytics.test.ts` with no database at all. The fetch is capped at `MAX_ANALYTICS_ORDERS`
+(10 000) and the page says so when it hits the cap rather than quietly under-reporting; that cap is
+the signal to move the aggregation into Postgres.
+
+Three things there are deliberate. **Days are Bishkek days** — `created_at` is timestamptz, and
+bucketing in UTC moves every order placed after 18:00 local into tomorrow. **A customer is a phone
+number, not an account** (last 9 digits, so `+996 555 …` and `0555 …` are one person): the same
+buyer orders once as a guest and once signed in, and `user_id` alone would count them twice and
+call both "новый". **A zero `delivery_cost` only counts as free delivery for the two city zones** —
+"regions" is agreed by phone and "urgent" is paid to the courier, so neither says anything about
+the free-delivery threshold, the same distinction `deliveryFreeNote()` makes. Cancelled orders are
+out of the money by default (a checkbox puts them back) but always present in the status breakdown
+and the cancellation card, which is what those are for.
+
+The insights carry their own compromises, each stated on its card rather than hidden:
+
+- **Category, brand and promo are read from the catalogue as it is now.** `orders.items` freezes a
+  line's name and price and nothing else, so a re-categorised product counts where it sits today,
+  and "акционный" means the product has the `sale` label or an `old_price` above its price _now_.
+- **Favorites are a snapshot.** Removing a heart deletes the row, so the card compares today's
+  wishlist with the period's sales, and only signed-in customers have one.
+- **The threshold histogram covers only the zones where the threshold waives the fee**
+  (`freeOverThreshold`, i.e. центр). Elsewhere a basket's size says nothing about whether the
+  threshold moved it.
+- **A product needs two orders before it can top the cancellation list** — one cancelled order is
+  an anecdote at 100%.
+- **"Без продаж" ignores products added during the period**, which never had the whole window to sell.
+- **The previous-period comparison is dropped when the fetch is truncated** — the cap cuts the
+  oldest rows first, which are exactly the previous period's, and a partial baseline would show
+  growth that is not there.
+
+The heatmap's green steps start at green-500, not a pale tint: checked with the dataviz palette
+validator, anything lighter falls under 2:1 against the white card. Changing a filter runs inside a
+transition — the report dims under a loader centred in the viewport and the filters are disabled
+until it lands, because `loading.tsx` only covers entering the route, not a search-param change.
+
 **Admin list pages** (products/categories/brands/orders) share `useAdminListNav()` (syncs filters to the URL query string, resets pagination on filter change) and `useDebouncedSearch()` (debounces search input before triggering navigation).
 
 **Drag-to-reorder** for admin categories and banners shares one hook, `useDragReorder()` — tracks drag/drop indices per group and hands back a reordered array; the caller persists the new `sort_order` via a server action (`reorderSubcategories()` / `reorderBanners()`).
 
 **Product quick-view modal:** `ProductCard` links to `/product/[id]` normally; the `@modal` parallel route (`app/@modal/(.)product/[id]/page.tsx`) intercepts that soft navigation and renders it inside `ProductModal` instead, so browsing stays on the originating grid/carousel while the URL still updates. See "Quick-view modal" note under App Routes.
+
+**Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
+both for regenerating an ISR page and for filling a Data Cache entry — `unstable_cache` included.
+That is the only metric this project has come close to (174K in a 30-day window; nothing else was
+above ~35%), and the cause was never traffic, it was key cardinality times expiry rate. A single
+product view that finds everything stale costs three writes: the `/product/[id]` ISR entry,
+`getCachedProduct(id)`, and `getCachedRelatedProducts(...)`. So two things are load-bearing and
+should be weighed before either is changed:
+
+- **`revalidate` on `/product/[id]` tracks `CATALOGUE_TTL`.** Both are 10 min, so the page and the
+  data it reads expire together — a shorter page TTL just rebuilds a page around unchanged data.
+- **A cache key must not carry anything per-product that the query does not need.** `excludeId` on
+  related products was the whole difference between ~90 entries and 2400.
+
+Neither costs freshness, because tag invalidation, not the TTL, is what publishes an admin edit.
 
 **Image optimization is intentionally disabled** — `next.config.ts` sets `images.unoptimized: true` (Vercel Hobby plan quota on Image Optimization source images). Do not re-enable without checking the plan/hosting situation first. Because nothing resizes at request time, **the browser downloads exactly the bytes that were uploaded**, so every product photo is stored at two sizes instead:
 
@@ -540,6 +621,44 @@ keeps a URL from being permanently tied to a page it never had, so a brand that 
 reclaim its own address. The same reasoning applies to an unpublished product in
 `redirectLegacyProduct()`.
 
+**Security headers live in `next.config.ts` `headers()`, not in `proxy.ts`.** Headers are matched
+before the filesystem and before the proxy, so one `/:path*` rule also covers `/_next/static`,
+`/public` and the metadata routes — every one of which the proxy's matcher deliberately excludes —
+and it costs no function invocation. The proxy would have needed the same block on each of its three
+early returns, including the anonymous-visitor fast path that is most of the storefront's traffic.
+A second rule sets `Referrer-Policy: no-referrer` on `/auth/:path*`, because `/auth/confirm` reads
+`token_hash` and `code` out of the query string; where two rules set the same key, the last wins.
+
+`Strict-Transport-Security` is **deliberately absent**: Vercel already sends it on `aloe.kg`, and
+adding `includeSubDomains` would make `https://mail.aloe.kg` permanently unopenable — that host
+presents a `*.hoster.kg` certificate (`lib/mailer.ts`), and HSTS turns a name mismatch into an error
+no browser lets you click through.
+
+The CSP itself is built by `lib/csp.ts` and is **baked in at build time**, like `DEPLOY_ORIGIN`:
+changing `NEXT_PUBLIC_SUPABASE_URL` on Vercel needs a redeploy, not a restart. It is derived from
+that variable rather than hardcoded because production and staging are different Supabase projects,
+and `img-src` additionally names production's storage origin unconditionally, since staging reads
+product photos and the four `/catalog` tiles out of production's public buckets. A missing variable
+**fails the production build** — the opposite of `DEPLOY_ORIGIN`'s fallback, because here a wrong
+default would block the API the whole shop runs on rather than merely noindexing it.
+
+`script-src` is `'self' 'unsafe-inline'` rather than nonce-based on purpose. A nonce is applied at
+render time, so it cannot match the inline RSC payload baked into a prerendered page — every route
+would have to go dynamic, trading CDN-served HTML for a serverless render per view (see "Cache
+budget" above). `'self'` still blocks injection of an external script, and the only inline script
+this app generates from data, `components/JsonLd.tsx`, escapes its input. `style-src` needs
+`'unsafe-inline'` regardless: `nextjs-toploader` renders a real inline `<style>`, and `style={{…}}`
+props become style _attributes_, which nonces do not cover.
+
+It shipped as `Content-Security-Policy-Report-Only` and is now enforcing — one constant,
+`CSP_HEADER`, switches between the two. There is deliberately no `report-uri`: that would be an
+unauthenticated public POST endpoint fed a steady stream of junk from browser extensions.
+
+The one thing enforcing changes for content: `img-src` allows `'self'` and the two Supabase
+origins, so an image hotlinked from a third-party host inside a Markdown product description no
+longer renders. Nine products inherited such images from the old JoomShopping descriptions and half
+of those URLs are already dead; the answer is to fix those rows, not to widen the policy.
+
 **Page metadata:** every indexable page builds its metadata with `pageMetadata()` (`lib/seo.ts`)
 rather than writing the fields out, because Next merges `openGraph` with the root layout's instead
 of deriving it from the page's own `title`/`description` — a page that omits the block silently
@@ -581,6 +700,20 @@ Because `viewport` sets `viewport-fit: cover`, `app/globals.css` carries the mat
 insets: left/right on `body`, and the `safe-area-pb` utility that `MobileBottomNav` uses to stay
 clear of the iPhone home indicator in standalone.
 
+**Vercel measurement — `<SpeedInsights />` and `<Analytics />`, both in `app/layout.tsx`.** Speed
+Insights reports Core Web Vitals from real visits; Web Analytics reports page views, referrers,
+geography and devices. Neither sets a cookie or stores an identity — a visitor is a daily rotating
+hash of IP + user agent — so no consent banner is required, and both talk to a same-origin
+`/_vercel/…` path in production, which is why the CSP needs nothing beyond `'self'` there (`lib/csp.ts`
+allows `va.vercel-scripts.com` in dev only, where both load a debug script instead).
+
+What Analytics can answer is set by the plan, not by the code: Hobby meters **events**, one per page
+view, and keeps 30 days; `track()` custom events are Pro-only. So there is deliberately no
+add-to-cart / checkout instrumentation — that funnel already exists exactly and permanently in
+Supabase `orders` and `purchase_count`, and duplicating it into a 30-day sampled counter would be
+worse data in a second place. This is a separate meter from the ISR writes in “Cache budget” above;
+the two do not draw on each other.
+
 ## Scripts
 
 ```bash
@@ -606,6 +739,7 @@ npm run db:push:prod    # link + apply to production
 npm run db:types:prod   # the ONLY correct way to regenerate types/database.ts
 npm run backup:prod     # dump production into backups/<timestamp>-prod/
 npm run seed:stage      # dry-run the catalogue seed; --execute writes
+npm run seed:stage:orders  # dry-run mock accounts + orders on staging; --execute writes, --reset replaces
 ```
 
 ### Schema changes
@@ -647,6 +781,7 @@ node scripts/prune-orphan-images.mjs --env=prod        # bucket objects nothing 
 node scripts/fix-orphan-categories.mjs --env=prod      # products whose category_id was stripped
 node scripts/purge-test-data.mjs --env=prod            # pre-launch orders/accounts/counters
 node scripts/seed-staging.mjs --env=stage              # production catalogue → staging (no personal data)
+node scripts/seed-staging-orders.mjs --env=stage       # made-up accounts + orders on staging, for the admin
 node scripts/generate-app-icons.mjs                    # app/icon.svg → the manifest's PNG icons
 node scripts/build-legacy-redirects.mjs --env=prod     # old site's URLs → lib/legacy-redirects.ts
 ```
@@ -687,6 +822,17 @@ are named `<product-id>.webp`, `product_url` feeds the legacy 301s), categories 
 because `parent_id` is a non-deferrable self-FK, and the script prints a `setval` block to run in the
 SQL Editor afterwards — writing explicit ids does not advance the sequences, and nothing looks wrong
 until the first insert from the admin collides.
+
+`seed-staging-orders.mjs` fills the gap that leaves: a catalogue-only staging has no orders, so
+`/admin/analytics` and `/admin/orders` are empty there. It invents customers (accounts
+`mock-NN@mock.aloe.kg`, confirmed, one shared password printed once) and orders against the real
+staging catalogue — repeat buyers, guests, both phone spellings, every zone and status, a few
+favorites per account (they cascade away with the account on `--reset`) — and raises
+`purchase_count` through the same RPC checkout uses. It is seeded (`--seed`), so a dry run shows
+exactly what `--execute` writes, and refuses to run twice without `--reset`, which would double every
+number. Unlike `purge-test-data.mjs` it selects by marker — `comment` starting `[mock]`, the
+`@mock.aloe.kg` domain — because it only ever removes what it wrote, and it cannot open production.
+`--reset` also takes back exactly the `purchase_count` the mock orders added.
 
 `fix-orphan-categories.mjs` cleans up after the category FK's old `ON DELETE SET NULL`: 91 products
 lost their `category_id` when a category was deleted and keep only the denormalised `category`
