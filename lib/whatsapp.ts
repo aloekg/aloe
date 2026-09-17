@@ -27,14 +27,22 @@ export function toWhatsAppNumber(raw: string | null | undefined): string | null 
   let digits = raw.replace(/\D/g, "");
   if (digits.startsWith("00")) digits = digits.slice(2);
 
-  if (digits.length === 9) return `996${digits}`; // 555 123 456
-  if (digits.length === 10 && digits.startsWith("0")) return `996${digits.slice(1)}`; // 0555 123 456
-  if (digits.length === 12 && digits.startsWith("996")) return digits; // +996 555 123 456
+  // Written as an international number: take it at its word instead of reading a leading 8 or 0 as
+  // a local trunk prefix. +82 2 123 4567 is ten digits and is not a Kyrgyz number.
+  if (explicitlyInternational) {
+    return digits.length >= 10 && digits.length <= 15 && !digits.startsWith("0") ? digits : null;
+  }
 
-  // A foreign number is trusted only when it was actually written as one. A bare 11-digit string is
-  // far more likely to be a mistyped local number than a Russian or Kazakh one.
-  if (explicitlyInternational && digits.length >= 10 && digits.length <= 15) return digits;
+  // `8` is the Soviet-era trunk prefix. Kyrgyzstan dials `0`, but customers who grew up on the old
+  // convention still write it — either on its own or in front of the country code.
+  if (digits.length === 13 && digits.startsWith("8996")) digits = digits.slice(1);
 
+  if (digits.length === 9) return `996${digits}`; // 709272740
+  if (digits.length === 10 && /^[08]/.test(digits)) return `996${digits.slice(1)}`; // 0505008085
+  if (digits.length === 12 && digits.startsWith("996")) return digits; // 996 555 123 456
+
+  // Anything else is a typo far more often than a foreign number typed without its `+`, and a
+  // guess here opens a chat with a stranger. The row falls back to showing the phone as text.
   return null;
 }
 

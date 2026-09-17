@@ -523,7 +523,8 @@ verification, a Meta-approved template per status and a per-message fee — so t
 until the volume argues otherwise.
 
 `customer_phone` is free text (checkout only requires nine digits somewhere in it), so
-`toWhatsAppNumber()` normalises `+996 555 …`, `0555 …` and `555 …` to the bare international digits
+`toWhatsAppNumber()` normalises `+996 555 …`, `0505 008 085`, `709 272 740` and the Soviet-era
+`8 505 …` trunk form to the bare international digits
 `wa.me` wants — the same spread `customerKey()` reconciles for analytics. It returns null rather
 than guessing at anything else, and the row then shows the phone as plain text: a wrong number here
 opens a chat with a stranger and puts a customer's order details into it.

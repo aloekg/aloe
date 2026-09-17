@@ -15,8 +15,21 @@ describe("toWhatsAppNumber", () => {
     expect(toWhatsAppNumber("(0555) 12-34-56")).toBe("996555123456");
   });
 
+  it("handles the two shapes customers most often type", () => {
+    // Straight from real orders: a leading 0, and nine bare digits with neither 0 nor 996.
+    expect(toWhatsAppNumber("0505008085")).toBe("996505008085");
+    expect(toWhatsAppNumber("709272740")).toBe("996709272740");
+  });
+
+  it("reads a leading 8 as the Soviet-era trunk prefix", () => {
+    expect(toWhatsAppNumber("8 505 008 085")).toBe("996505008085");
+    expect(toWhatsAppNumber("8996505008085")).toBe("996505008085");
+  });
+
   it("keeps a foreign number that was written in international form", () => {
     expect(toWhatsAppNumber("+7 999 123 45 67")).toBe("79991234567");
+    // Ten digits starting with 8 — the trunk-prefix rule must not claim it for Kyrgyzstan.
+    expect(toWhatsAppNumber("+82 2 123 4567")).toBe("8221234567");
   });
 
   it("refuses to guess rather than open a chat with a stranger", () => {
@@ -26,6 +39,8 @@ describe("toWhatsAppNumber", () => {
     expect(toWhatsAppNumber("12345")).toBeNull();
     // 11 digits with no plus: a mistyped local number far more often than a foreign one.
     expect(toWhatsAppNumber("05551234567")).toBeNull();
+    // No country code starts with 0, so this is a mangled local number, not an international one.
+    expect(toWhatsAppNumber("+0505008085")).toBeNull();
   });
 });
 
