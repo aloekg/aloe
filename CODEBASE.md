@@ -695,6 +695,7 @@ npm run db:push:prod    # link + apply to production
 npm run db:types:prod   # the ONLY correct way to regenerate types/database.ts
 npm run backup:prod     # dump production into backups/<timestamp>-prod/
 npm run seed:stage      # dry-run the catalogue seed; --execute writes
+npm run seed:stage:orders  # dry-run mock accounts + orders on staging; --execute writes, --reset replaces
 ```
 
 ### Schema changes
@@ -736,6 +737,7 @@ node scripts/prune-orphan-images.mjs --env=prod        # bucket objects nothing 
 node scripts/fix-orphan-categories.mjs --env=prod      # products whose category_id was stripped
 node scripts/purge-test-data.mjs --env=prod            # pre-launch orders/accounts/counters
 node scripts/seed-staging.mjs --env=stage              # production catalogue → staging (no personal data)
+node scripts/seed-staging-orders.mjs --env=stage       # made-up accounts + orders on staging, for the admin
 node scripts/generate-app-icons.mjs                    # app/icon.svg → the manifest's PNG icons
 node scripts/build-legacy-redirects.mjs --env=prod     # old site's URLs → lib/legacy-redirects.ts
 ```
@@ -776,6 +778,16 @@ are named `<product-id>.webp`, `product_url` feeds the legacy 301s), categories 
 because `parent_id` is a non-deferrable self-FK, and the script prints a `setval` block to run in the
 SQL Editor afterwards — writing explicit ids does not advance the sequences, and nothing looks wrong
 until the first insert from the admin collides.
+
+`seed-staging-orders.mjs` fills the gap that leaves: a catalogue-only staging has no orders, so
+`/admin/analytics` and `/admin/orders` are empty there. It invents customers (accounts
+`mock-NN@mock.aloe.kg`, confirmed, one shared password printed once) and orders against the real
+staging catalogue — repeat buyers, guests, both phone spellings, every zone and status — and raises
+`purchase_count` through the same RPC checkout uses. It is seeded (`--seed`), so a dry run shows
+exactly what `--execute` writes, and refuses to run twice without `--reset`, which would double every
+number. Unlike `purge-test-data.mjs` it selects by marker — `comment` starting `[mock]`, the
+`@mock.aloe.kg` domain — because it only ever removes what it wrote, and it cannot open production.
+`--reset` also takes back exactly the `purchase_count` the mock orders added.
 
 `fix-orphan-categories.mjs` cleans up after the category FK's old `ON DELETE SET NULL`: 91 products
 lost their `category_id` when a category was deleted and keep only the denormalised `category`
