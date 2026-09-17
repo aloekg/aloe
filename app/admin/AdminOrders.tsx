@@ -203,20 +203,7 @@ export default function AdminOrders({
                     </div>
                   )}
                   <p className="mt-1 font-semibold break-words">{order.customer_name ?? "—"}</p>
-                  <p className="flex flex-wrap items-center gap-x-2 text-sm text-gray-600">
-                    {order.customer_phone ?? "—"}
-                    {chatHref && (
-                      <a
-                        href={chatHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Откроет чат с готовым текстом — отправляете вы сами"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700 hover:underline"
-                      >
-                        <FaWhatsapp className="h-3.5 w-3.5" aria-hidden /> Написать
-                      </a>
-                    )}
-                  </p>
+                  <p className="text-sm text-gray-600">{order.customer_phone ?? "—"}</p>
                   <p className="text-sm break-words text-gray-600">{order.customer_address ?? "—"}</p>
                   {editingDeliveryId === order.id ? (
                     <OrderDeliveryEditor
@@ -277,6 +264,17 @@ export default function AdminOrders({
                     <Download className="w-3.5 h-3.5" /> Накладная
                   </Button>
                   <ShareInvoiceButton orderId={order.id} revision={invoiceRevision} />
+                  {chatHref && (
+                    <a
+                      href={chatHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Откроет чат с готовым текстом — отправляете вы сами"
+                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      <FaWhatsapp className="w-3.5 h-3.5" aria-hidden /> Написать
+                    </a>
+                  )}
                 </div>
               </div>
 
