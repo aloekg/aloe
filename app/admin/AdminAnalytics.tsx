@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { useOptimistic, useTransition } from "react";
+import { AlertTriangle, Loader2Icon } from "lucide-react";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import type { AnalyticsReport, PeriodId } from "@/lib/analytics";
@@ -74,6 +75,24 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
   const navigate = useAdminListNav({ period: "30" });
   const { customers, freeDelivery } = report;
 
+  // Changing a filter re-renders the page on the server, and a year of orders takes a moment to
+  // aggregate. Without a transition the old numbers just sat there under the new button with no sign
+  // anything was happening. The filters themselves switch at once (optimistically), the report
+  // dims until the new one arrives, and `loading.tsx` stays out of it — it only covers entering the
+  // route, not a search-param change within it.
+  const [isPending, startTransition] = useTransition();
+  const [filters, setFilters] = useOptimistic({ period, includeCancelled });
+
+  function applyFilters(next: Partial<typeof filters>) {
+    startTransition(() => {
+      setFilters({ ...filters, ...next });
+      navigate({
+        period: next.period ?? filters.period,
+        cancelled: (next.includeCancelled ?? filters.includeCancelled) ? "1" : "",
+      });
+    });
+  }
+
   // Every order in the period, cancelled ones included — "нет заказов" and "все отменены" are
   // different answers, and `report.orders` counts only what the money is computed over.
   const periodOrders = report.statuses.reduce((sum, status) => sum + status.orders, 0);
@@ -88,168 +107,184 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
           <Button
             key={option.id}
             type="button"
-            onClick={() => navigate({ period: option.id })}
+            onClick={() => option.id !== filters.period && applyFilters({ period: option.id })}
+            aria-pressed={option.id === filters.period}
             className={cn(
-              "rounded-lg border px-3 py-1.5 text-sm transition-colors",
-              option.id === period
+              "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+              option.id === filters.period
                 ? "border-green-600 bg-green-50 font-medium text-green-700"
                 : "border-gray-300 text-gray-600 hover:bg-gray-50",
             )}
           >
+            {isPending && option.id === filters.period && <Loader2Icon className="size-3.5 animate-spin" />}
             {option.label}
           </Button>
         ))}
         <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600">
           <input
             type="checkbox"
-            checked={includeCancelled}
-            onChange={(e) => navigate({ cancelled: e.target.checked ? "1" : "" })}
+            checked={filters.includeCancelled}
+            onChange={(e) => applyFilters({ includeCancelled: e.target.checked })}
             className="h-4 w-4 accent-green-600"
           />
           Считать отменённые
         </label>
       </div>
 
-      {truncated && (
-        <p className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          За этот период заказов больше, чем можно посчитать за один раз. Показаны только самые свежие — возьмите период
-          короче.
-        </p>
-      )}
+      <div className="relative" aria-busy={isPending}>
+        {/* Outside the dimmed block — opacity is inherited, and a half-transparent spinner reads as disabled. */}
+        {isPending && (
+          <div className="pointer-events-none sticky top-1/3 z-20 flex h-0 justify-center">
+            <div className="flex h-fit items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-gray-600 shadow-lg ring-1 ring-gray-200">
+              <Loader2Icon className="size-4 animate-spin text-green-600" />
+              Считаем…
+            </div>
+          </div>
+        )}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label="Выручка"
-          value={
-            <>
-              {money(report.revenue)} <Currency />
-            </>
-          }
-          hint={`товары ${money(report.goodsRevenue)} · доставка ${money(report.deliveryRevenue)}`}
-        />
-        <StatTile label="Заказов" value={report.orders} hint={`${report.itemsSold} товаров продано`} />
-        <StatTile
-          label="Средний чек"
-          value={
-            <>
-              {money(report.averageOrder)} <Currency />
-            </>
-          }
-          hint={
-            freeDelivery.ofZoned > 0
-              ? `бесплатная доставка: ${Math.round((freeDelivery.free / freeDelivery.ofZoned) * 100)}%`
-              : "бесплатная доставка: —"
-          }
-        />
-        <StatTile
-          label="Покупателей"
-          value={customers.total}
-          hint={`${customers.fresh} новых · ${customers.returning} повторных`}
-        />
-      </div>
-
-      {periodOrders === 0 ? (
-        <p className="rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
-          За выбранный период заказов нет.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {report.orders === 0 && (
-            <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
-              Все заказы за период отменены — включите «Считать отменённые», чтобы увидеть суммы.
+        <div className={cn("transition-opacity", isPending && "pointer-events-none opacity-50")}>
+          {truncated && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              За этот период заказов больше, чем можно посчитать за один раз. Показаны только самые свежие — возьмите
+              период короче.
             </p>
           )}
-          <Card title={SERIES_TITLE[report.granularity]}>
-            <AnalyticsBarChart series={report.series} />
-          </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Топ товаров">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
-                      <th className="pb-2 font-medium">Товар</th>
-                      <th className="pb-2 text-right font-medium">Шт.</th>
-                      <th className="pb-2 text-right font-medium">Выручка</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.topProducts.map((product) => (
-                      <tr key={product.id} className="border-b border-gray-50 last:border-0">
-                        <td className="py-1.5 pr-2">
-                          <span
-                            className="line-clamp-2 text-gray-700"
-                            style={{
-                              // A thin share bar behind the name, so the ranking reads without
-                              // comparing five-digit numbers.
-                              backgroundImage: `linear-gradient(to right, #dcfce7 ${
-                                topProductRevenue ? (product.revenue / topProductRevenue) * 100 : 0
-                              }%, transparent 0)`,
-                            }}
-                          >
-                            {product.name}
-                          </span>
-                        </td>
-                        <td className="py-1.5 text-right tabular-nums text-gray-500">{product.quantity}</td>
-                        <td className="py-1.5 text-right font-medium tabular-nums text-gray-900">
-                          {money(product.revenue)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile
+              label="Выручка"
+              value={
+                <>
+                  {money(report.revenue)} <Currency />
+                </>
+              }
+              hint={`товары ${money(report.goodsRevenue)} · доставка ${money(report.deliveryRevenue)}`}
+            />
+            <StatTile label="Заказов" value={report.orders} hint={`${report.itemsSold} товаров продано`} />
+            <StatTile
+              label="Средний чек"
+              value={
+                <>
+                  {money(report.averageOrder)} <Currency />
+                </>
+              }
+              hint={
+                freeDelivery.ofZoned > 0
+                  ? `бесплатная доставка: ${Math.round((freeDelivery.free / freeDelivery.ofZoned) * 100)}%`
+                  : "бесплатная доставка: —"
+              }
+            />
+            <StatTile
+              label="Покупателей"
+              value={customers.total}
+              hint={`${customers.fresh} новых · ${customers.returning} повторных`}
+            />
+          </div>
+
+          {periodOrders === 0 ? (
+            <p className="rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
+              За выбранный период заказов нет.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {report.orders === 0 && (
+                <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
+                  Все заказы за период отменены — включите «Считать отменённые», чтобы увидеть суммы.
+                </p>
+              )}
+              <Card title={SERIES_TITLE[report.granularity]}>
+                <AnalyticsBarChart series={report.series} />
+              </Card>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card title="Топ товаров">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                          <th className="pb-2 font-medium">Товар</th>
+                          <th className="pb-2 text-right font-medium">Шт.</th>
+                          <th className="pb-2 text-right font-medium">Выручка</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.topProducts.map((product) => (
+                          <tr key={product.id} className="border-b border-gray-50 last:border-0">
+                            <td className="py-1.5 pr-2">
+                              <span
+                                className="line-clamp-2 text-gray-700"
+                                style={{
+                                  // A thin share bar behind the name, so the ranking reads without
+                                  // comparing five-digit numbers.
+                                  backgroundImage: `linear-gradient(to right, #dcfce7 ${
+                                    topProductRevenue ? (product.revenue / topProductRevenue) * 100 : 0
+                                  }%, transparent 0)`,
+                                }}
+                              >
+                                {product.name}
+                              </span>
+                            </td>
+                            <td className="py-1.5 text-right tabular-nums text-gray-500">{product.quantity}</td>
+                            <td className="py-1.5 text-right font-medium tabular-nums text-gray-900">
+                              {money(product.revenue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+
+                <Card title="Топ категорий">
+                  <BarList
+                    rows={report.categories.map((category) => ({
+                      key: String(category.id ?? "none"),
+                      label: category.name,
+                      value: `${money(category.revenue)} с · ${category.quantity} шт.`,
+                      share: categoryRevenue ? category.revenue / categoryRevenue : 0,
+                    }))}
+                  />
+                </Card>
               </div>
-            </Card>
 
-            <Card title="Топ категорий">
-              <BarList
-                rows={report.categories.map((category) => ({
-                  key: String(category.id ?? "none"),
-                  label: category.name,
-                  value: `${money(category.revenue)} с · ${category.quantity} шт.`,
-                  share: categoryRevenue ? category.revenue / categoryRevenue : 0,
-                }))}
-              />
-            </Card>
-          </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card title="Доставка">
+                  <BarList
+                    rows={report.delivery.map((zone) => ({
+                      key: zone.id,
+                      // The tariff's own labels are whole sentences; the short name is enough here.
+                      label: SHORT_ZONE[zone.id] ?? zone.label,
+                      value: `${zone.orders} зак. · ${money(zone.revenue)} с`,
+                      share: deliveryOrders ? zone.orders / deliveryOrders : 0,
+                    }))}
+                  />
+                </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Доставка">
-              <BarList
-                rows={report.delivery.map((zone) => ({
-                  key: zone.id,
-                  // The tariff's own labels are whole sentences; the short name is enough here.
-                  label: SHORT_ZONE[zone.id] ?? zone.label,
-                  value: `${zone.orders} зак. · ${money(zone.revenue)} с`,
-                  share: deliveryOrders ? zone.orders / deliveryOrders : 0,
-                }))}
-              />
-            </Card>
-
-            <Card title="Статусы заказов">
-              <ul className="space-y-1.5">
-                {Object.entries(ORDER_STATUS).map(([key, { label, cls }]) => {
-                  const stat = report.statuses.find((s) => s.id === key);
-                  return (
-                    <li key={key} className="flex items-center justify-between gap-3 text-sm">
-                      <span className={cn("rounded px-2 py-0.5 text-xs font-medium", cls)}>{label}</span>
-                      <span className="tabular-nums text-gray-500">
-                        {stat?.orders ?? 0} зак. · {money(stat?.revenue ?? 0)} <Currency />
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <p className="mt-3 text-xs text-gray-500">
-                Гостевых заказов (без аккаунта): {customers.guestOrders} из {report.orders}. В среднем{" "}
-                {customers.ordersPer} зак. на покупателя.
-              </p>
-            </Card>
-          </div>
+                <Card title="Статусы заказов">
+                  <ul className="space-y-1.5">
+                    {Object.entries(ORDER_STATUS).map(([key, { label, cls }]) => {
+                      const stat = report.statuses.find((s) => s.id === key);
+                      return (
+                        <li key={key} className="flex items-center justify-between gap-3 text-sm">
+                          <span className={cn("rounded px-2 py-0.5 text-xs font-medium", cls)}>{label}</span>
+                          <span className="tabular-nums text-gray-500">
+                            {stat?.orders ?? 0} зак. · {money(stat?.revenue ?? 0)} <Currency />
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="mt-3 text-xs text-gray-500">
+                    Гостевых заказов (без аккаунта): {customers.guestOrders} из {report.orders}. В среднем{" "}
+                    {customers.ordersPer} зак. на покупателя.
+                  </p>
+                </Card>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </>
   );
 }
