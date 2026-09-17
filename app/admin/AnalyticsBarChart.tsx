@@ -1,12 +1,11 @@
 "use client";
 
-import type { SeriesPoint } from "@/lib/analytics";
 import { cn } from "@/lib/cn";
 
 /**
- * Revenue per bucket, one series. Deliberately not a second axis for the order count — two scales
- * on one plot invent a correlation — so the count rides in the hover tooltip, where it answers
- * "was that spike one big order or ten small ones?" without competing for the y-axis.
+ * One series of columns — revenue per day, or orders per basket size. Deliberately never a second
+ * axis: two scales on one plot invent a correlation, so whatever else a bar has to say (the order
+ * count behind a revenue spike) rides in its tooltip instead.
  *
  * Plain divs rather than SVG: the bars are rectangles, the labels are text, and CSS already does
  * both without a viewBox to keep in sync with the container's width.
@@ -22,9 +21,30 @@ function compact(value: number): string {
   return String(Math.round(value));
 }
 
-export default function AnalyticsBarChart({ series }: { series: SeriesPoint[] }) {
-  const max = Math.max(...series.map((p) => p.revenue), 0);
-  const tickStep = Math.max(1, Math.ceil(series.length / MAX_TICKS));
+export type BarPoint = {
+  key: string;
+  /** Axis tick and tooltip heading. */
+  label: string;
+  value: number;
+  /** The tooltip's second line, and the bar's accessible name together with `label`. */
+  detail: string;
+  /**
+   * De-emphasised bar — for a chart whose point is one side of a line (the baskets that reached the
+   * free-delivery threshold), not a second series with a meaning of its own.
+   */
+  muted?: boolean;
+};
+
+export default function AnalyticsBarChart({
+  points: series,
+  tickEvery,
+}: {
+  points: BarPoint[];
+  /** Label every n-th bar instead of spacing ticks automatically. */
+  tickEvery?: number;
+}) {
+  const max = Math.max(...series.map((p) => p.value), 0);
+  const tickStep = tickEvery ?? Math.max(1, Math.ceil(series.length / MAX_TICKS));
   // Anchor the ticks to the last bucket: the newest one is the one a reader looks for by name.
   const isTick = (index: number) => (series.length - 1 - index) % tickStep === 0;
 
@@ -60,24 +80,28 @@ export default function AnalyticsBarChart({ series }: { series: SeriesPoint[] })
 
             <div className="absolute inset-0 flex items-end gap-[2px]">
               {series.map((point, index) => {
-                const height = max > 0 ? (point.revenue / max) * 100 : 0;
+                const height = max > 0 ? (point.value / max) * 100 : 0;
                 const edge = index < 2 ? "start" : index > series.length - 3 ? "end" : "center";
                 return (
                   <div
-                    key={point.bucket}
+                    key={point.key}
                     // Focusable, because the tooltip is the only place the exact value lives and a
                     // hover is something neither a keyboard nor a phone has.
                     tabIndex={0}
-                    aria-label={`${point.label}: ${point.revenue.toLocaleString("ru-RU")} сом, заказов ${point.orders}`}
+                    aria-label={`${point.label}: ${point.detail}`}
                     className="group relative flex h-full flex-1 items-end outline-none"
                   >
                     {/* The whole column is the hit target, not just the bar — a 3px bar is unhoverable. */}
                     <div
                       className={cn(
                         "w-full rounded-t transition-colors",
-                        point.revenue > 0 ? "bg-green-600/80 group-hover:bg-green-600" : "bg-gray-200",
+                        point.value <= 0
+                          ? "bg-gray-200"
+                          : point.muted
+                            ? "bg-gray-300 group-hover:bg-gray-400"
+                            : "bg-green-600/80 group-hover:bg-green-600",
                       )}
-                      style={{ height: point.revenue > 0 ? `max(2px, ${height}%)` : 2 }}
+                      style={{ height: point.value > 0 ? `max(2px, ${height}%)` : 2 }}
                     />
                     <div
                       className={cn(
@@ -88,9 +112,7 @@ export default function AnalyticsBarChart({ series }: { series: SeriesPoint[] })
                       )}
                     >
                       <div className="font-medium">{point.label}</div>
-                      <div className="text-gray-300 tabular-nums">
-                        {point.revenue.toLocaleString("ru-RU")} с · {point.orders} зак.
-                      </div>
+                      <div className="text-gray-300 tabular-nums">{point.detail}</div>
                     </div>
                   </div>
                 );
@@ -101,7 +123,7 @@ export default function AnalyticsBarChart({ series }: { series: SeriesPoint[] })
           <div className="mt-1.5 flex gap-[2px]">
             {series.map((point, index) => (
               <div
-                key={point.bucket}
+                key={point.key}
                 className={cn(
                   "min-w-0 flex-1 text-[10px] whitespace-nowrap text-gray-400",
                   // A centred label on the first or last bar hangs half of itself off the plot.

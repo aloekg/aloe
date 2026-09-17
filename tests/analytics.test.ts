@@ -9,8 +9,13 @@ import {
   granularityFor,
   parsePeriod,
   periodRange,
+  previousRange,
   shopDay,
   shopDayStart,
+  shopHour,
+  summarizePeriod,
+  weekdayOf,
+  windowStart,
   type AnalyticsOrderRow,
 } from "@/lib/analytics";
 import type { OrderItem } from "@/types";
@@ -34,7 +39,6 @@ function order(overrides: Partial<AnalyticsOrderRow> & Pick<AnalyticsOrderRow, "
 }
 
 const NO_HISTORY = new Map<string, string>();
-const NO_CATEGORIES = new Map<number, { id: number; name: string }>();
 
 describe("shop days", () => {
   it("buckets an order by Bishkek's day, not UTC's", () => {
@@ -102,12 +106,20 @@ describe("customerKey", () => {
 describe("firstOrderDays", () => {
   it("keeps the earliest order per customer, whatever order the rows arrive in", () => {
     const first = firstOrderDays([
-      { user_id: null, customer_phone: "0555123456", created_at: "2026-09-10T06:00:00Z" },
-      { user_id: null, customer_phone: "+996555123456", created_at: "2025-03-01T06:00:00Z" },
-      { user_id: null, customer_phone: null, created_at: "2026-09-10T06:00:00Z" },
+      { user_id: null, customer_phone: "0555123456", created_at: "2026-09-10T06:00:00Z", status: "new" },
+      { user_id: null, customer_phone: "+996555123456", created_at: "2025-03-01T06:00:00Z", status: "delivered" },
+      { user_id: null, customer_phone: null, created_at: "2026-09-10T06:00:00Z", status: "new" },
     ]);
     expect(first.get("p:555123456")).toBe("2025-03-01");
     expect(first.size).toBe(1);
+  });
+
+  it("does not make a customer out of an order that was cancelled", () => {
+    const first = firstOrderDays([
+      { user_id: null, customer_phone: "0555123456", created_at: "2026-01-01T06:00:00Z", status: "cancelled" },
+      { user_id: null, customer_phone: "0555123456", created_at: "2026-09-10T06:00:00Z", status: "delivered" },
+    ]);
+    expect(first.get("p:555123456")).toBe("2026-09-10");
   });
 });
 
@@ -116,7 +128,6 @@ describe("buildReport", () => {
     fromDay: "2026-09-15",
     toDay: "2026-09-17",
     firstOrderByCustomer: NO_HISTORY,
-    categoryOf: NO_CATEGORIES,
   };
 
   it("leaves cancelled orders out of the money unless asked, but always out of nothing else", () => {
@@ -156,27 +167,16 @@ describe("buildReport", () => {
     expect(report.series.at(-1)?.orders).toBe(1);
   });
 
-  it("ranks products and categories by revenue, folding repeat sales together", () => {
+  it("ranks products by revenue, folding repeat sales together", () => {
     const rows = [
       order({ id: 1, created_at: "2026-09-15T06:00:00Z", items: [item(10, 100, 2), item(20, 500)] }),
       order({ id: 2, created_at: "2026-09-16T06:00:00Z", items: [item(10, 100, 3)] }),
     ];
-    const categoryOf = new Map([
-      [10, { id: 1, name: "Уборка" }],
-      [20, { id: 2, name: "Стирка" }],
-    ]);
-    const report = buildReport({ ...base, rows, includeCancelled: false, categoryOf });
+    const report = buildReport({ ...base, rows, includeCancelled: false });
 
     expect(report.itemsSold).toBe(6);
     expect(report.topProducts[0]).toMatchObject({ id: 10, quantity: 5, revenue: 500 });
     expect(report.topProducts[1]).toMatchObject({ id: 20, quantity: 1, revenue: 500 });
-    expect(report.categories.map((c) => c.name)).toEqual(["Уборка", "Стирка"]);
-  });
-
-  it("files a product with no known category under Без категории", () => {
-    const rows = [order({ id: 1, created_at: "2026-09-15T06:00:00Z", items: [item(99, 300)] })];
-    const report = buildReport({ ...base, rows, includeCancelled: false });
-    expect(report.categories).toEqual([{ id: null, name: "Без категории", quantity: 1, revenue: 300 }]);
   });
 
   it("counts free delivery only where the tariff could have charged for it", () => {
@@ -225,5 +225,38 @@ describe("buildReport", () => {
     expect(report.averageOrder).toBe(0);
     expect(report.customers.ordersPer).toBe(0);
     expect(report.series).toHaveLength(3);
+  });
+});
+
+describe("comparison helpers", () => {
+  it("reads the hour and the weekday on the shop's clock", () => {
+    // 20:30 UTC Wednesday is 02:30 Thursday in Bishkek.
+    expect(shopHour("2026-09-16T20:30:00Z")).toBe(2);
+    expect(weekdayOf(shopDay("2026-09-16T20:30:00Z"))).toBe(3);
+    expect(weekdayOf("2026-09-14")).toBe(0); // Monday
+    expect(weekdayOf("2026-09-20")).toBe(6); // Sunday
+  });
+
+  it("puts the previous period right before this one, the same length", () => {
+    expect(previousRange("7", "2026-09-11")).toEqual({ fromDay: "2026-09-04", toDay: "2026-09-10" });
+    expect(previousRange("all", null)).toBeNull();
+  });
+
+  it("summarises a period on the same rules as the report", () => {
+    const rows = [
+      order({ id: 1, created_at: "2026-09-15T06:00:00Z", total: 1000, customer_phone: "0555111111" }),
+      order({ id: 2, created_at: "2026-09-15T07:00:00Z", total: 500, customer_phone: "+996 555 111 111" }),
+      order({ id: 3, created_at: "2026-09-15T08:00:00Z", total: 900, status: "cancelled" }),
+    ];
+    expect(summarizePeriod(rows, false)).toEqual({ revenue: 1500, orders: 2, averageOrder: 750, customers: 1 });
+    expect(summarizePeriod(rows, true).orders).toBe(3);
+    expect(summarizePeriod([], false)).toEqual({ revenue: 0, orders: 0, averageOrder: 0, customers: 0 });
+  });
+
+  it("starts an all-time window at the oldest order, or today when there are none", () => {
+    const rows = [order({ created_at: "2026-05-02T06:00:00Z" }), order({ created_at: "2026-04-01T06:00:00Z" })];
+    expect(windowStart(null, rows, "2026-09-17")).toBe("2026-04-01");
+    expect(windowStart(null, [], "2026-09-17")).toBe("2026-09-17");
+    expect(windowStart("2026-09-01", rows, "2026-09-17")).toBe("2026-09-01");
   });
 });

@@ -4,24 +4,36 @@ import { useOptimistic, useTransition } from "react";
 import { AlertTriangle, Loader2Icon } from "lucide-react";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
-import type { AnalyticsReport, PeriodId } from "@/lib/analytics";
+import type { AnalyticsReport, PeriodId, PeriodSummary } from "@/lib/analytics";
 import { ANALYTICS_PERIODS } from "@/lib/analytics";
+import type { AnalyticsInsights } from "@/lib/analytics-insights";
 import { cn } from "@/lib/cn";
 import { ORDER_STATUS } from "@/lib/constants";
+import { BarList, Card, money, percent, SHORT_ZONE, StatTile } from "./analytics-ui";
 import AnalyticsBarChart from "./AnalyticsBarChart";
+import AnalyticsHeatmap from "./AnalyticsHeatmap";
+import {
+  BrandsCard,
+  CancellationsCard,
+  CategoriesCard,
+  FavoritesCard,
+  PromoCard,
+  RepeatCard,
+  ThresholdCard,
+  UnsoldCard,
+} from "./AnalyticsInsightCards";
 import { useAdminListNav } from "./useAdminListNav";
 
 type Props = {
   report: AnalyticsReport;
+  insights: AnalyticsInsights;
+  /** The same numbers for the period before this one; null for "всё время" or a truncated fetch. */
+  previous: PeriodSummary | null;
   period: PeriodId;
   includeCancelled: boolean;
   /** The range held more orders than one request may pull — the numbers cover only the newest. */
   truncated: boolean;
 };
-
-function money(value: number): string {
-  return Math.round(value).toLocaleString("ru-RU");
-}
 
 const SERIES_TITLE: Record<AnalyticsReport["granularity"], string> = {
   day: "Выручка по дням",
@@ -29,57 +41,21 @@ const SERIES_TITLE: Record<AnalyticsReport["granularity"], string> = {
   month: "Выручка по месяцам",
 };
 
-function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-gray-200 p-4">
-      <div className="text-xs font-medium text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{value}</div>
-      {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
-    </div>
-  );
-}
+const COMPARE_CAPTION: Partial<Record<PeriodId, string>> = {
+  "7": "к прошлым 7 дням",
+  "30": "к прошлым 30 дням",
+  "90": "к прошлым 90 дням",
+  "365": "к прошлому году",
+};
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-gray-200 p-4">
-      <h2 className="mb-3 text-sm font-semibold text-gray-700">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-/**
- * Ranked rows with the magnitude drawn behind the label. One hue for every row: the length already
- * encodes the value, and shading each bar by its own size would burn the colour channel restating it.
- */
-function BarList({ rows }: { rows: Array<{ key: string; label: string; value: string; share: number }> }) {
-  return (
-    <ul className="space-y-1.5">
-      {rows.map((row) => (
-        <li key={row.key} className="relative overflow-hidden rounded-md px-2 py-1.5">
-          <div
-            className="absolute inset-y-0 left-0 rounded-md bg-green-50"
-            style={{ width: `${Math.max(2, row.share * 100)}%` }}
-          />
-          <div className="relative flex items-baseline justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate text-gray-700">{row.label}</span>
-            <span className="shrink-0 font-medium text-gray-900 tabular-nums">{row.value}</span>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-export default function AdminAnalytics({ report, period, includeCancelled, truncated }: Props) {
+export default function AdminAnalytics({ report, insights, previous, period, includeCancelled, truncated }: Props) {
   const navigate = useAdminListNav({ period: "30" });
   const { customers, freeDelivery } = report;
 
   // Changing a filter re-renders the page on the server, and a year of orders takes a moment to
-  // aggregate. Without a transition the old numbers just sat there under the new button with no sign
-  // anything was happening. The filters themselves switch at once (optimistically), the report
-  // dims until the new one arrives, and `loading.tsx` stays out of it — it only covers entering the
-  // route, not a search-param change within it.
+  // aggregate. The filters switch at once (optimistically), the report dims under a loader until
+  // the new one arrives, and `loading.tsx` stays out of it — it only covers entering the route, not
+  // a search-param change within it.
   const [isPending, startTransition] = useTransition();
   const [filters, setFilters] = useOptimistic({ period, includeCancelled });
 
@@ -97,8 +73,11 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
   // different answers, and `report.orders` counts only what the money is computed over.
   const periodOrders = report.statuses.reduce((sum, status) => sum + status.orders, 0);
   const topProductRevenue = report.topProducts[0]?.revenue ?? 0;
-  const categoryRevenue = report.categories[0]?.revenue ?? 0;
   const deliveryOrders = report.delivery[0]?.orders ?? 0;
+
+  const caption = COMPARE_CAPTION[period];
+  const compare = (current: number, pick: (p: PeriodSummary) => number) =>
+    previous && caption ? { current, previous: pick(previous), caption } : null;
 
   return (
     <>
@@ -156,8 +135,8 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
           {truncated && (
             <p className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-              За этот период заказов больше, чем можно посчитать за один раз. Показаны только самые свежие — возьмите
-              период короче.
+              За этот период заказов больше, чем можно посчитать за один раз. Показаны только самые свежие, сравнение с
+              прошлым периодом отключено — возьмите период короче.
             </p>
           )}
 
@@ -169,9 +148,15 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
                   {money(report.revenue)} <Currency />
                 </>
               }
+              comparison={compare(report.revenue, (p) => p.revenue)}
               hint={`товары ${money(report.goodsRevenue)} · доставка ${money(report.deliveryRevenue)}`}
             />
-            <StatTile label="Заказов" value={report.orders} hint={`${report.itemsSold} товаров продано`} />
+            <StatTile
+              label="Заказов"
+              value={report.orders}
+              comparison={compare(report.orders, (p) => p.orders)}
+              hint={`${report.itemsSold} товаров продано`}
+            />
             <StatTile
               label="Средний чек"
               value={
@@ -179,23 +164,25 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
                   {money(report.averageOrder)} <Currency />
                 </>
               }
-              hint={
-                freeDelivery.ofZoned > 0
-                  ? `бесплатная доставка: ${Math.round((freeDelivery.free / freeDelivery.ofZoned) * 100)}%`
-                  : "бесплатная доставка: —"
-              }
+              comparison={compare(report.averageOrder, (p) => p.averageOrder)}
+              hint={`бесплатная доставка: ${percent(freeDelivery.free, freeDelivery.ofZoned)}`}
             />
             <StatTile
               label="Покупателей"
               value={customers.total}
+              comparison={compare(customers.total, (p) => p.customers)}
               hint={`${customers.fresh} новых · ${customers.returning} повторных`}
             />
           </div>
 
           {periodOrders === 0 ? (
-            <p className="rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
-              За выбранный период заказов нет.
-            </p>
+            <div className="space-y-4">
+              <p className="rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
+                За выбранный период заказов нет.
+              </p>
+              {/* Still worth showing with no sales: it is the list of what did not sell. */}
+              <UnsoldCard insights={insights} />
+            </div>
           ) : (
             <div className="space-y-4">
               {report.orders === 0 && (
@@ -203,8 +190,20 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
                   Все заказы за период отменены — включите «Считать отменённые», чтобы увидеть суммы.
                 </p>
               )}
+
               <Card title={SERIES_TITLE[report.granularity]}>
-                <AnalyticsBarChart series={report.series} />
+                <AnalyticsBarChart
+                  points={report.series.map((point) => ({
+                    key: point.bucket,
+                    label: point.label,
+                    value: point.revenue,
+                    detail: `${point.revenue.toLocaleString("ru-RU")} с · ${point.orders} зак.`,
+                  }))}
+                />
+              </Card>
+
+              <Card title="Когда заказывают" note="Время по Бишкеку">
+                <AnalyticsHeatmap heatmap={insights.heatmap} />
               </Card>
 
               <div className="grid gap-4 lg:grid-cols-2">
@@ -245,17 +244,12 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
                     </table>
                   </div>
                 </Card>
+                <CategoriesCard insights={insights} />
+              </div>
 
-                <Card title="Топ категорий">
-                  <BarList
-                    rows={report.categories.map((category) => ({
-                      key: String(category.id ?? "none"),
-                      label: category.name,
-                      value: `${money(category.revenue)} с · ${category.quantity} шт.`,
-                      share: categoryRevenue ? category.revenue / categoryRevenue : 0,
-                    }))}
-                  />
-                </Card>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <BrandsCard insights={insights} />
+                <PromoCard insights={insights} />
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
@@ -291,6 +285,18 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
                   </p>
                 </Card>
               </div>
+
+              <ThresholdCard insights={insights} />
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <CancellationsCard insights={insights} />
+                <RepeatCard insights={insights} />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <FavoritesCard insights={insights} />
+                <UnsoldCard insights={insights} />
+              </div>
             </div>
           )}
         </div>
@@ -298,12 +304,3 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
     </>
   );
 }
-
-/** The delivery tariff's labels list every district; a breakdown needs the zone's name, not its scope. */
-const SHORT_ZONE: Record<string, string> = {
-  center: "Центр Бишкека",
-  residential: "Жилмассивы",
-  regions: "Регионы",
-  urgent: "Срочно (Яндекс)",
-  unknown: "Не указана",
-};

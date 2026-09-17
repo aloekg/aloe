@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AnalyticsOrderRow, CustomerSeenRow } from "@/lib/analytics";
 import { addDays, shopDayStart } from "@/lib/analytics";
+import type { CatalogueBrandRow, CatalogueCategoryRow, CatalogueProductRow } from "@/lib/analytics-insights";
 import { strict } from "@/lib/db";
 import type { OrderItem } from "@/types";
 import type { Database } from "@/types/database";
@@ -69,7 +70,7 @@ export async function loadCustomerHistory(supabase: SupabaseClient<Database>): P
       "analytics-customers",
       await supabase
         .from("orders")
-        .select("user_id, customer_phone, created_at")
+        .select("user_id, customer_phone, created_at, status")
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(offset, offset + PAGE - 1),
@@ -81,46 +82,59 @@ export async function loadCustomerHistory(supabase: SupabaseClient<Database>): P
   return rows;
 }
 
-/**
- * Product id → the top-level category it belongs to.
- *
- * `orders.items` freezes a product's name and price but not its category, so the only way to group
- * sales by category is to look the products up now — which also means a re-categorised product
- * counts under where it sits today, not where it sat when it sold. The walk up `parent_id` is the
- * same two hops the storefront makes: a product may hang off a subcategory or a sub-subcategory,
- * and neither is what the dashboard wants to list.
- */
-export async function loadProductCategories(
-  supabase: SupabaseClient<Database>,
-  productIds: number[],
-): Promise<Map<number, { id: number; name: string }>> {
-  const result = new Map<number, { id: number; name: string }>();
-  if (productIds.length === 0) return result;
-
-  const categories = strict("analytics-categories", await supabase.from("categories").select("id, name, parent_id"));
-  const byId = new Map(categories.map((c) => [c.id, c]));
-
-  const topLevelOf = (categoryId: number | null) => {
-    let current = categoryId == null ? undefined : byId.get(categoryId);
-    for (let hop = 0; hop < 2 && current?.parent_id != null; hop += 1) current = byId.get(current.parent_id);
-    return current ? { id: current.id, name: current.name } : null;
-  };
-
-  // `.in()` goes into the URL, so a few thousand ids would overrun the request line.
-  const CHUNK = 200;
-  for (let i = 0; i < productIds.length; i += CHUNK) {
-    const products = strict(
-      "analytics-products",
-      await supabase
-        .from("products")
-        .select("id, category_id")
-        .in("id", productIds.slice(i, i + CHUNK)),
-    );
-    for (const product of products) {
-      const top = topLevelOf(product.category_id);
-      if (top) result.set(product.id, top);
-    }
+/** Pages through a whole table — PostgREST hands over at most `PAGE` rows per request. */
+async function loadAll<T>(
+  label: string,
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await fetchPage(offset, offset + PAGE - 1);
+    // Thrown, like `strict`: a half-loaded catalogue would list every product it missed as unsold.
+    if (error) throw new Error(`[${label}] ${error.message}`);
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE) return rows;
   }
+}
 
-  return result;
+/**
+ * The whole catalogue, a handful of columns per product. Loaded in full rather than by the ids that
+ * sold, because two of the dashboard's questions are about the products that did *not*: which
+ * published ones had no sale, and which promo ones. ~2400 narrow rows is three requests.
+ *
+ * Unpublished products are included on purpose — a product sold last month and unpublished since
+ * still belongs to its category and brand in the sales breakdown.
+ */
+export async function loadCatalogue(supabase: SupabaseClient<Database>): Promise<{
+  products: CatalogueProductRow[];
+  categories: CatalogueCategoryRow[];
+  brands: CatalogueBrandRow[];
+}> {
+  const [products, categories, brands] = await Promise.all([
+    loadAll("analytics-products", (from, to) =>
+      supabase
+        .from("products")
+        .select("id, name, price, old_price, label, brand_id, category_id, published, purchase_count, created_at")
+        .order("id")
+        .range(from, to),
+    ),
+    loadAll("analytics-categories", (from, to) =>
+      supabase.from("categories").select("id, name, parent_id").order("id").range(from, to),
+    ),
+    loadAll("analytics-brands", (from, to) => supabase.from("brands").select("id, name").order("id").range(from, to)),
+  ]);
+  return { products, categories, brands };
+}
+
+/**
+ * How many accounts hold each product in their favorites. There is no aggregate endpoint without an
+ * RPC, so the ids are counted here — one narrow column, and only signed-in customers have favorites.
+ */
+export async function loadFavoriteCounts(supabase: SupabaseClient<Database>): Promise<Map<number, number>> {
+  const rows = await loadAll("analytics-favorites", (from, to) =>
+    supabase.from("favorites").select("product_id").order("id").range(from, to),
+  );
+  const counts = new Map<number, number>();
+  for (const { product_id } of rows) if (product_id != null) counts.set(product_id, (counts.get(product_id) ?? 0) + 1);
+  return counts;
 }

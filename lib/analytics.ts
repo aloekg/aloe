@@ -85,6 +85,19 @@ export function shopDayStart(day: string): Date {
   return new Date(utcMidnight - zoneOffsetMs(new Date(utcMidnight)));
 }
 
+/** The shop-local hour (0–23) an instant falls in. */
+export function shopHour(value: string | Date): number {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const hour = ZONE_PARTS.formatToParts(date).find((p) => p.type === "hour")?.value;
+  return Number(hour);
+}
+
+/** Monday = 0 … Sunday = 6, the way the shop's week is read, not JavaScript's Sunday-first one. */
+export function weekdayOf(day: string): number {
+  const [year, month, date] = day.split("-").map(Number);
+  return (new Date(Date.UTC(year, month - 1, date)).getUTCDay() + 6) % 7;
+}
+
 /** Calendar arithmetic on a day key — `delta` days later (or earlier, when negative). */
 export function addDays(day: string, delta: number): string {
   const [year, month, date] = day.split("-").map(Number);
@@ -118,11 +131,7 @@ export function granularityFor(fromDay: string, toDay: string): Granularity {
 
 /** Monday of the week a day falls in. */
 function weekStart(day: string): string {
-  const [year, month, date] = day.split("-").map(Number);
-  const utc = new Date(Date.UTC(year, month - 1, date));
-  // getUTCDay(): 0 = Sunday, which is the *last* day of the week here, not the first.
-  const shift = (utc.getUTCDay() + 6) % 7;
-  return addDays(day, -shift);
+  return addDays(day, -weekdayOf(day));
 }
 
 export function bucketOf(day: string, granularity: Granularity): string {
@@ -172,12 +181,11 @@ export type AnalyticsOrderRow = {
   items: OrderItem[];
 };
 
-/** Just enough of an order to tell a returning customer from a new one. */
-export type CustomerSeenRow = Pick<AnalyticsOrderRow, "user_id" | "customer_phone" | "created_at">;
+/** Just enough of an order to follow a customer across all of history. */
+export type CustomerSeenRow = Pick<AnalyticsOrderRow, "user_id" | "customer_phone" | "created_at" | "status">;
 
 export type SeriesPoint = { bucket: string; label: string; revenue: number; orders: number };
 export type TopProduct = { id: number; name: string; quantity: number; revenue: number };
-export type CategoryStat = { id: number | null; name: string; quantity: number; revenue: number };
 export type DeliveryStat = { id: string; label: string; orders: number; revenue: number };
 export type StatusStat = { id: string; orders: number; revenue: number };
 
@@ -192,7 +200,6 @@ export type AnalyticsReport = {
   granularity: Granularity;
   series: SeriesPoint[];
   topProducts: TopProduct[];
-  categories: CategoryStat[];
   delivery: DeliveryStat[];
   /** Always over every order in the period, cancelled included — that is the point of the breakdown. */
   statuses: StatusStat[];
@@ -201,7 +208,6 @@ export type AnalyticsReport = {
 };
 
 export const TOP_PRODUCTS_LIMIT = 10;
-export const TOP_CATEGORIES_LIMIT = 8;
 
 /**
  * Who placed an order. Phone first and `user_id` only as a fallback: the same person orders once
@@ -216,10 +222,15 @@ export function customerKey(row: { user_id: string | null; customer_phone: strin
   return digits ? `p:${digits}` : "";
 }
 
-/** First order per customer across all of history — a customer is "new" only on their own first. */
+/**
+ * First order per customer across all of history — a customer is "new" only on their own first.
+ * A cancelled order is not a purchase, so someone whose first attempt was cancelled becomes a
+ * customer on the order that actually went through.
+ */
 export function firstOrderDays(rows: CustomerSeenRow[]): Map<string, string> {
   const first = new Map<string, string>();
   for (const row of rows) {
+    if (row.status === "cancelled") continue;
     const key = customerKey(row);
     if (!key) continue;
     const day = shopDay(row.created_at);
@@ -229,7 +240,7 @@ export function firstOrderDays(rows: CustomerSeenRow[]): Map<string, string> {
   return first;
 }
 
-function round(value: number): number {
+export function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
@@ -240,9 +251,51 @@ export type ReportInput = {
   /** A cancelled order is a booking that never happened, so it is out of the money by default. */
   includeCancelled: boolean;
   firstOrderByCustomer: Map<string, string>;
-  /** Product id → the top-level category it rolls up to. Missing ids land in "Без категории". */
-  categoryOf: Map<number, { id: number; name: string }>;
 };
+
+/** The orders the money is computed over — see `includeCancelled`. */
+export function countedOrders(rows: AnalyticsOrderRow[], includeCancelled: boolean): AnalyticsOrderRow[] {
+  return includeCancelled ? rows : rows.filter((r) => r.status !== "cancelled");
+}
+
+/**
+ * The first day the report covers: the period's own start, or — for "всё время" — the oldest order
+ * there actually is, so the series does not begin at an arbitrary date.
+ */
+export function windowStart(fromDay: string | null, counted: AnalyticsOrderRow[], toDay: string): string {
+  if (fromDay) return fromDay;
+  let min: string | null = null;
+  for (const row of counted) {
+    const day = shopDay(row.created_at);
+    if (!min || day < min) min = day;
+  }
+  return min ?? toDay;
+}
+
+/** The headline numbers alone — what the tiles compare the previous period on. */
+export type PeriodSummary = { revenue: number; orders: number; averageOrder: number; customers: number };
+
+export function summarizePeriod(rows: AnalyticsOrderRow[], includeCancelled: boolean): PeriodSummary {
+  const counted = countedOrders(rows, includeCancelled);
+  const revenue = counted.reduce((sum, row) => sum + row.total, 0);
+  const customers = new Set(counted.map(customerKey).filter(Boolean)).size;
+  return {
+    revenue: round(revenue),
+    orders: counted.length,
+    averageOrder: counted.length ? round(revenue / counted.length) : 0,
+    customers,
+  };
+}
+
+/**
+ * The window the previous period covered — the same number of days, ending the day before this one
+ * starts. Null for "всё время", which has nothing before it to compare with.
+ */
+export function previousRange(period: PeriodId, fromDay: string | null): { fromDay: string; toDay: string } | null {
+  const days = ANALYTICS_PERIODS.find((p) => p.id === period)?.days ?? null;
+  if (!days || !fromDay) return null;
+  return { fromDay: addDays(fromDay, -days), toDay: addDays(fromDay, -1) };
+}
 
 export function buildReport({
   rows,
@@ -250,9 +303,8 @@ export function buildReport({
   toDay,
   includeCancelled,
   firstOrderByCustomer,
-  categoryOf,
 }: ReportInput): AnalyticsReport {
-  const counted = includeCancelled ? rows : rows.filter((r) => r.status !== "cancelled");
+  const counted = countedOrders(rows, includeCancelled);
 
   let revenue = 0;
   let deliveryRevenue = 0;
@@ -263,20 +315,12 @@ export function buildReport({
 
   const byBucket = new Map<string, { revenue: number; orders: number }>();
   const byProduct = new Map<number, TopProduct>();
-  const byCategory = new Map<number | null, CategoryStat>();
   const byDelivery = new Map<string, DeliveryStat>();
   const byStatus = new Map<string, StatusStat>();
   const ordersByCustomer = new Map<string, number>();
 
-  // The series has to span the whole window even where nothing sold, so its first bucket comes from
-  // the period, or — for "всё время" — from the oldest order there actually is.
-  const firstDay =
-    fromDay ??
-    counted.reduce<string | null>((min, r) => {
-      const day = shopDay(r.created_at);
-      return !min || day < min ? day : min;
-    }, null) ??
-    toDay;
+  // The series has to span the whole window even where nothing sold.
+  const firstDay = windowStart(fromDay, counted, toDay);
   const granularity = granularityFor(firstDay, toDay);
 
   for (const row of rows) {
@@ -330,18 +374,6 @@ export function buildReport({
       // The name is frozen per order, so a renamed product shows up under its latest sale's name.
       product.name = item.name;
       byProduct.set(item.id, product);
-
-      const category = categoryOf.get(item.id) ?? null;
-      const categoryId = category?.id ?? null;
-      const stat = byCategory.get(categoryId) ?? {
-        id: categoryId,
-        name: category?.name ?? "Без категории",
-        quantity: 0,
-        revenue: 0,
-      };
-      stat.quantity += item.quantity;
-      stat.revenue += lineRevenue;
-      byCategory.set(categoryId, stat);
     }
   }
 
@@ -381,10 +413,6 @@ export function buildReport({
       .map((p) => ({ ...p, revenue: round(p.revenue) }))
       .sort((a, b) => b.revenue - a.revenue || b.quantity - a.quantity)
       .slice(0, TOP_PRODUCTS_LIMIT),
-    categories: [...byCategory.values()]
-      .map((c) => ({ ...c, revenue: round(c.revenue) }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, TOP_CATEGORIES_LIMIT),
     delivery: [...byDelivery.values()].sort((a, b) => b.orders - a.orders),
     statuses: [...byStatus.values()].map((s) => ({ ...s, revenue: round(s.revenue) })),
     freeDelivery: { free, ofZoned },

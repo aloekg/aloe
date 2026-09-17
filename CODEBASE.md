@@ -55,7 +55,7 @@
 /popular                    # Auto-derived from purchase_count (see note below), not a label
 /new /sale                  # Label-based product pages
 /admin                      # Admin dashboard (role: admin)
-/admin/analytics            # Sales dashboard — revenue, orders, top products, customers
+/admin/analytics            # Sales dashboard — totals vs previous period, trends, catalogue and customer insights
 /admin/orders               # Order management
 /admin/products             # Product CRUD
 /admin/categories           # Category management (drag-to-reorder)
@@ -277,18 +277,18 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 
 ## Services (`/services/`)
 
-| file                   | purpose                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing |
-| `brand.service.ts`     | Brand queries (public + admin)                                                  |
-| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                 |
-| `order.service.ts`     | Order creation & listing, admin listing + status counts                         |
-| `profile.service.ts`   | User profile read/write                                                         |
-| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                   |
-| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list         |
-| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                            |
-| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only     |
-| `analytics.service.ts` | Rows the admin sales dashboard aggregates — orders in range, customer history   |
+| file                   | purpose                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing      |
+| `brand.service.ts`     | Brand queries (public + admin)                                                       |
+| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                      |
+| `order.service.ts`     | Order creation & listing, admin listing + status counts                              |
+| `profile.service.ts`   | User profile read/write                                                              |
+| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                        |
+| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list              |
+| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                                 |
+| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only          |
+| `analytics.service.ts` | Rows the admin dashboard aggregates — orders, customer history, catalogue, favorites |
 
 ## Lib Utilities (`/lib/`)
 
@@ -314,6 +314,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                                                                                                                                                                                             |
 | `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `minOrderShortfall()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below) |
 | `analytics.ts`            | Pure aggregation behind `/admin/analytics`: shop-day/period helpers and `buildReport()` — kept free of the database so `tests/analytics.test.ts` can exercise the arithmetic                                                                                                                                                                                                                                          |
+| `analytics-insights.ts`   | `buildInsights()` — the dashboard's catalogue- and history-dependent sections (categories, brands, heatmap, promo, free-delivery threshold, cancellations, repeat purchases, favorites vs sales, unsold products); pure, tested in `tests/analytics-insights.test.ts`                                                                                                                                                 |
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                            |
 | `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                   |
 | `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                                                  |
@@ -511,10 +512,15 @@ wipe the negotiated fee back to 0. The blind spot is a manual fee equal to the t
 recomputes to itself.
 
 **Admin analytics** (`/admin/analytics`) is computed in JS, not in SQL. `analytics.service.ts`
-pulls the period's orders (paged — PostgREST caps a request at 1000 rows) plus a three-column scan
-of the whole order history, and `lib/analytics.ts` turns them into the report: revenue split into
-goods and delivery, a bucketed time series, top products and categories, delivery zones, status
-counts and a new-vs-returning customer split. An RPC would be faster but would put a migration
+pulls the orders of the period _and the one before it_ in a single paged fetch (PostgREST caps a
+request at 1000 rows), a four-column scan of the whole order history, the whole catalogue (~3
+narrow requests) and the favorites table. Two pure modules turn that into the page:
+`lib/analytics.ts` builds the core report — revenue split into goods and delivery, a bucketed time
+series, top products, delivery zones, statuses, new-vs-returning customers, and the previous
+period's summary for the tiles' deltas — and `lib/analytics-insights.ts` everything that needs the
+catalogue or the history: categories, brands, a weekday × hour heatmap, promo share, the
+free-delivery threshold histogram, cancellations, repeat purchases, favorites against sales and
+products with no sale. An RPC would be faster but would put a migration
 between the shop and every change to a formula, and this way the arithmetic is exercised by
 `tests/analytics.test.ts` with no database at all. The fetch is capped at `MAX_ANALYTICS_ORDERS`
 (10 000) and the page says so when it hits the cap rather than quietly under-reporting; that cap is
@@ -527,8 +533,30 @@ buyer orders once as a guest and once signed in, and `user_id` alone would count
 call both "новый". **A zero `delivery_cost` only counts as free delivery for the two city zones** —
 "regions" is agreed by phone and "urgent" is paid to the courier, so neither says anything about
 the free-delivery threshold, the same distinction `deliveryFreeNote()` makes. Cancelled orders are
-out of the money by default (a checkbox puts them back) but always present in the status breakdown,
-which is what that breakdown is for.
+out of the money by default (a checkbox puts them back) but always present in the status breakdown
+and the cancellation card, which is what those are for.
+
+The insights carry their own compromises, each stated on its card rather than hidden:
+
+- **Category, brand and promo are read from the catalogue as it is now.** `orders.items` freezes a
+  line's name and price and nothing else, so a re-categorised product counts where it sits today,
+  and "акционный" means the product has the `sale` label or an `old_price` above its price _now_.
+- **Favorites are a snapshot.** Removing a heart deletes the row, so the card compares today's
+  wishlist with the period's sales, and only signed-in customers have one.
+- **The threshold histogram covers only the zones where the threshold waives the fee**
+  (`freeOverThreshold`, i.e. центр). Elsewhere a basket's size says nothing about whether the
+  threshold moved it.
+- **A product needs two orders before it can top the cancellation list** — one cancelled order is
+  an anecdote at 100%.
+- **"Без продаж" ignores products added during the period**, which never had the whole window to sell.
+- **The previous-period comparison is dropped when the fetch is truncated** — the cap cuts the
+  oldest rows first, which are exactly the previous period's, and a partial baseline would show
+  growth that is not there.
+
+The heatmap's green steps start at green-500, not a pale tint: checked with the dataviz palette
+validator, anything lighter falls under 2:1 against the white card. Changing a filter runs inside a
+transition — the report dims under a loader centred in the viewport and the filters are disabled
+until it lands, because `loading.tsx` only covers entering the route, not a search-param change.
 
 **Admin list pages** (products/categories/brands/orders) share `useAdminListNav()` (syncs filters to the URL query string, resets pagination on filter change) and `useDebouncedSearch()` (debounces search input before triggering navigation).
 
@@ -782,7 +810,8 @@ until the first insert from the admin collides.
 `seed-staging-orders.mjs` fills the gap that leaves: a catalogue-only staging has no orders, so
 `/admin/analytics` and `/admin/orders` are empty there. It invents customers (accounts
 `mock-NN@mock.aloe.kg`, confirmed, one shared password printed once) and orders against the real
-staging catalogue — repeat buyers, guests, both phone spellings, every zone and status — and raises
+staging catalogue — repeat buyers, guests, both phone spellings, every zone and status, a few
+favorites per account (they cascade away with the account on `--reset`) — and raises
 `purchase_count` through the same RPC checkout uses. It is seeded (`--seed`), so a dry run shows
 exactly what `--execute` writes, and refuses to run twice without `--reset`, which would double every
 number. Unlike `purge-test-data.mjs` it selects by marker — `comment` starting `[mock]`, the
