@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { Share, SquarePlus, X } from "lucide-react";
+import { Ellipsis, Share, SquarePlus, X } from "lucide-react";
 import Button from "@/components/Button";
 import { cn } from "@/lib/cn";
 
@@ -49,7 +49,8 @@ function subscribeToDisplayMode(onChange: () => void) {
 }
 
 const STEPS = [
-  { icon: Share, before: "Нажмите", strong: "«Поделиться»", after: "в нижней панели Safari" },
+  { icon: Ellipsis, before: "Нажмите", strong: "«...»", after: "рядом с адресной строкой" },
+  { icon: Share, before: "Выберите", strong: "«Поделиться»", after: "" },
   { icon: SquarePlus, before: "Выберите", strong: "«На экран „Домой“»", after: "" },
   { icon: null, before: "Нажмите", strong: "«Добавить»", after: "в правом верхнем углу" },
 ];
