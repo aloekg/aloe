@@ -4,6 +4,7 @@ import { Suspense, useEffect, useId, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
+import InstallAppIos from "@/components/InstallAppIos";
 import MainContainer from "@/components/MainContainer";
 import Title from "@/components/Title";
 import { cn } from "@/lib/cn";
@@ -307,6 +308,13 @@ function AuthForm() {
           )}
         </p>
       </form>
+
+      {/* Before the form is filled in, not after: an installed iOS web app has its own storage, so
+          a session started here in Safari does not follow it in. */}
+      <InstallAppIos
+        className="mt-6"
+        description="Установите сейчас и войдите уже в приложении — вход в Safari в него не переносится, иначе входить придётся дважды."
+      />
     </MainContainer>
   );
 }

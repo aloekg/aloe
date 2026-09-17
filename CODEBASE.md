@@ -725,8 +725,11 @@ orders, and Serwist — the offline route the Next guide points at — still req
 project builds with Turbopack. `themeColor` lives in `viewport`, not `metadata`, where Next has
 deprecated it since v14.
 
-`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/profile` and after
-a completed order. iOS is handled alone because it has no install API at all — Safari offers
+`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/auth`, `/profile`
+and after a completed order. The reason given differs on `/auth`, which is why the text is a prop:
+an installed iOS web app gets its own storage container, separate from Safari's, so a session
+started in the browser does not follow it in — install before signing in and you sign in once
+rather than twice. iOS is handled alone because it has no install API at all — Safari offers
 nothing to call, so a site can only describe the share sheet, while Android fires
 `beforeinstallprompt` and wants a button instead. It is also the one component that reads the user
 agent, for the same reason: "show the iOS steps" is not a capability a browser can be asked about.
