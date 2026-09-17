@@ -8,6 +8,7 @@ export { default as Container } from "./Container";
 export { default as Currency } from "./Currency";
 export { default as DeliveryContent } from "./DeliveryContent";
 export { default as FavoriteButton } from "./FavoriteButton";
+export { default as InstallAppIos } from "./InstallAppIos";
 export { default as Footer } from "./Footer";
 export { Header } from "./header";
 export { default as JsonLd } from "./JsonLd";

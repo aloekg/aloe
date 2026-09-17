@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MainContainer, Title } from "@/components";
+import { InstallAppIos, MainContainer, Title } from "@/components";
 
 export const metadata = {
   title: "Заказ оформлен",
@@ -29,6 +29,8 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
             Мои заказы
           </Link>
         </div>
+
+        <InstallAppIos className="mt-10 text-left" />
       </MainContainer>
     </>
   );

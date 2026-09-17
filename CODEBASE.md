@@ -725,6 +725,15 @@ orders, and Serwist — the offline route the Next guide points at — still req
 project builds with Turbopack. `themeColor` lives in `viewport`, not `metadata`, where Next has
 deprecated it since v14.
 
+`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/profile` and after
+a completed order. iOS is handled alone because it has no install API at all — Safari offers
+nothing to call, so a site can only describe the share sheet, while Android fires
+`beforeinstallprompt` and wants a button instead. It is also the one component that reads the user
+agent, for the same reason: "show the iOS steps" is not a capability a browser can be asked about.
+iPadOS reports itself as a Macintosh, so `maxTouchPoints` separates an iPad from a Mac, and the
+other iOS browsers are excluded because their "Добавить на экран «Домой»" is not where these steps
+say to look — an in-app Instagram browser has none at all.
+
 Because `viewport` sets `viewport-fit: cover`, `app/globals.css` carries the matching safe-area
 insets: left/right on `body`, and the `safe-area-pb` utility that `MobileBottomNav` uses to stay
 clear of the iPhone home indicator in standalone.
