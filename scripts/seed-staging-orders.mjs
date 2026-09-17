@@ -9,7 +9,8 @@
 //
 // What it writes:
 //   - mock accounts in Supabase Auth (mock-NN@mock.aloe.kg, email already confirmed — no mail is
-//     sent) and a `profiles` row for each;
+//     sent), a `profiles` row for each, and a few favorites each — so the dashboard's
+//     "Избранное и продажи" card has a wishlist to compare sales against;
 //   - orders spread over the last --days, some placed by those accounts and some by guests, with
 //     repeat buyers, a guest who later signs up under the same phone, every delivery zone and
 //     every status;
@@ -249,9 +250,23 @@ const productWeight = (p) => (hot.has(p.id) ? 12 : 1);
 // ---------------------------------------------------------------------------
 // Plan
 
+/**
+ * Mostly the hot products — people save what everyone buys — plus a few that nobody does, which is
+ * the case the favorites card exists to catch: wanted, but not bought.
+ */
+function favoritesFor() {
+  const ids = new Set();
+  const count = between(3, 10);
+  while (ids.size < Math.min(count, products.length)) {
+    ids.add(rand() < 0.6 ? weighted(products, productWeight).id : pick(products).id);
+  }
+  return [...ids];
+}
+
 const accounts = Array.from({ length: USER_COUNT }, (_, i) => ({
   email: `mock-${String(i + 1).padStart(2, "0")}@${MOCK_DOMAIN}`,
   ...person(),
+  favorites: products.length ? favoritesFor() : [],
 }));
 
 // Guests outnumber accounts, as they do on the real shop. `loyalty` is how often a customer comes
@@ -360,6 +375,7 @@ console.log(`
 catalogue:   ${products.length} published products, ${hot.size} of them "hot"
 remove:      ${existingOrders.length} mock orders, ${existingUsers.length} mock accounts${RESET ? "" : " (none — no --reset)"}
 create:      ${accounts.length} accounts, ${orders.length} orders over ${DAYS} days (seed ${SEED})
+favorites:   ${accounts.reduce((sum, a) => sum + a.favorites.length, 0)} across the mock accounts
 guests:      ${orders.filter((o) => !o.email).length} of ${orders.length} orders
 revenue:     ${Math.round(revenue).toLocaleString("ru-RU")} сом, cancelled excluded
 statuses:    ${JSON.stringify(count("status"))}
@@ -447,6 +463,14 @@ for (const account of accounts) {
     .from("profiles")
     .upsert({ id: data.user.id, name: account.name, phone: account.phone, address: account.address });
   if (profileError) fail(`could not write the profile of ${account.email}: ${profileError.message}`);
+
+  // No cleanup needed on --reset: favorites.user_id cascades when the account is deleted.
+  if (account.favorites.length) {
+    const { error: favoritesError } = await db
+      .from("favorites")
+      .insert(account.favorites.map((productId) => ({ user_id: data.user.id, product_id: productId })));
+    if (favoritesError) fail(`could not write favorites of ${account.email}: ${favoritesError.message}`);
+  }
 }
 if (accounts.length) console.log(`created ${accounts.length} mock accounts`);
 
