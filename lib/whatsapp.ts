@@ -60,7 +60,7 @@ type OrderMessage = { orderId: number; status: string; total: number };
  * meant to be adjusted. Keyed by the same statuses as `ORDER_STATUS`.
  */
 const STATUS_MESSAGE: Record<string, (o: OrderMessage) => string> = {
-  new: (o) => `Мы получили ваш заказ №${o.orderId} на сумму ${o.total} сом. Подтвердите, пожалуйста, состав и адрес.`,
+  new: (o) => `Мы получили ваш заказ №${o.orderId} на сумму ${o.total} сом.`,
   confirmed: (o) => `Ваш заказ №${o.orderId} подтверждён, сумма к оплате — ${o.total} сом. Передаём его в доставку.`,
   processing: (o) => `Ваш заказ №${o.orderId} передан курьеру — он свяжется с вами перед доставкой.`,
   delivered: (o) => `Ваш заказ №${o.orderId} доставлен. Спасибо за покупку!`,
