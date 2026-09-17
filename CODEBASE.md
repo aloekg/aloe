@@ -321,6 +321,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                                           |
 | `csp.ts`                  | `buildContentSecurityPolicy()` — the CSP `next.config.ts` serves, assembled at **build** time from `NEXT_PUBLIC_SUPABASE_URL` (see the security-headers note below)                                                                                                                                                                                                                                                   |
 | `text.ts`                 | `CONTACT_LIMITS`, `normalizeText()` — the caps on the customer contact fields, shared by checkout and the profile form, because a server action's argument types are erased at runtime                                                                                                                                                                                                                                |
+| `whatsapp.ts`             | `toWhatsAppNumber()`, `whatsAppLink()`, `orderStatusMessage()` — prefilled `wa.me` links for the admin order list; nothing is sent automatically (see "WhatsApp" below)                                                                                                                                                                                                                                               |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -510,6 +511,22 @@ derived, so `isManualDeliveryCost()` infers it by asking whether the stored fee 
 would have charged the _previous_ basket; without it, editing the items of a regions order would
 wipe the negotiated fee back to 0. The blind spot is a manual fee equal to the tariff, which
 recomputes to itself.
+
+**WhatsApp is a link, not an integration.** Each row in the admin order list carries a `wa.me`
+link to the customer's chat with a message for the order's current status already typed in
+(`lib/whatsapp.ts`) — the admin presses send, and edits the text first if the order needs it.
+Going further, to the WhatsApp Business API, would mean registering `WHATSAPP_NUMBER` with Meta,
+and a number registered there **stops working in the regular WhatsApp app**: that one number is the
+shop's only channel, carrying consultations, wallet payment confirmations and the regions delivery
+quote, all by hand. Automated status messages would therefore cost a second number, business
+verification, a Meta-approved template per status and a per-message fee — so this stops at the link
+until the volume argues otherwise.
+
+`customer_phone` is free text (checkout only requires nine digits somewhere in it), so
+`toWhatsAppNumber()` normalises `+996 555 …`, `0555 …` and `555 …` to the bare international digits
+`wa.me` wants — the same spread `customerKey()` reconciles for analytics. It returns null rather
+than guessing at anything else, and the row then shows the phone as plain text: a wrong number here
+opens a chat with a stranger and puts a customer's order details into it.
 
 **Admin analytics** (`/admin/analytics`) is computed in JS, not in SQL. `analytics.service.ts`
 pulls the orders of the period _and the one before it_ in a single paged fetch (PostgREST caps a

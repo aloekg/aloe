@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { FaWhatsapp } from "react-icons/fa";
 import { Download, Pencil, Search, X } from "lucide-react";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import Pagination from "@/components/Pagination";
 import { DELIVERY_OPTIONS, deliveryFreeNote, ORDER_STATUS } from "@/lib/constants";
 import { itemsTotalOf } from "@/lib/order-pricing";
+import { orderStatusMessage, whatsAppLink } from "@/lib/whatsapp";
 import { useToast } from "@/store/toast";
 import type { Order } from "@/types";
 import { downloadInvoice, resendOrderNotification } from "./actions";
@@ -164,6 +166,13 @@ export default function AdminOrders({
               })
             : "—";
 
+          // Built from the patched status, so the text follows the select the admin has just
+          // changed rather than the one the page was rendered with.
+          const chatHref = whatsAppLink(
+            order.customer_phone,
+            orderStatusMessage({ orderId: order.id, status: order.status, total: order.total }),
+          );
+
           return (
             <div key={order.id} className="border border-gray-300 rounded-lg p-4 hover:shadow-sm transition-shadow">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -186,7 +195,20 @@ export default function AdminOrders({
                     </div>
                   )}
                   <p className="mt-1 font-semibold break-words">{order.customer_name ?? "—"}</p>
-                  <p className="text-sm text-gray-600">{order.customer_phone ?? "—"}</p>
+                  <p className="flex flex-wrap items-center gap-x-2 text-sm text-gray-600">
+                    {order.customer_phone ?? "—"}
+                    {chatHref && (
+                      <a
+                        href={chatHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Откроет чат с готовым текстом — отправляете вы сами"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700 hover:underline"
+                      >
+                        <FaWhatsapp className="h-3.5 w-3.5" aria-hidden /> Написать
+                      </a>
+                    )}
+                  </p>
                   <p className="text-sm break-words text-gray-600">{order.customer_address ?? "—"}</p>
                   {editingDeliveryId === order.id ? (
                     <OrderDeliveryEditor
