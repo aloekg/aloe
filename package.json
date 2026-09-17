@@ -21,6 +21,7 @@
     "backup:prod": "node backups/backup-db.mjs --env=prod",
     "backup:stage": "node backups/backup-db.mjs --env=stage",
     "seed:stage": "node scripts/seed-staging.mjs --env=stage",
+    "seed:stage:orders": "node scripts/seed-staging-orders.mjs --env=stage",
     "test": "vitest run",
     "test:watch": "vitest"
   },
