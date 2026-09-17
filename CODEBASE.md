@@ -55,6 +55,7 @@
 /popular                    # Auto-derived from purchase_count (see note below), not a label
 /new /sale                  # Label-based product pages
 /admin                      # Admin dashboard (role: admin)
+/admin/analytics            # Sales dashboard — revenue, orders, top products, customers
 /admin/orders               # Order management
 /admin/products             # Product CRUD
 /admin/categories           # Category management (drag-to-reorder)
@@ -287,6 +288,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list         |
 | `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                            |
 | `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only     |
+| `analytics.service.ts` | Rows the admin sales dashboard aggregates — orders in range, customer history   |
 
 ## Lib Utilities (`/lib/`)
 
@@ -311,6 +313,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                                                                                                                                                                                                        |
 | `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                                                                                                                                                                                             |
 | `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `minOrderShortfall()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below) |
+| `analytics.ts`            | Pure aggregation behind `/admin/analytics`: shop-day/period helpers and `buildReport()` — kept free of the database so `tests/analytics.test.ts` can exercise the arithmetic                                                                                                                                                                                                                                          |
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                            |
 | `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                   |
 | `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                                                  |
@@ -506,6 +509,26 @@ derived, so `isManualDeliveryCost()` infers it by asking whether the stored fee 
 would have charged the _previous_ basket; without it, editing the items of a regions order would
 wipe the negotiated fee back to 0. The blind spot is a manual fee equal to the tariff, which
 recomputes to itself.
+
+**Admin analytics** (`/admin/analytics`) is computed in JS, not in SQL. `analytics.service.ts`
+pulls the period's orders (paged — PostgREST caps a request at 1000 rows) plus a three-column scan
+of the whole order history, and `lib/analytics.ts` turns them into the report: revenue split into
+goods and delivery, a bucketed time series, top products and categories, delivery zones, status
+counts and a new-vs-returning customer split. An RPC would be faster but would put a migration
+between the shop and every change to a formula, and this way the arithmetic is exercised by
+`tests/analytics.test.ts` with no database at all. The fetch is capped at `MAX_ANALYTICS_ORDERS`
+(10 000) and the page says so when it hits the cap rather than quietly under-reporting; that cap is
+the signal to move the aggregation into Postgres.
+
+Three things there are deliberate. **Days are Bishkek days** — `created_at` is timestamptz, and
+bucketing in UTC moves every order placed after 18:00 local into tomorrow. **A customer is a phone
+number, not an account** (last 9 digits, so `+996 555 …` and `0555 …` are one person): the same
+buyer orders once as a guest and once signed in, and `user_id` alone would count them twice and
+call both "новый". **A zero `delivery_cost` only counts as free delivery for the two city zones** —
+"regions" is agreed by phone and "urgent" is paid to the courier, so neither says anything about
+the free-delivery threshold, the same distinction `deliveryFreeNote()` makes. Cancelled orders are
+out of the money by default (a checkbox puts them back) but always present in the status breakdown,
+which is what that breakdown is for.
 
 **Admin list pages** (products/categories/brands/orders) share `useAdminListNav()` (syncs filters to the URL query string, resets pagination on filter change) and `useDebouncedSearch()` (debounces search input before triggering navigation).
 
