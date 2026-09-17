@@ -6,15 +6,19 @@ import Button from "@/components/Button";
 import { useToast } from "@/store/toast";
 import { fetchInvoiceFile } from "./invoice-file";
 
-/** Nothing to subscribe to — the answer cannot change within a page load. */
-const noSubscribe = () => () => {};
+/**
+ * A desktop share sheet accepts the file and then offers no WhatsApp to give it to, so the button
+ * is pointless there — and `canShare` alone does not rule it out: macOS hands back `true`. The
+ * primary pointer does: a phone or tablet is coarse, a mouse is not.
+ */
+const TOUCH_INPUT = "(pointer: coarse)";
 
 let canShare: boolean | null = null;
 
 /**
  * Asked of the browser rather than inferred from the user agent: desktop Chrome exposes
  * `navigator.share` but refuses files, so the probe has to be an actual File. Cached per page load
- * because `useSyncExternalStore` reads it on every render and the answer never moves.
+ * — `useSyncExternalStore` reads the snapshot on every render, and this answer never moves.
  */
 function canShareFiles(): boolean {
   if (canShare === null) {
@@ -22,6 +26,17 @@ function canShareFiles(): boolean {
     canShare = typeof navigator.canShare === "function" && navigator.canShare({ files: [probe] });
   }
   return canShare;
+}
+
+/** The pointer can change under a running page — a tablet gains a mouse, a phone gains a keyboard. */
+function subscribeToPointer(onChange: () => void) {
+  const query = window.matchMedia(TOUCH_INPUT);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function canShareHere(): boolean {
+  return canShareFiles() && window.matchMedia(TOUCH_INPUT).matches;
 }
 
 /**
@@ -33,7 +48,7 @@ function canShareFiles(): boolean {
  */
 export default function ShareInvoiceButton({ orderId, revision }: { orderId: number; revision: string }) {
   // Server-rendered as false, so the markup matches and the button appears once the client knows.
-  const supported = useSyncExternalStore(noSubscribe, canShareFiles, () => false);
+  const supported = useSyncExternalStore(subscribeToPointer, canShareHere, () => false);
   const [held, setHeld] = useState<{ revision: string; file: File } | null>(null);
   const [busy, setBusy] = useState(false);
   const show = useToast((s) => s.show);
@@ -83,7 +98,7 @@ export default function ShareInvoiceButton({ orderId, revision }: { orderId: num
       disabled={busy}
       className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
     >
-      <Share2 className="w-3.5 h-3.5" /> {busy ? "Готовим..." : "Поделиться"}
+      <Share2 className="w-3.5 h-3.5" /> {busy ? "Готовим..." : "Поделиться накладной"}
     </Button>
   );
 }

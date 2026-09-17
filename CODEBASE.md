@@ -524,10 +524,11 @@ until the volume argues otherwise.
 
 The invoice cannot ride along in that link — no URL parameter attaches a file — so
 `ShareInvoiceButton` hands the PDF to the phone's share sheet via `navigator.share({ files })`
-instead, with WhatsApp as one of its targets. It renders only where the browser actually accepts
-files, probed with a real `File` rather than guessed from the user agent, because desktop Chrome
-exposes `navigator.share` and then refuses them; on a desktop the existing download button is the
-answer. The PDF is fetched before the sheet opens, which spends Safari's user activation, so a
+instead, with WhatsApp as one of its targets. It renders only where sharing leads anywhere, which takes
+two checks: the browser must accept files — probed with a real `File` rather than guessed from the
+user agent, because desktop Chrome exposes `navigator.share` and then refuses them — and the
+primary pointer must be coarse, because macOS answers that probe with `true` and then opens a sheet
+with no WhatsApp in it. On a desktop the existing download button is the answer. The PDF is fetched before the sheet opens, which spends Safari's user activation, so a
 first tap that comes back empty keeps the document and asks for a second one. It is held against a
 revision string built from the order's items and fees, so an edit in either editor drops it rather
 than sharing a superseded invoice.
