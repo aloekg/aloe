@@ -108,21 +108,29 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
             key={option.id}
             type="button"
             onClick={() => option.id !== filters.period && applyFilters({ period: option.id })}
+            // Disabled until the report lands: a second click mid-flight would start another
+            // aggregation and could leave the button and the numbers describing different periods.
+            disabled={isPending}
             aria-pressed={option.id === filters.period}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+              "rounded-lg border px-3 py-1.5 text-sm transition-colors",
               option.id === filters.period
                 ? "border-green-600 bg-green-50 font-medium text-green-700"
                 : "border-gray-300 text-gray-600 hover:bg-gray-50",
             )}
           >
-            {isPending && option.id === filters.period && <Loader2Icon className="size-3.5 animate-spin" />}
             {option.label}
           </Button>
         ))}
-        <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+        <label
+          className={cn(
+            "ml-auto flex items-center gap-2 text-sm text-gray-600",
+            isPending ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+          )}
+        >
           <input
             type="checkbox"
+            disabled={isPending}
             checked={filters.includeCancelled}
             onChange={(e) => applyFilters({ includeCancelled: e.target.checked })}
             className="h-4 w-4 accent-green-600"
@@ -131,11 +139,13 @@ export default function AdminAnalytics({ report, period, includeCancelled, trunc
         </label>
       </div>
 
-      <div className="relative" aria-busy={isPending}>
-        {/* Outside the dimmed block — opacity is inherited, and a half-transparent spinner reads as disabled. */}
+      <div aria-busy={isPending}>
+        {/* Fixed to the viewport rather than to the report, so it is in the middle of the screen
+            however far down the page the filter was changed from — and outside the dimmed block,
+            since opacity is inherited and a half-transparent spinner reads as disabled. */}
         {isPending && (
-          <div className="pointer-events-none sticky top-1/3 z-20 flex h-0 justify-center">
-            <div className="flex h-fit items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-gray-600 shadow-lg ring-1 ring-gray-200">
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+            <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-gray-600 shadow-lg ring-1 ring-gray-200">
               <Loader2Icon className="size-4 animate-spin text-green-600" />
               Считаем…
             </div>
