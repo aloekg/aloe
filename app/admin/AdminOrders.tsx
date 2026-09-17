@@ -11,10 +11,12 @@ import { itemsTotalOf } from "@/lib/order-pricing";
 import { orderStatusMessage, whatsAppLink } from "@/lib/whatsapp";
 import { useToast } from "@/store/toast";
 import type { Order } from "@/types";
-import { downloadInvoice, resendOrderNotification } from "./actions";
+import { resendOrderNotification } from "./actions";
+import { fetchInvoiceFile } from "./invoice-file";
 import OrderDeliveryEditor from "./OrderDeliveryEditor";
 import OrderItemsEditor from "./OrderItemsEditor";
 import OrderStatusSelect from "./OrderStatusSelect";
+import ShareInvoiceButton from "./ShareInvoiceButton";
 import { useAdminListNav, useDebouncedSearch } from "./useAdminListNav";
 
 type OrderPatch = Partial<Pick<Order, "status" | "items" | "total" | "delivery_type" | "delivery_cost">>;
@@ -86,14 +88,12 @@ export default function AdminOrders({
   }
 
   async function handleDownloadInvoice(orderId: number) {
-    const result = await downloadInvoice(orderId);
-    if (!result.ok) return;
-    const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
+    const file = await fetchInvoiceFile(orderId);
+    if (!file) return;
+    const url = URL.createObjectURL(file);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `nakladnaya-${orderId}.pdf`;
+    a.download = file.name;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -172,6 +172,14 @@ export default function AdminOrders({
             order.customer_phone,
             orderStatusMessage({ orderId: order.id, status: order.status, total: order.total }),
           );
+
+          // Everything the invoice prints from the order, so an edit in either editor throws away
+          // the PDF the share button is holding rather than sending the superseded one.
+          const invoiceRevision = [
+            order.total,
+            order.delivery_cost,
+            ...(order.items ?? []).map((i) => `${i.id}x${i.quantity}@${i.price}`),
+          ].join("|");
 
           return (
             <div key={order.id} className="border border-gray-300 rounded-lg p-4 hover:shadow-sm transition-shadow">
@@ -268,6 +276,7 @@ export default function AdminOrders({
                   >
                     <Download className="w-3.5 h-3.5" /> Накладная
                   </Button>
+                  <ShareInvoiceButton orderId={order.id} revision={invoiceRevision} />
                 </div>
               </div>
 

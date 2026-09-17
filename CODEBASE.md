@@ -522,6 +522,16 @@ quote, all by hand. Automated status messages would therefore cost a second numb
 verification, a Meta-approved template per status and a per-message fee — so this stops at the link
 until the volume argues otherwise.
 
+The invoice cannot ride along in that link — no URL parameter attaches a file — so
+`ShareInvoiceButton` hands the PDF to the phone's share sheet via `navigator.share({ files })`
+instead, with WhatsApp as one of its targets. It renders only where the browser actually accepts
+files, probed with a real `File` rather than guessed from the user agent, because desktop Chrome
+exposes `navigator.share` and then refuses them; on a desktop the existing download button is the
+answer. The PDF is fetched before the sheet opens, which spends Safari's user activation, so a
+first tap that comes back empty keeps the document and asks for a second one. It is held against a
+revision string built from the order's items and fees, so an edit in either editor drops it rather
+than sharing a superseded invoice.
+
 `customer_phone` is free text (checkout only requires nine digits somewhere in it), so
 `toWhatsAppNumber()` normalises `+996 555 …`, `0505 008 085`, `709 272 740` and the Soviet-era
 `8 505 …` trunk form to the bare international digits
