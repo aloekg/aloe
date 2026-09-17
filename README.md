@@ -94,6 +94,7 @@ npm run db:types     # перегенерировать types/database.ts из �
 | [CODEBASE.md](CODEBASE.md)               | Справочник: маршруты, схема БД, сервисы, стора, серверные экшены, паттерны        |
 | [AGENTS.md](AGENTS.md)                   | Правило для ИИ-агентов: это Next.js 16, читать документацию в `node_modules/next` |
 | [MIGRATION.md](MIGRATION.md)             | Переезд на `aloe.kg`: что сделано и что осталось                                  |
+| [TODO.md](TODO.md)                       | Обсуждённое, но ещё не начатое                                                    |
 | [supabase/README.md](supabase/README.md) | Миграции, аудит RLS, регенерация типов                                            |
 | `scripts/joomla/`                        | Синхронизация каталога со старым сайтом (`old.aloe.kg`)                           |
 | `scripts/`, `backups/`                   | Обслуживание: картинки, потерянные категории, очистка тестовых данных, бэкапы     |
