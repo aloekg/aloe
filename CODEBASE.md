@@ -27,7 +27,6 @@
 ├── scripts/                # Old-site sync + image maintenance (see below)
 ├── proxy.ts                # Middleware — Supabase auth cookie management
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
-├── MIGRATION.md            # Domain cutover: what shipped, what is still open
 └── .env.local              # Supabase keys, SMTP, DEPLOY_ORIGIN (see below)
 ```
 
@@ -459,7 +458,7 @@ SMTP_TLS_SERVERNAME             # optional, defaults to mail.hoster.kg (certific
 DEPLOY_ORIGIN                   # optional; the origin THIS deployment serves on when it is not
                                 # SITE_URL (aloe.kg). Unset means "this is the canonical domain",
                                 # which is what production wants now that aloe.kg points here —
-                                # a leftover value noindexes the live shop. See MIGRATION.md.
+                                # a leftover value noindexes the live shop.
                                 # staging: https://stage.aloe.kg. Read at BUILD time, so changing
                                 # it on Vercel needs a redeploy, not a restart.
 ```
@@ -476,7 +475,7 @@ The cutover is done: `aloe.kg` now serves this deployment, so **production leave
 unset** and only preview deployments set it. Whenever the two differ, `app/robots.ts` returns
 `Disallow: /` and the root layout adds `noindex` — two signals, because robots.txt alone still
 allows a URL-only index entry. That guard has teeth in both directions: a stale `DEPLOY_ORIGIN` on
-production silently hides the live shop from search (see MIGRATION.md). An unset or malformed value
+production silently hides the live shop from search, as it once did. An unset or malformed value
 falls back to `SITE_URL` on purpose — a missing variable must not noindex the live shop.
 
 Because `SITE_URL` is compile-time, **canonical tags on staging point at `aloe.kg`**. That is

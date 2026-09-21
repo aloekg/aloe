@@ -20,7 +20,7 @@ const SMTP_CERT_NAME = process.env.SMTP_TLS_SERVERNAME || "mail.hoster.kg";
 /**
  * Addresses *this* deployment, not the canonical domain, so the admin lands on the build that took
  * the order rather than on whatever SITE_URL currently resolves to. On production the two are now
- * the same; on a preview they are not. See lib/deploy-origin.ts and MIGRATION.md.
+ * the same; on a preview they are not. See lib/deploy-origin.ts.
  */
 const ADMIN_ORDERS_URL = `${DEPLOY_ORIGIN}/admin/orders`;
 
