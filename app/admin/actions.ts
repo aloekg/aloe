@@ -197,8 +197,14 @@ export async function updateOrderDelivery(
 
 export async function downloadInvoice(orderId: number): Promise<{ ok: true; base64: string } | { ok: false }> {
   await assertAdmin();
-  const { data: order, error } = await adminDb().from("orders").select("*").eq("id", orderId).single();
-  if (error || !order) return { ok: false };
+  // maybeSingle + separate checks: `single` reports "no rows" and "more than one row" with the same
+  // code, so a duplicate id used to download as a silent empty result. Only the miss is quiet now.
+  const { data: order, error } = await adminDb().from("orders").select("*").eq("id", orderId).maybeSingle();
+  if (error) {
+    console.error(`[invoice] order ${orderId} lookup failed: ${error.message}`);
+    return { ok: false };
+  }
+  if (!order) return { ok: false };
 
   // price is nullable in the schema; multiplying it unguarded produced NaN as the invoice's
   // itemsTotal while `total` on the same document stayed correct — three lines that didn't add up.
@@ -229,7 +235,8 @@ export async function resendOrderNotification(orderId: number): Promise<{ ok: tr
   const db = adminDb();
 
   const { data: order, error } = await getOrderForNotification(db, orderId);
-  if (error || !order) return { ok: false, error: "Заказ не найден" };
+  if (error) return { ok: false, error: error.message };
+  if (!order) return { ok: false, error: "Заказ не найден" };
 
   const items = normalizeOrderItems((order.items ?? []) as OrderItemInput[]);
   const itemsTotal = itemsTotalOf(items);
@@ -419,7 +426,11 @@ export async function upsertCategory(
   let siblingQuery = db.from("categories").select("sort_order").order("sort_order", { ascending: false }).limit(1);
   siblingQuery =
     data.parent_id !== null ? siblingQuery.eq("parent_id", data.parent_id) : siblingQuery.is("parent_id", null);
-  const { data: last } = await siblingQuery;
+  // The error is checked rather than dropped: a failed lookup leaves `last` null, which silently
+  // resolves to sort_order 0 and collides with an existing sibling — the very divergence the
+  // max+1 rule above exists to prevent.
+  const { data: last, error: siblingError } = await siblingQuery;
+  if (siblingError) return { ok: false, error: siblingError.message };
   const sort_order = (last?.[0]?.sort_order ?? -1) + 1;
   const { data: row, error } = await db
     .from("categories")

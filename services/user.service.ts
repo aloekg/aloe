@@ -23,6 +23,26 @@ const PAGE_SIZE = 200;
 const MAX_PAGES = 10;
 
 /**
+ * `profiles` is a lookup keyed by the accounts already in hand, not a list of its own, so it is
+ * fetched by those ids. Reading the whole table was silently capped at PostgREST's max-rows —
+ * past 1000 accounts the join simply missed and every row past the cap rendered a blank name and
+ * phone, with `truncated` still false because it only ever described the auth side. Chunked
+ * because the ids travel in the request URL.
+ */
+const PROFILE_CHUNK = 500;
+
+async function loadProfiles(db: SupabaseClient<Database>, ids: string[]) {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += PROFILE_CHUNK) chunks.push(ids.slice(i, i + PROFILE_CHUNK));
+  const pages = await Promise.all(
+    chunks.map(async (chunk) =>
+      soft("user-profiles", await db.from("profiles").select("id, name, phone").in("id", chunk), []),
+    ),
+  );
+  return pages.flat();
+}
+
+/**
  * Accounts live in `auth.users`, which PostgREST does not expose — only the Auth admin API reads
  * them, so this takes the service-role client from `requireAdmin()` and cannot be called with a
  * user-scoped one. Emails come from there; names and phones only exist in `profiles`.
@@ -42,7 +62,10 @@ export async function listUsers(db: SupabaseClient<Database>): Promise<{ users: 
     }
   }
 
-  const profiles = soft("user-profiles", await db.from("profiles").select("id, name, phone"), []);
+  const profiles = await loadProfiles(
+    db,
+    accounts.map((a) => a.id),
+  );
   const byId = new Map(profiles.map((p) => [p.id, p]));
 
   const users = accounts.map((account) => ({
