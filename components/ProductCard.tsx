@@ -16,7 +16,7 @@ type Props = {
   product: ProductListItem;
   className?: string;
   href?: string;
-  priority?: boolean;
+  preload?: boolean;
 };
 
 function ProductBadge({ label }: { label: ProductListItem["label"] }) {
@@ -29,7 +29,7 @@ function ProductBadge({ label }: { label: ProductListItem["label"] }) {
   );
 }
 
-function ProductCard({ product: p, className = "", href, priority = false }: Props) {
+function ProductCard({ product: p, className = "", href, preload = false }: Props) {
   const productHref = href ?? `/product/${p.id}`;
   // The card never renders above ~300px, so it takes the small variant; the detail page and the
   // quick-view modal load `image_url`. Rows predating the thumbnail backfill fall back to it.
@@ -48,7 +48,7 @@ function ProductCard({ product: p, className = "", href, priority = false }: Pro
             alt={p.name}
             fill
             className="object-contain p-2"
-            priority={priority}
+            preload={preload}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
           />
           <ProductBadge label={p.label} />
