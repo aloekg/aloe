@@ -26,10 +26,14 @@ const MAX_PAGES = 10;
  * `profiles` is a lookup keyed by the accounts already in hand, not a list of its own, so it is
  * fetched by those ids. Reading the whole table was silently capped at PostgREST's max-rows —
  * past 1000 accounts the join simply missed and every row past the cap rendered a blank name and
- * phone, with `truncated` still false because it only ever described the auth side. Chunked
- * because the ids travel in the request URL.
+ * phone, with `truncated` still false because it only ever described the auth side.
+ *
+ * 150 because the ids travel in the request URL, not in a body: a uuid costs ~39 characters once
+ * the separators are percent-encoded, so 150 of them is a ~6 KB URL against the 8 KB at which
+ * postgrest-js itself starts warning — and 500 would be ~20 KB, trading a silent truncation for a
+ * refused request at exactly the account count this fix is about.
  */
-const PROFILE_CHUNK = 500;
+const PROFILE_CHUNK = 150;
 
 async function loadProfiles(db: SupabaseClient<Database>, ids: string[]) {
   const chunks: string[][] = [];

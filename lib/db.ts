@@ -40,3 +40,28 @@ export function maybe<R extends Res>(label: string, res: R): Data<R> | null {
   if (res.error) throw new Error(`[${label}] ${res.error.message}`);
   return (res.data ?? null) as Data<R> | null;
 }
+
+/** PostgREST's ceiling per request: asking for more in one `.range()` silently returns 1000 rows. */
+export const PAGE_ROWS = 1000;
+
+/**
+ * Reads a whole list through that ceiling, one `.range()` at a time.
+ *
+ * Throws on an error rather than returning what it has, for the same reason as `strict`: a
+ * half-loaded list is indistinguishable from a short one, and every caller here draws a conclusion
+ * from the absence of a row — the sitemap withdraws a product from Search Console, the analytics
+ * page lists it as unsold. A partial page also ends the loop, so one failed request used to be
+ * reported as "that is all there is".
+ */
+export async function loadAllPages<T>(
+  label: string,
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await fetchPage(from, from + PAGE_ROWS - 1);
+    if (error) throw new Error(`[${label}] ${error.message}`);
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE_ROWS) return rows;
+  }
+}
