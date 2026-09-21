@@ -28,8 +28,8 @@
  * because the catalogue seed copies rows and never objects (scripts/seed-staging.mjs). So staging
  * must allow two image origins — its own, for anything uploaded through its admin, and this one.
  *
- * Deliberately *not* listing the old Mumbai origin after the region move: no row names it any more
- * (supabase/sql/rewrite-storage-urls.sql verifies that and rolls back if one does), and an origin
+ * Deliberately *not* listing the old Mumbai origin after the region move: every stored URL was
+ * rewritten to this host when the projects moved, so no row names it any more, and an origin
  * nothing needs is an origin the policy should not allow.
  */
 const PRODUCTION_SUPABASE_ORIGIN = "https://ukgtmxzpzprmoutqskgq.supabase.co";

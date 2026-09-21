@@ -5,7 +5,7 @@
 - **Framework:** Next.js 16.2.9 (App Router, Server Components, Server Actions, React 19)
 - **Language:** TypeScript 6.0.3 (strict mode, path alias `@/*` → root)
 - **Database:** Supabase (PostgreSQL + Auth + Storage + RLS)
-- **State:** Zustand 5.0.14 (cart and favorites use `persist`/localStorage; toast/mobile-menu don't — both cart and favorites also rehydrate from Supabase on auth)
+- **State:** Zustand 5.0.14 (cart and favorites use `persist`/localStorage; toast doesn't — both cart and favorites also rehydrate from Supabase on auth)
 - **Styling:** Tailwind CSS 4.3.1, no dark mode
 - **UI libs:** Lucide React, React Icons, Embla Carousel (+ autoplay), react-markdown, nextjs-toploader, @tailwindcss/typography, @tanstack/react-virtual
 - **Code quality:** ESLint 9, Prettier (120 char, import sorting via `@ianvs/prettier-plugin-sort-imports`)
@@ -19,12 +19,12 @@
 ├── hooks/                  # Custom React hooks
 ├── lib/                    # Supabase clients, caching, utilities
 ├── services/               # Data access layer (9 domain modules)
-├── store/                  # Zustand stores (cart, favorites, toast, mobile-menu)
+├── store/                  # Zustand stores (cart, favorites, toast)
 ├── types/                  # TypeScript type definitions (index.ts) + generated database.ts
 ├── tests/                  # Vitest unit tests (pure helpers only — no DB, no DOM)
 ├── supabase/               # migrations/ (source of truth for the schema), sql/audit-rls.sql
 ├── public/                 # Manifest PNG icons (generated, see scripts/generate-app-icons.mjs)
-├── scripts/                # Old-site sync + image maintenance (see below)
+├── scripts/                # Maintenance: images, orphan categories, staging seed (see below)
 ├── proxy.ts                # Middleware — Supabase auth cookie management
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
 └── .env.local              # Supabase keys, SMTP, DEPLOY_ORIGIN (see below)
@@ -101,25 +101,25 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### products
 
-| column         | type        | notes                                                                                                                                                                                                      |
-| -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id             | int         | PK                                                                                                                                                                                                         |
-| external_id    | text        | JoomShopping `product_id` on the old site — the join key for the sync scripts (not in `Product` or the admin UI). UNIQUE since 2026-09-21; NULL is unconstrained, so admin-created products are unaffected |
-| name           | text        |                                                                                                                                                                                                            |
-| price          | numeric     |                                                                                                                                                                                                            |
-| old_price      | numeric     | nullable                                                                                                                                                                                                   |
-| image_url      | text        | large variant (≤1200px WebP) — detail page & modal                                                                                                                                                         |
-| thumbnail_url  | text        | nullable — small variant (≤500px WebP) for cards; fall back to `image_url`                                                                                                                                 |
-| product_url    | text        | unused — dropped from `Product` type & admin UI                                                                                                                                                            |
-| category       | text        | string label                                                                                                                                                                                               |
-| category_id    | int         | FK → categories.id                                                                                                                                                                                         |
-| label          | text        | `new` \| `sale` \| null                                                                                                                                                                                    |
-| description    | text        | nullable                                                                                                                                                                                                   |
-| brand_id       | int         | FK → brands.id                                                                                                                                                                                             |
-| seo_text       | text        | nullable                                                                                                                                                                                                   |
-| purchase_count | int         | incremented on checkout; drives "popular" ranking                                                                                                                                                          |
-| published      | boolean     |                                                                                                                                                                                                            |
-| created_at     | timestamptz |                                                                                                                                                                                                            |
+| column         | type        | notes                                                                                                                                                                                                                                                |
+| -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id             | int         | PK                                                                                                                                                                                                                                                   |
+| external_id    | text        | JoomShopping `product_id` on the old store — a record of provenance, read by no code now that the sync scripts are gone (not in `Product` or the admin UI). UNIQUE since 2026-09-21; NULL is unconstrained, so admin-created products are unaffected |
+| name           | text        |                                                                                                                                                                                                                                                      |
+| price          | numeric     |                                                                                                                                                                                                                                                      |
+| old_price      | numeric     | nullable                                                                                                                                                                                                                                             |
+| image_url      | text        | large variant (≤1200px WebP) — detail page & modal                                                                                                                                                                                                   |
+| thumbnail_url  | text        | nullable — small variant (≤500px WebP) for cards; fall back to `image_url`                                                                                                                                                                           |
+| product_url    | text        | unused — dropped from `Product` type & admin UI                                                                                                                                                                                                      |
+| category       | text        | string label                                                                                                                                                                                                                                         |
+| category_id    | int         | FK → categories.id                                                                                                                                                                                                                                   |
+| label          | text        | `new` \| `sale` \| null                                                                                                                                                                                                                              |
+| description    | text        | nullable                                                                                                                                                                                                                                             |
+| brand_id       | int         | FK → brands.id                                                                                                                                                                                                                                       |
+| seo_text       | text        | nullable                                                                                                                                                                                                                                             |
+| purchase_count | int         | incremented on checkout; drives "popular" ranking                                                                                                                                                                                                    |
+| published      | boolean     |                                                                                                                                                                                                                                                      |
+| created_at     | timestamptz |                                                                                                                                                                                                                                                      |
 
 ### categories
 
@@ -379,7 +379,6 @@ still has four neighbours to show. The rendered result is identical to the old q
 - **cart store** (`store/cart.ts`) — cart items array, persisted to localStorage (key `"cart"`, only `items` is persisted); syncs with DB when user logs in (local items win on conflict, DB-only items appended, `reconcileCartItems` pushes local-only items back).
 - **favorites store** (`store/favorites.ts`) — product IDs; syncs with DB on auth. Persisted to localStorage (key `"favorites"`, `ids` + `userId`) so a returning customer's hearts are right on first paint and survive an offline reload; `userId` rides along because the ids belong to one account, and they are dropped whenever a different user signs in or the current one signs out. Unlike the cart there is nothing to keep for a guest — `FavoriteButton` sends them to `/auth` rather than storing anything. A failed load leaves `initialized` false, which both keeps the button disabled and lets the next auth event retry.
 - **toast store** (`store/toast.ts`) — notification queue, auto-dismiss after 3.5s, keeps at most 3 toasts.
-- **mobile-menu store** (`store/mobile-menu.ts`) — boolean open/close state for mobile nav.
 
 ## Server Actions
 
@@ -846,26 +845,13 @@ npm run db:types:prod && npm run typecheck
 is regenerated with `db:types:prod` and not bare `db:types` — the latter reads whichever project the
 CLI is linked to, recorded in the untracked `supabase/.temp/project-ref`.
 
-### Old-site sync (`scripts/joomla/`)
+### Maintenance scripts
 
-aloe.kg still runs the previous store (Joomla + JoomShopping) as production, so the catalogue there
-keeps moving while this site is built. These scripts pull from it. Credentials live in
-`scripts/joomla/.env.joomla` (git-ignored, see `lib.mjs` for the keys); scraped output lands in
-`scripts/joomla/data/` (also git-ignored). Products are matched on `products.external_id`.
-
-```bash
-npm run backup:prod                                          # always first — dumps every table
-node scripts/joomla/scrape-products.mjs                      # admin list → data/joomla-products.json
-node scripts/joomla/diff-products.mjs --env=prod             # vs Supabase → data/diff.json + report
-node scripts/joomla/sync-products.mjs --env=prod --execute --i-know-this-is-production
-node scripts/joomla/reimage-products.mjs --env=prod          # rebuild both image variants
-```
-
-`reimage-products.mjs` reads JoomShopping's `full_<name>` file — the untouched original upload — and
-writes `<id>.webp` + `thumb/<id>.webp`. It is resumable (`data/reimage-state.json`) and skips any
-product whose current image came from the new admin, so manual re-uploads are never overwritten.
-
-Two maintenance scripts finish the job for anything the old site cannot supply:
+The catalogue used to be pulled from the old JoomShopping store by a set of scripts under
+`scripts/joomla/`. They were removed once the cutover made `old.aloe.kg` an archive: the catalogue
+is now edited in this admin, so a sync could only overwrite it. They remain in the git history if
+the old store ever has to be read again. `npm run backup:prod` first is still the rule for anything
+below that writes.
 
 ```bash
 node scripts/normalize-product-images.mjs --env=prod   # row not yet a WebP pair → build it from Storage
@@ -876,6 +862,7 @@ node scripts/seed-staging.mjs --env=stage              # production catalogue �
 node scripts/seed-staging-orders.mjs --env=stage       # made-up accounts + orders on staging, for the admin
 node scripts/generate-app-icons.mjs                    # app/icon.svg → the manifest's PNG icons
 node scripts/build-legacy-redirects.mjs --env=prod     # old site's URLs → lib/legacy-redirects.ts
+node scripts/set-user-password.mjs --env=prod --email=…  # reset an account's password (see below)
 ```
 
 **Every script that opens the database requires `--env=prod` or `--env=stage`, with no default** —
@@ -926,6 +913,14 @@ number. Unlike `purge-test-data.mjs` it selects by marker — `comment` starting
 `@mock.aloe.kg` domain — because it only ever removes what it wrote, and it cannot open production.
 `--reset` also takes back exactly the `purchase_count` the mock orders added.
 
+`set-user-password.mjs` is the only way back into the admin if a password is lost. The dashboard's
+"send password recovery" link is a dead end here — `app/auth/confirm/route.ts` verifies the recovery
+token and signs the session straight out again, there is no page to set a new password on, and the
+sign-in form offers no "forgot password" link. The script reads the new password from the terminal
+with echo off (or `--generate`s one) rather than taking it as an argument, where `ps` and the shell
+history would both keep it, and `--revoke-sessions` additionally invalidates cookies issued under
+the old one.
+
 `fix-orphan-categories.mjs` cleans up after the category FK's old `ON DELETE SET NULL`: 91 products
 lost their `category_id` when a category was deleted and keep only the denormalised `category`
 label, which the tree reorganisation renamed. It matches that label to a leaf category ignoring
@@ -936,7 +931,7 @@ back admin-uploaded originals (`<epoch-ms>-<rand>.<ext>`) unless `--originals` i
 normalizing a product leaves its original unreferenced, but that file is the only high-quality
 source left for re-encoding it.
 
-Two things are deliberately never synced from the old site: **`category_id`/`category`** (the tree was
-reorganized in `scripts/migrate-categories.mjs` and no longer maps 1:1) and products **without an
-`external_id`** (created in the new admin). Deletions on the old site unpublish here rather than
-delete, because `orders.items` references the row.
+Two facts about the catalogue outlive that sync. The category tree **does not map 1:1 to the old
+store's** — it was reorganized wholesale during the migration, which is why `fix-orphan-categories.mjs`
+matches on the denormalised `category` label rather than on anything the old site supplied. And a
+product **without an `external_id`** was created in this admin and never existed there at all.
