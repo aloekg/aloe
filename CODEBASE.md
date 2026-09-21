@@ -411,10 +411,6 @@ Production runs in **eu-central-1 (Frankfurt)**, moved there from ap-south-1 (Mu
 2026-09-21 — `supabase/REGION-MIGRATION.md` has the procedure and, more usefully, the list of what a
 dump does not carry across.
 
-Staging's Supabase project was **deleted** on 2026-09-21: the ref in `.env.local` no longer resolves,
-so `stage.aloe.kg` is down until a new project is created and the catalogue reseeded. What follows
-describes staging as it works when it exists.
-
 Staging sits behind Vercel Authentication and holds a copy of the production **catalogue only** —
 no orders, profiles, favorites or carts. Product photos are the deliberate exception to the
 isolation: rows keep their absolute production storage URLs and staging reads the images out of

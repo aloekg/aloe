@@ -12,8 +12,7 @@ export const LEGACY_SITE_URL = "https://old.aloe.kg";
  * not rows — there is no category to hang an `image_url` on — so the path is written down.
  *
  * Pinned to production's storage origin rather than derived from NEXT_PUBLIC_SUPABASE_URL, which
- * looks like a bug and is not. (Staging's project was deleted on 2026-09-21, so today the two agree;
- * the pin is what makes the tiles survive the next staging.) Staging runs its own database but reads product photos straight out
+ * looks like a bug and is not. Staging runs its own database but reads product photos straight out
  * of these same public buckets, and its catalogue seed copies rows, never objects — so
  * `categories/specials/` exists in exactly one project. Deriving the origin would leave staging
  * with four broken tiles and gain nothing.
