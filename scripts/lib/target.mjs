@@ -21,13 +21,19 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** Production's project ref, written down once so a check against it cannot drift. */
-export const PROD_REF = "dnlburbuchxzxdmhuczu";
+export const PROD_REF = "ukgtmxzpzprmoutqskgq";
 
 /**
  * .env.prod rather than .env.production: Next auto-loads .env.production and .env.production.local,
  * so production credentials under either name would be picked up by a local `npm run build`.
+ *
+ * `.env.new` is the project production is being moved to — the Frankfurt one during the region
+ * migration, and nothing afterwards. It is deliberately unreachable from the ordinary scripts:
+ * resolveTarget()'s `allow` defaults to stage+prod, so `--env=new` dies on that check rather than
+ * opening a half-populated database. Only the two migration scripts ask for it, and they ask
+ * through resolveEndpoint().
  */
-const ENV_FILES = { stage: ".env.local", prod: ".env.prod" };
+const ENV_FILES = { stage: ".env.local", prod: ".env.prod", new: ".env.new" };
 
 export function parseEnvFile(file) {
   return Object.fromEntries(
@@ -53,6 +59,42 @@ export function resolveTarget({ destructive = false, allow = ["stage", "prod"] }
   if (!ENV_FILES[named]) die(`Unknown --env=${named}. Use --env=stage or --env=prod.`);
   if (!allow.includes(named)) die(`This script may only run against: ${allow.join(", ")}.`);
 
+  const { ref, isProd, url, key, env } = resolveEndpoint(named);
+
+  if (named === "prod" && !isProd) die(`--env=prod, but ${ENV_FILES.prod} points at "${ref}", not production.`);
+  if (named === "stage" && isProd) die(`--env=stage, but ${ENV_FILES.stage} points at PRODUCTION. Refusing.`);
+  if (!allow.includes("prod") && isProd) die(`This script must never touch production (${ref}). Refusing.`);
+
+  const execute = process.argv.includes("--execute");
+  if (destructive && execute && isProd && !process.argv.includes("--i-know-this-is-production")) {
+    die(
+      `Refusing to write to PRODUCTION (${ref}).\n` +
+        `If that is genuinely the intent, add --i-know-this-is-production.`,
+    );
+  }
+
+  // stderr, every run, dry or not. The commonest way to lose data with these scripts is simply not
+  // knowing which database just opened.
+  console.error(`→ ${named} (${ref})  ${execute ? "EXECUTE" : "dry run"}`);
+
+  return { name: named, ref, isProd, url, key, execute, env };
+}
+
+/**
+ * One endpoint, loaded by name, with none of resolveTarget()'s stage/prod cross-checks — those
+ * assume a script opens a single database, and the migration scripts open two at once (they carry
+ * their own guards instead: a copy must not end where it started, and writing to production still
+ * needs --i-know-this-is-production).
+ *
+ * @param {"stage"|"prod"|"new"} named
+ * @param {object}  [options]
+ * @param {string}  [options.flag] the flag this name came from, so the error names it
+ * @returns {{name: string, ref: string, isProd: boolean, url: string, key: string, env: Record<string,string>}}
+ */
+export function resolveEndpoint(named, { flag = "--env" } = {}) {
+  if (!named) die(`Pass ${flag}=${Object.keys(ENV_FILES).join(" | ")}. There is no default.`);
+  if (!ENV_FILES[named]) die(`Unknown ${flag}=${named}. Use ${Object.keys(ENV_FILES).join(", ")}.`);
+
   const file = path.join(ROOT, ENV_FILES[named]);
   if (!existsSync(file)) {
     die(`${ENV_FILES[named]} does not exist. See .env.example — it explains which file holds what.`);
@@ -73,25 +115,8 @@ export function resolveTarget({ destructive = false, allow = ["stage", "prod"] }
   } catch {
     die(`${ENV_FILES[named]}: NEXT_PUBLIC_SUPABASE_URL is not a URL ("${url}").`);
   }
-  const isProd = ref === PROD_REF;
 
-  if (named === "prod" && !isProd) die(`--env=prod, but ${ENV_FILES.prod} points at "${ref}", not production.`);
-  if (named === "stage" && isProd) die(`--env=stage, but ${ENV_FILES.stage} points at PRODUCTION. Refusing.`);
-  if (!allow.includes("prod") && isProd) die(`This script must never touch production (${ref}). Refusing.`);
-
-  const execute = process.argv.includes("--execute");
-  if (destructive && execute && isProd && !process.argv.includes("--i-know-this-is-production")) {
-    die(
-      `Refusing to write to PRODUCTION (${ref}).\n` +
-        `If that is genuinely the intent, add --i-know-this-is-production.`,
-    );
-  }
-
-  // stderr, every run, dry or not. The commonest way to lose data with these scripts is simply not
-  // knowing which database just opened.
-  console.error(`→ ${named} (${ref})  ${execute ? "EXECUTE" : "dry run"}`);
-
-  return { name: named, ref, isProd, url, key, execute, env };
+  return { name: named, ref, isProd: ref === PROD_REF, url, key, env };
 }
 
 function die(message) {

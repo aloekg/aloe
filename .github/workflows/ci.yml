@@ -38,17 +38,23 @@ jobs:
       # Supabase env vars are needed because generateStaticParams and the sitemap query the
       # database at build time.
       #
-      # These secrets hold the STAGING project's anon key, not production's, so nothing in this
-      # repository can reach the live database. Both call sites are read-only and both swallow a
-      # failed query as an empty list — which is the catch: if the staging project is ever paused
-      # for inactivity, this step stays green while prerendering zero products. A red build would
-      # be friendlier. Visit staging, or add a scheduled ping, rather than repointing this at
-      # production.
+      # These secrets held the STAGING project's anon key until 2026-09-21, when that project was
+      # deleted — and every build on every branch went red, because a host that no longer resolves
+      # is not an empty query, it is a thrown fetch. They now hold PRODUCTION's publishable key,
+      # which the earlier version of this comment argued against. What it was protecting against
+      # was the opposite failure: a staging project paused for inactivity keeps this step green
+      # while prerendering zero products. Pointing at a project that is always up removes that,
+      # and costs little — both call sites are read-only, the key is the one every browser already
+      # carries, and RLS hands the build nothing but published rows.
+      #
+      # The price, worth naming: CI now depends on the live database, so an outage there reds the
+      # build. Point these back at staging the day a staging project exists again.
       - name: Build
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          # Not required to build — it just makes the prerendered robots.txt match what staging
-          # actually serves, instead of baking the canonical one into a throwaway artefact.
+          # Not required to build. It keeps this throwaway artefact's robots.txt on the noindex
+          # side of the DEPLOY_ORIGIN guard (lib/deploy-origin.ts) rather than baking the
+          # canonical one into it — which matters more now that the build reads production.
           DEPLOY_ORIGIN: https://stage.aloe.kg
