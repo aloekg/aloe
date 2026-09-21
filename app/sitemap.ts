@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/constants";
+import { loadAllPages } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 
 export const revalidate = 3600;
@@ -21,28 +22,26 @@ const STATIC_PAGES: Array<{
   { path: "/legal-entities", priority: 0.3, changeFrequency: "monthly" },
 ];
 
-async function getAllPublishedProducts() {
-  const pageSize = 1000;
-  const rows: { id: number; created_at: string | null; category_id: number | null; brand_id: number | null }[] = [];
-  for (let from = 0; ; from += pageSize) {
-    const { data } = await supabase
-      .from("products")
-      .select("id, created_at, category_id, brand_id")
-      .eq("published", true)
-      .order("id")
-      .range(from, from + pageSize - 1);
-    if (!data || data.length === 0) break;
-    rows.push(...data);
-    if (data.length < pageSize) break;
-  }
-  return rows;
-}
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [{ data: categories }, { data: brands }, products] = await Promise.all([
-    supabase.from("categories").select("id, slug, parent_id"),
-    supabase.from("brands").select("id, slug"),
-    getAllPublishedProducts(),
+  // `loadAllPages`, not a bare `{ data }` loop: every query here used to swallow its error, and
+  // since a failed page is also an empty one, the loop broke on its first iteration and the route
+  // returned a sitemap with no products in it — cached for an hour and handed to Search Console,
+  // which reads as the whole catalogue having been withdrawn.
+  const [categories, brands, products] = await Promise.all([
+    loadAllPages("sitemap-categories", (from, to) =>
+      supabase.from("categories").select("id, slug, parent_id").order("id").range(from, to),
+    ),
+    loadAllPages("sitemap-brands", (from, to) =>
+      supabase.from("brands").select("id, slug").order("id").range(from, to),
+    ),
+    loadAllPages("sitemap-products", (from, to) =>
+      supabase
+        .from("products")
+        .select("id, created_at, category_id, brand_id")
+        .eq("published", true)
+        .order("id")
+        .range(from, to),
+    ),
   ]);
 
   // Only entities that actually have published products. BrandPage calls notFound() when a brand
@@ -53,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   /** A category counts as non-empty if it, or anything beneath it, holds a published product. */
   const childrenOf = new Map<number, number[]>();
-  for (const c of categories ?? []) {
+  for (const c of categories) {
     if (c.parent_id != null) {
       if (!childrenOf.has(c.parent_id)) childrenOf.set(c.parent_id, []);
       childrenOf.get(c.parent_id)!.push(c.id);
@@ -66,7 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Subcategories are skipped too: ?sub= is only a scroll anchor, the content is identical to the
   // parent URL and generateMetadata points its canonical there, so they were submitted as
   // duplicates that could never rank.
-  const categoryUrls: MetadataRoute.Sitemap = (categories ?? [])
+  const categoryUrls: MetadataRoute.Sitemap = categories
     .filter((c) => !c.parent_id && hasProducts(c.id))
     .map((c) => ({
       url: `${SITE_URL}/catalog/${c.slug}`,
@@ -74,7 +73,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }));
 
-  const brandUrls: MetadataRoute.Sitemap = (brands ?? [])
+  const brandUrls: MetadataRoute.Sitemap = brands
     .filter((b) => productBrandIds.has(b.id))
     .map((b) => ({
       url: `${SITE_URL}/brands/${b.slug}`,

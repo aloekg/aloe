@@ -127,7 +127,14 @@ export async function markOrderNotified(supabase: SupabaseClient<Database>, orde
   if (error) console.error(`[orders] could not mark ${orderId} notified: ${error.message}`);
 }
 
-/** Everything needed to re-send a notification for an existing order. */
+/**
+ * Everything needed to re-send a notification for an existing order.
+ *
+ * `maybeSingle`, not `single`: a missing order is an ordinary outcome here, and `single` reports it
+ * with the same PGRST116 code it uses for "more than one row" (see lib/db.ts) — so a duplicated id
+ * showed up in the admin as "Заказ не найден" rather than as the integrity problem it is. Zero rows
+ * now arrive as `{ data: null, error: null }`, which lets the caller tell the two apart.
+ */
 export async function getOrderForNotification(supabase: SupabaseClient<Database>, orderId: number) {
-  return supabase.from("orders").select("*").eq("id", orderId).single();
+  return supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
 }

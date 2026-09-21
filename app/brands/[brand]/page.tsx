@@ -4,8 +4,7 @@ import { Breadcrumb, MainContainer, Title } from "@/components";
 import { getCachedBrandBySlug, getCachedProductsByBrand } from "@/lib/cached-queries";
 import { pageMetadata } from "@/lib/seo";
 import BrandProductsInfinite from "./BrandProductsInfinite";
-
-const PAGE_SIZE = 24;
+import { BRAND_PAGE_SIZE } from "./pagination";
 
 export async function generateMetadata({ params }: { params: Promise<{ brand: string }> }): Promise<Metadata> {
   const { brand } = await params;
@@ -25,7 +24,7 @@ export default async function BrandPage({ params }: { params: Promise<{ brand: s
 
   if (!brandData) notFound();
 
-  const { products, total } = await getCachedProductsByBrand(brandData.id, 1, PAGE_SIZE);
+  const { products, total } = await getCachedProductsByBrand(brandData.id, 1, BRAND_PAGE_SIZE);
 
   if (!total) notFound();
 
@@ -40,7 +39,6 @@ export default async function BrandPage({ params }: { params: Promise<{ brand: s
         key={brandData.id}
         brandId={brandData.id}
         brandName={brandData.name}
-        pageSize={PAGE_SIZE}
         initialProducts={products}
         total={total}
       />

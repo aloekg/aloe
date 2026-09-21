@@ -93,8 +93,8 @@ export const getCachedProductsByBrand = unstable_cache(
 export const getCachedCategoryProducts = unstable_cache(
   // Args form the cache key, so [1,2] and [2,1] used to mint separate ~90 KB entries for an
   // identical payload. Callers sort before calling; this is the guarantee.
-  async (categoryIds: number[], sort: SortValue, brandIds?: number[]) => {
-    const byCategory = await getCategoryProducts(supabase, categoryIds, sort, brandIds);
+  async (categoryIds: number[], sort: SortValue) => {
+    const byCategory = await getCategoryProducts(supabase, categoryIds, sort);
     return [...byCategory.entries()];
   },
   ["category-products"],

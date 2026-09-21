@@ -174,7 +174,6 @@ export async function getCategoryProducts(
   supabase: SupabaseClient<Database>,
   categoryIds: number[],
   sort: SortValue,
-  brandIds: number[] = [],
 ): Promise<Map<number, ProductListItem[]>> {
   const byCategory = new Map<number, ProductListItem[]>();
   if (categoryIds.length === 0) return byCategory;
@@ -182,8 +181,11 @@ export async function getCategoryProducts(
   const orderCol = sort === "price_asc" || sort === "price_desc" ? "price" : "name";
   const ascending = sort !== "price_desc";
 
-  let query = supabase.from("products").select(LIST_COLUMNS).eq("published", true).in("category_id", categoryIds);
-  if (brandIds.length > 0) query = query.in("brand_id", brandIds);
+  // Deliberately no brand filter here. The caller caches this, and `unstable_cache` folds every
+  // argument into the key — so a brand facet on the category page would mint a ~90 KB entry per
+  // subset of brands, the same explosion `excludeId` used to cause for related products. When the
+  // filter is wanted, it belongs on the cached result, not in the query.
+  const query = supabase.from("products").select(LIST_COLUMNS).eq("published", true).in("category_id", categoryIds);
 
   // strict: the category page calls notFound() when no section has products, so swallowing an
   // error here would turn an outage into a 404 that then gets cached for 60 seconds.
@@ -221,21 +223,45 @@ export async function searchProducts(
 }
 
 /**
- * Brand facet for a search term. Capped: previously this re-ran the same `ilike` with no limit
- * and pulled one row per matching product just to dedupe brands in JS, so a broad query scanned
- * and transferred the whole matching set a second time.
+ * How many pages of matches the brand facet will scan. PostgREST caps a request at 1000 rows, and
+ * a flat `.limit(1000)` meant a broad search silently dropped every brand whose products happened
+ * to sort past the first thousand — the filter then had no way to reach them and nothing said so.
+ * Five pages covers twice the current catalogue; past that the facet is approximate rather than
+ * wrong in a way the UI cannot see, which is the trade a full scan on an unrated public route
+ * cannot justify.
  */
-export async function getBrandsForSearch(supabase: SupabaseClient<Database>, query: string, limit = 1000) {
-  const { data, error } = await supabase
-    .from("products")
-    .select("brands(id, name)")
-    .eq("published", true)
-    .ilike("name", `%${escapeLike(query)}%`)
-    .not("brand_id", "is", null)
-    .order("brand_id")
-    .limit(limit);
-  if (error) console.error(`[brands-for-search] ${error.message}`);
-  return extractUniqueBrands(data);
+const BRAND_FACET_MAX_PAGES = 5;
+
+/**
+ * Brand ids present in a search's results. Returns ids rather than joined rows: `brands(id, name)`
+ * made every page of this carry a join purely to recover names the caller already holds from
+ * `getCachedBrands()`, and the names are what the caller sorts and renders anyway.
+ */
+export async function getBrandIdsForSearch(supabase: SupabaseClient<Database>, query: string): Promise<number[]> {
+  const pageSize = 1000;
+  const ids = new Set<number>();
+
+  for (let page = 0; page < BRAND_FACET_MAX_PAGES; page++) {
+    const from = page * pageSize;
+    const { data, error } = await supabase
+      .from("products")
+      .select("brand_id")
+      .eq("published", true)
+      .ilike("name", `%${escapeLike(query)}%`)
+      .not("brand_id", "is", null)
+      .order("brand_id")
+      .order("id")
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error(`[brands-for-search] ${error.message}`);
+      break;
+    }
+    for (const row of data ?? []) if (row.brand_id != null) ids.add(row.brand_id);
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+
+  return [...ids];
 }
 
 export async function getProductsByBrand(
@@ -364,17 +390,4 @@ export async function getProductCategoryIds(supabase: SupabaseClient<Database>) 
 
 export async function getProductBrandIds(supabase: SupabaseClient<Database>) {
   return distinctIds(supabase, "brand_id");
-}
-
-function extractUniqueBrands(data: unknown[] | null) {
-  const seen = new Set<number>();
-  const brands: { id: number; name: string }[] = [];
-  for (const row of data ?? []) {
-    const b = (row as { brands: { id: number; name: string } | null }).brands;
-    if (b && !seen.has(b.id)) {
-      seen.add(b.id);
-      brands.push(b);
-    }
-  }
-  return brands.sort((a, b) => a.name.localeCompare(b.name));
 }
