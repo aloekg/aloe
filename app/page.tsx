@@ -99,10 +99,10 @@ export default async function HomePage() {
         */}
         <HeaderSearchInput className="rounded-xl bg-green-50 md:hidden" />
         <div className="block md:hidden">
-          <BannerCarousel banners={mobileBanners} />
+          <BannerCarousel banners={mobileBanners} media="mobile" />
         </div>
         <div className="hidden md:block">
-          <BannerCarousel banners={desktopBanners} />
+          <BannerCarousel banners={desktopBanners} media="desktop" />
         </div>
         {popular.total > 0 && (
           <ProductCarousel

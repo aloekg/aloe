@@ -166,7 +166,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             alt={product.name}
             fill
             className="object-contain p-6"
-            priority
+            preload
             sizes="(max-width: 768px) 100vw, 50vw"
           />
           {label && (

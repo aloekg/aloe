@@ -270,7 +270,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
             ) : (
               <div className="grid gap-4 pb-4" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
                 {row.items.map((product) => (
-                  <ProductCard key={product.id} product={product} priority={row.first} />
+                  <ProductCard key={product.id} product={product} preload={row.first} />
                 ))}
               </div>
             )}
@@ -297,7 +297,7 @@ export default function VirtualCategoryContent({
     const renderGrid = (products: ProductListItem[]) => (
       <ProductGrid>
         {products.map((product) => (
-          <ProductCard key={product.id} product={product} priority={product.id === firstProductId} />
+          <ProductCard key={product.id} product={product} preload={product.id === firstProductId} />
         ))}
       </ProductGrid>
     );
