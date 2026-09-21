@@ -58,10 +58,17 @@ export default function ProductCarousel({
 
       <div className="relative">
         <div ref={emblaRef} className="overflow-hidden">
+          {/*
+            No card is preloaded here, deliberately. The homepage stacks fourteen of these, so
+            `preload` on the first card of each emitted fourteen <link rel=preload>s into <head> —
+            190 KB of off-screen thumbnails that the browser fetched ahead of the stylesheet, the
+            JS chunks and the banner that actually is the LCP element. The one card near the fold
+            gains nothing from a preload anyway: it is in the viewport, so it loads on layout.
+          */}
           <div className="grid grid-flow-col auto-cols-[minmax(160px,220px)] gap-3">
-            {products.map((p, i) => (
+            {products.map((p) => (
               <div key={p.id}>
-                <ProductCard product={p} className="h-full" priority={i === 0} />
+                <ProductCard product={p} className="h-full" />
               </div>
             ))}
           </div>

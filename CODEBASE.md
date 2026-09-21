@@ -622,6 +622,20 @@ tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop,
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
 other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
 
+**Which banner the browser actually fetches** is decided by `<picture>`, not by CSS. The homepage
+keeps both carousels in the DOM and hides one with `display:none`, and a hidden `<img>` is still
+downloaded — `loading="lazy"` can only defer an image the browser can place relative to the
+viewport, and one without a box never qualifies. So `BannerCarousel` scopes each image to its own
+breakpoint with `<source media>` and gives the `<img>` an inline transparent pixel as its fallback
+`src`: the other breakpoint downloads 43 bytes instead of a banner. The first slide is `eager` +
+`fetchpriority="high"` rather than preloaded, because a `<link rel=preload>` ignores media and
+would fetch both sets again — the case next/image's own docs send to `fetchPriority`.
+
+For the same reason **no card in a `ProductCarousel` is preloaded**: the homepage stacks fourteen
+of them, and `preload` on the first card of each put fourteen `<link rel=preload>`s in front of the
+stylesheet, the JS chunks and the LCP banner. Grids elsewhere still preload their first card —
+there the card is the LCP element. (`preload` is what Next 16 renamed `priority` to.)
+
 **Legacy URLs from the old shop** are redirected in two places, split by whether the mapping can be
 computed or has to be looked up. The old sitemap (still submitted to Search Console from 2017)
 listed 2879 addresses, and until this was in place every one of them answered 404 on the new site:
