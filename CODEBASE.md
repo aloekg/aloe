@@ -404,8 +404,12 @@ Two independent Supabase projects and two Vercel deployments:
 
 |            | host                               | Supabase ref           | `DEPLOY_ORIGIN`         | indexed |
 | ---------- | ---------------------------------- | ---------------------- | ----------------------- | ------- |
-| production | `aloe.kg` (branch `main`)          | `dnlburbuchxzxdmhuczu` | **unset**               | yes     |
+| production | `aloe.kg` (branch `main`)          | `ukgtmxzpzprmoutqskgq` | **unset**               | yes     |
 | staging    | `stage.aloe.kg` (branch `staging`) | its own project        | `https://stage.aloe.kg` | no      |
+
+Production runs in **eu-central-1 (Frankfurt)**, moved there from ap-south-1 (Mumbai) on
+2026-09-21 — `supabase/REGION-MIGRATION.md` has the procedure and, more usefully, the list of what a
+dump does not carry across.
 
 Staging sits behind Vercel Authentication and holds a copy of the production **catalogue only** —
 no orders, profiles, favorites or carts. Product photos are the deliberate exception to the
@@ -423,7 +427,7 @@ up by a local `npm run build`. `.env.example` is the committed template.
 ## Environment Variables
 
 ```
-NEXT_PUBLIC_SUPABASE_URL        # prod: https://dnlburbuchxzxdmhuczu.supabase.co
+NEXT_PUBLIC_SUPABASE_URL        # prod: https://ukgtmxzpzprmoutqskgq.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # public/client-safe
 SUPABASE_SERVICE_ROLE_KEY       # server-only, used in admin actions + guest checkout to bypass RLS
 

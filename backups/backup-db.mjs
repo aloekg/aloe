@@ -32,14 +32,46 @@ mkdirSync(outDir, { recursive: true });
 // addresses, so the dump is personal data; backups/ is git-ignored and stays local.
 const tables = ["categories", "products", "brands", "banners", "orders", "profiles", "favorites", "cart_items"];
 
+/**
+ * PostgREST caps a response at max_rows = 1000 (supabase/config.toml), and a capped response is not
+ * an error: it is 1000 rows plus an exact count saying there are more. Without this loop every dump
+ * held the first 1000 of 3164 products and announced it in a line that reads like success —
+ * `products: backed up 1000 rows (count=3164)`. Orders stayed under the cap, which is the only
+ * reason the one table that exists nowhere else was never truncated.
+ */
+const PAGE = 1000;
+
 for (const table of tables) {
-  const { data, error, count } = await supabase.from(table).select("*", { count: "exact" });
-  if (error) {
-    console.error(`Failed to back up ${table}:`, error.message);
+  const rows = [];
+  let total = null;
+
+  // Ordered by id, because an unordered range is not a stable window: rows can repeat or be skipped
+  // between requests.
+  for (let from = 0; ; from += PAGE) {
+    const { data, error, count } = await supabase
+      .from(table)
+      .select("*", { count: "exact" })
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error(`Failed to back up ${table}:`, error.message);
+      process.exit(1);
+    }
+    total = count;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+  }
+
+  // A dump that is short by a row is worse than no dump, because it will be trusted. purge-test-data.mjs
+  // refuses to delete an order without a dump containing orders.json, and that promise is only worth
+  // anything if the file is complete.
+  if (total !== null && rows.length !== total) {
+    console.error(`Failed to back up ${table}: got ${rows.length} rows, the table reports ${total}.`);
     process.exit(1);
   }
-  writeFileSync(path.join(outDir, `${table}.json`), JSON.stringify(data, null, 2));
-  console.log(`${table}: backed up ${data.length} rows (count=${count})`);
+
+  writeFileSync(path.join(outDir, `${table}.json`), JSON.stringify(rows, null, 2));
+  console.log(`${table}: backed up ${rows.length} rows`);
 }
 
 console.log(`\nBackup written to backups/${timestamp}/`);
