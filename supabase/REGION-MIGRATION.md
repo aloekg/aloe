@@ -4,12 +4,12 @@
 раздел «Как прошло» в конце — то, чего в гайде Supabase нет, и ради чего этот файл стоит держать.
 Стейдж переезжает иначе и дешевле: раздел «Стейдж» в самом конце.
 
-|        | старый                   | новый                    |
-| ------ | ------------------------ | ------------------------ |
-| ref    | `dnlburbuchxzxdmhuczu`   | `ukgtmxzpzprmoutqskgq`   |
-| регион | ap-south-1 (Мумбай)      | eu-central-1 (Франкфурт) |
-| пулер  | `aws-1-ap-south-1`       | `aws-0-eu-central-1`     |
-| роль   | приостановлен 21.09.2026 | production               |
+|        | старый              | новый                    |
+| ------ | ------------------- | ------------------------ |
+| ref    | `<OLD_REF>`         | `ukgtmxzpzprmoutqskgq`   |
+| регион | ap-south-1 (Мумбай) | eu-central-1 (Франкфурт) |
+| пулер  | `aws-1-ap-south-1`  | `aws-0-eu-central-1`     |
+| роль   | удалён              | production               |
 
 Объём: 3164 товара, 160 категорий, 193 бренда, 34 заказа, 5 профилей — БД крошечная, дамп и restore
 занимают минуты. Долгий шаг один: **6957 объектов / 244 MB в Storage**, и он делается заранее, до
@@ -57,7 +57,7 @@ Vault, column encryption, pg_cron и Database Webhooks не используют
 ```bash
 mkdir -p backups/$(date +%Y-%m-%d)-region && cd backups/$(date +%Y-%m-%d)-region
 # пароль percent-encoded
-export OLD_DB_URL='postgresql://postgres.dnlburbuchxzxdmhuczu:<OLD_PASS>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres'
+export OLD_DB_URL='postgresql://postgres.<OLD_REF>:<OLD_PASS>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres'
 
 npx supabase db dump --db-url "$OLD_DB_URL" -f roles.sql  --role-only
 npx supabase db dump --db-url "$OLD_DB_URL" -f schema.sql
@@ -199,7 +199,7 @@ reset all;
 (картинки под `inline/`) и в замороженных `orders.items`. Заполнить два хоста и выполнить:
 
 ```bash
-sed -e 's/OLD_REF/dnlburbuchxzxdmhuczu/g' -e 's/NEW_REF/<NEW_REF>/g' \
+sed -e 's/OLD_REF/<OLD_REF>/g' -e 's/NEW_REF/<NEW_REF>/g' \
   ../../supabase/sql/rewrite-storage-urls.sql > rewrite-filled.sql
 
 docker run --rm -i -v "$PWD:/dumps" -w /dumps postgres:17-alpine psql \
@@ -251,8 +251,8 @@ node scripts/compare-projects.mjs --from=prod --to=new
 
 ## 10. После
 
-- **Старый проект не удалять минимум две недели.** Перед удалением: `grep -rn dnlburbuchxzxdmhuczu`
-  по репозиторию должен быть чистым, а read-only проверка в конце
+- **Старый проект не удалять минимум две недели.** Перед удалением: `grep -rn <OLD_REF>` по
+  репозиторию должен быть чистым, а read-only проверка в конце
   `supabase/sql/rewrite-storage-urls.sql` — давать нули по всем таблицам.
 - **Staging.** Вместе с продом он не переезжал — ему лишь переписали URL картинок на новый прод
   (см. «Как прошло»). В тот же день он был пересоздан заново, отдельно и по куда более дешёвому
@@ -307,9 +307,9 @@ CODEBASE.md → Environments), и как только старый прод вс
 тем же `supabase/sql/rewrite-storage-urls.sql` — или, как вышло в этот раз, пересозданием стейджа с
 нуля: сид из свежего дампа приносит уже новые URL (раздел «Стейдж»).
 
-Что осталось: удалить мумбайский проект — не раньше недели-двух спокойной работы, и только после
-того, как свежий `npm run backup:prod` с нового проекта окажется полным (теперь он проверяет это
-сам).
+Старый проект приостановлен в день переезда и затем удалён — после того, как свежий
+`npm run backup:prod` с нового проекта оказался полным (теперь скрипт проверяет это сам) и `grep` по
+репозиторию перестал находить его ref.
 
 ## Стейдж — тот же переезд, дешевле на порядок
 
@@ -335,7 +335,7 @@ eu-central-1 — там же, где теперь прод. Предыдущий
   (CODEBASE.md → Environments), и после сида из свежего дампа они уже франкфуртские. В собственном
   бакете стейджа лежат только тестовые загрузки через админку — их не жалко.
 - **`rewrite-storage-urls.sql`.** Переписывать нечего по той же причине. В сентябре он стейджу
-  понадобился не потому, что переезжал стейдж, а потому, что его строки указывали на мумбайский
+  понадобился не потому, что переезжал стейдж, а потому, что его строки указывали на прежний
   прод.
 - **Окна и плана отката.** Простой стейджа ничего не стоит. Единственное последствие — шаг Build в
   `ci.yml` читает стейдж, и пока его нет, краснеют все ветки сразу (пункт 5 в «Как прошло»). Отсюда
