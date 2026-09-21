@@ -49,7 +49,7 @@ pg_net` падает там, где расширения никогда не б�
 | окружение  | project ref            | env-файл     |
 | ---------- | ---------------------- | ------------ |
 | production | `ukgtmxzpzprmoutqskgq` | `.env.prod`  |
-| staging    | `puqmkruyhjfvhyjfriig` | `.env.local` |
+| staging    | `zzyeeazpxgpfenfyxqed` | `.env.local` |
 
 Стейдж пересоздаётся (в том числе чтобы сменить регион) не как прод: без дампа, restore и
 переписывания URL — раздел «Стейдж» в [REGION-MIGRATION.md](REGION-MIGRATION.md).
