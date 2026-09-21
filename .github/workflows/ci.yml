@@ -38,23 +38,22 @@ jobs:
       # Supabase env vars are needed because generateStaticParams and the sitemap query the
       # database at build time.
       #
-      # These secrets held the STAGING project's anon key until 2026-09-21, when that project was
-      # deleted — and every build on every branch went red, because a host that no longer resolves
-      # is not an empty query, it is a thrown fetch. They now hold PRODUCTION's publishable key,
-      # which the earlier version of this comment argued against. What it was protecting against
-      # was the opposite failure: a staging project paused for inactivity keeps this step green
-      # while prerendering zero products. Pointing at a project that is always up removes that,
-      # and costs little — both call sites are read-only, the key is the one every browser already
-      # carries, and RLS hands the build nothing but published rows.
+      # These secrets hold the STAGING project's anon key, not production's, so nothing in this
+      # repository reaches the live database. Both call sites are read-only.
       #
-      # The price, worth naming: CI now depends on the live database, so an outage there reds the
-      # build. Point these back at staging the day a staging project exists again.
+      # An earlier version of this comment warned only about the quiet failure: a staging project
+      # paused for inactivity keeps this step green while prerendering zero products. The loud one
+      # turned out to be the real hazard — on 2026-09-21 staging was paused, its host stopped
+      # resolving, and every branch went red at once, because a host that is not there is not an
+      # empty query, it is a thrown fetch. The secrets pointed at production for two hours that day
+      # as a stop-gap; .github/workflows/ping-staging.yml is the actual fix, keeping the project
+      # awake so neither failure has the chance to happen.
+
       - name: Build
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          # Not required to build. It keeps this throwaway artefact's robots.txt on the noindex
-          # side of the DEPLOY_ORIGIN guard (lib/deploy-origin.ts) rather than baking the
-          # canonical one into it — which matters more now that the build reads production.
+          # Not required to build — it just makes the prerendered robots.txt match what staging
+          # actually serves, instead of baking the canonical one into a throwaway artefact.
           DEPLOY_ORIGIN: https://stage.aloe.kg
