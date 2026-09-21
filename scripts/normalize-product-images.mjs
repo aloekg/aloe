@@ -4,7 +4,7 @@
 //   image_url      <base>.webp        ≤1200px q82  — detail page + quick-view modal
 //   thumbnail_url  thumb/<base>.webp  ≤500px  q76  — cards, cart rows, autocomplete, admin list
 //
-// scripts/joomla/reimage-products.mjs already produces both for everything the old aloe.kg store
+// The old store's sync scripts already produced both for everything that JoomShopping store
 // still has a photo for. This covers the rest: products uploaded through the new admin before
 // `uploadProductImage` started emitting a pair, and anything that run had to skip.
 //

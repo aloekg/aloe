@@ -11,9 +11,9 @@ import { SITE_URL } from "@/lib/constants";
  *
  * It exists because the two were different during the cutover: the shop ran on `new.aloe.kg`
  * while aloe.kg still resolved to the old JoomShopping store. That is over — aloe.kg serves this
- * deployment — so **production must leave the variable unset**, and a leftover value there
- * noindexes the live shop (MIGRATION.md records exactly that happening). What remains is preview
- * deployments, which should not be indexed either.
+ * deployment — so **production must leave the variable unset**: a leftover value there noindexes
+ * the live shop, which is exactly what it did for a while after the cutover. What remains is
+ * preview deployments, which should not be indexed either.
  *
  * Unset or malformed, it falls back to `SITE_URL`. That direction of failure is the safe one: a
  * missing variable leaves the production shop indexable, whereas defaulting to "not canonical"

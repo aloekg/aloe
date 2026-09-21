@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   // Search Console verified aloe.kg by this tag in the old JoomShopping template. The cutover left
   // the tag behind on old.aloe.kg, and Google re-checks periodically — without it here the property
   // (and the search history it holds for this domain) would eventually be lost. A DNS TXT
-  // "Domain" property is the durable form of this; see MIGRATION.md.
+  // "Domain" property is the durable form of this, and is not set up.
   verification: { google: "d0YIirmB5tX_do99ES_OLfJoMkW9gltVw4WnyeRQ8n8" },
   title: { default: "Aloe.kg — бытовая химия и косметика в Бишкеке", template: "%s — Aloe.kg" },
   description: SITE_DESCRIPTION,
