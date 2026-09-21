@@ -101,7 +101,6 @@ npm run db:types     # перегенерировать types/database.ts из �
 | [HANDOVER.md](HANDOVER.md)                             | Передача проекта: аккаунты, ключи, что сделать сразу, открытые вопросы            |
 | [CODEBASE.md](CODEBASE.md)                             | Справочник: маршруты, схема БД, сервисы, стора, серверные экшены, паттерны        |
 | [AGENTS.md](AGENTS.md)                                 | Правило для ИИ-агентов: это Next.js 16, читать документацию в `node_modules/next` |
-| [TODO.md](TODO.md)                                     | Обсуждённое, но ещё не начатое                                                    |
 | [supabase/README.md](supabase/README.md)               | Миграции, аудит RLS, регенерация типов                                            |
 | [supabase/STAGING-RESET.md](supabase/STAGING-RESET.md) | Пересоздание стейдж-проекта с нуля                                                |
 | `scripts/`, `backups/`                                 | Обслуживание: картинки, категории, сброс пароля админа, сид стейджа, бэкапы       |
