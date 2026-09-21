@@ -76,7 +76,7 @@ export default async function SearchResults({
         <>
           <ProductGrid>
             {products.map((p, i) => (
-              <ProductCard key={p.id} product={p} priority={i === 0} />
+              <ProductCard key={p.id} product={p} preload={i === 0} />
             ))}
           </ProductGrid>
           <Pagination

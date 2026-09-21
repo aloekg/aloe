@@ -56,7 +56,7 @@ export default function BrandProductsInfinite({ brandId, brandName, initialProdu
     <>
       <ProductGrid>
         {products.map((product, i) => (
-          <ProductCard key={product.id} product={product} priority={i === 0} />
+          <ProductCard key={product.id} product={product} preload={i === 0} />
         ))}
       </ProductGrid>
       <div ref={sentinelRef} className="h-px" />

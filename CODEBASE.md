@@ -404,8 +404,12 @@ Two independent Supabase projects and two Vercel deployments:
 
 |            | host                               | Supabase ref           | `DEPLOY_ORIGIN`         | indexed |
 | ---------- | ---------------------------------- | ---------------------- | ----------------------- | ------- |
-| production | `aloe.kg` (branch `main`)          | `dnlburbuchxzxdmhuczu` | **unset**               | yes     |
+| production | `aloe.kg` (branch `main`)          | `ukgtmxzpzprmoutqskgq` | **unset**               | yes     |
 | staging    | `stage.aloe.kg` (branch `staging`) | its own project        | `https://stage.aloe.kg` | no      |
+
+Production runs in **eu-central-1 (Frankfurt)**, moved there from ap-south-1 (Mumbai) on
+2026-09-21 — `supabase/REGION-MIGRATION.md` has the procedure and, more usefully, the list of what a
+dump does not carry across.
 
 Staging sits behind Vercel Authentication and holds a copy of the production **catalogue only** —
 no orders, profiles, favorites or carts. Product photos are the deliberate exception to the
@@ -423,7 +427,7 @@ up by a local `npm run build`. `.env.example` is the committed template.
 ## Environment Variables
 
 ```
-NEXT_PUBLIC_SUPABASE_URL        # prod: https://dnlburbuchxzxdmhuczu.supabase.co
+NEXT_PUBLIC_SUPABASE_URL        # prod: https://ukgtmxzpzprmoutqskgq.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # public/client-safe
 SUPABASE_SERVICE_ROLE_KEY       # server-only, used in admin actions + guest checkout to bypass RLS
 
@@ -621,6 +625,20 @@ Banners are re-encoded the same way: `uploadBannerImage(formData, type)` takes t
 tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop, ≤1000px q80 for mobile —
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
 other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
+
+**Which banner the browser actually fetches** is decided by `<picture>`, not by CSS. The homepage
+keeps both carousels in the DOM and hides one with `display:none`, and a hidden `<img>` is still
+downloaded — `loading="lazy"` can only defer an image the browser can place relative to the
+viewport, and one without a box never qualifies. So `BannerCarousel` scopes each image to its own
+breakpoint with `<source media>` and gives the `<img>` an inline transparent pixel as its fallback
+`src`: the other breakpoint downloads 43 bytes instead of a banner. The first slide is `eager` +
+`fetchpriority="high"` rather than preloaded, because a `<link rel=preload>` ignores media and
+would fetch both sets again — the case next/image's own docs send to `fetchPriority`.
+
+For the same reason **no card in a `ProductCarousel` is preloaded**: the homepage stacks fourteen
+of them, and `preload` on the first card of each put fourteen `<link rel=preload>`s in front of the
+stylesheet, the JS chunks and the LCP banner. Grids elsewhere still preload their first card —
+there the card is the LCP element. (`preload` is what Next 16 renamed `priority` to.)
 
 **Legacy URLs from the old shop** are redirected in two places, split by whether the mapping can be
 computed or has to be looked up. The old sitemap (still submitted to Search Console from 2017)

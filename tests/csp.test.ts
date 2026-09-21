@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildContentSecurityPolicy, supabaseOrigin } from "@/lib/csp";
 
-const PROD = "https://dnlburbuchxzxdmhuczu.supabase.co";
+const PROD = "https://ukgtmxzpzprmoutqskgq.supabase.co";
 const STAGE = "https://puqmkruyhjfvhyjfriig.supabase.co";
 
 /** Split the rendered header back into directives so a test can assert on one without substring games. */
@@ -28,7 +28,7 @@ describe("supabaseOrigin", () => {
     expect(supabaseOrigin(`  ${PROD}  `)).toBe(PROD);
   });
 
-  it.each([undefined, null, "", "   ", "dnlburbuchxzxdmhuczu.supabase.co", "javascript:alert(1)", "not a url"])(
+  it.each([undefined, null, "", "   ", "ukgtmxzpzprmoutqskgq.supabase.co", "javascript:alert(1)", "not a url"])(
     "rejects %p rather than emitting a broken directive",
     (value) => {
       expect(supabaseOrigin(value)).toBeNull();

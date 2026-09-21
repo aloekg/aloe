@@ -18,7 +18,7 @@ export const LEGACY_SITE_URL = "https://old.aloe.kg";
  * with four broken tiles and gain nothing.
  */
 export const SPECIALS_BASE_URL =
-  "https://dnlburbuchxzxdmhuczu.supabase.co/storage/v1/object/public/categories/specials";
+  "https://ukgtmxzpzprmoutqskgq.supabase.co/storage/v1/object/public/categories/specials";
 
 /** The shop's only contact channel — WhatsApp. Read by the contacts page and the Organization JSON-LD. */
 export const WHATSAPP_NUMBER = "+996 556 400 656";
