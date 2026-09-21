@@ -48,7 +48,7 @@ pg_net` падает там, где расширения никогда не б�
 
 | окружение  | project ref            | env-файл     |
 | ---------- | ---------------------- | ------------ |
-| production | `dnlburbuchxzxdmhuczu` | `.env.prod`  |
+| production | `ukgtmxzpzprmoutqskgq` | `.env.prod`  |
 | staging    | `puqmkruyhjfvhyjfriig` | `.env.local` |
 
 CLI умеет держать связь ровно с одним проектом, и хранит её в **неотслеживаемом**
@@ -72,7 +72,7 @@ npm run db:types:prod && npm run typecheck
 Обе команды сами перелинковывают CLI на нужный проект. Вручную это:
 
 ```bash
-npx supabase link --project-ref dnlburbuchxzxdmhuczu
+npx supabase link --project-ref ukgtmxzpzprmoutqskgq
 npx supabase migration list      # сравнить локальную историю с проддом
 npx supabase db push
 ```

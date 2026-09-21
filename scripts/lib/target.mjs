@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** Production's project ref, written down once so a check against it cannot drift. */
-export const PROD_REF = "dnlburbuchxzxdmhuczu";
+export const PROD_REF = "ukgtmxzpzprmoutqskgq";
 
 /**
  * .env.prod rather than .env.production: Next auto-loads .env.production and .env.production.local,

@@ -27,8 +27,16 @@
  * lib/constants.ts: staging runs its own database but reads product photos out of *these* buckets,
  * because the catalogue seed copies rows and never objects (scripts/seed-staging.mjs). So staging
  * must allow two image origins — its own, for anything uploaded through its admin, and this one.
+ *
+ * With staging's project deleted (2026-09-21) this is currently the same string the environment
+ * yields, and the dedupe below keeps the header from saying it twice. It stays written down because
+ * the next staging needs it again the day it is seeded.
+ *
+ * Deliberately *not* listing the old Mumbai origin after the region move: no row names it any more
+ * (supabase/sql/rewrite-storage-urls.sql verifies that and rolls back if one does), and an origin
+ * nothing needs is an origin the policy should not allow.
  */
-const PRODUCTION_SUPABASE_ORIGIN = "https://dnlburbuchxzxdmhuczu.supabase.co";
+const PRODUCTION_SUPABASE_ORIGIN = "https://ukgtmxzpzprmoutqskgq.supabase.co";
 
 /**
  * The Vercel Toolbar, injected into preview deployments only — stage.aloe.kg is one, which is why

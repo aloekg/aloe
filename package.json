@@ -14,7 +14,7 @@
     "db:types": "echo \"db:types ← $(cat supabase/.temp/project-ref 2>/dev/null || echo \"no linked project\")\" >&2 && npx supabase gen types typescript --linked > types/database.ts.tmp && mv types/database.ts.tmp types/database.ts || (rm -f types/database.ts.tmp && echo 'db:types failed; types/database.ts left untouched' && exit 1)",
     "db:types:prod": "npm run db:link:prod && npm run db:types",
     "db:linked": "printf '%s\\n' \"$(cat supabase/.temp/project-ref 2>/dev/null || echo 'no linked project')\"",
-    "db:link:prod": "npx supabase link --project-ref dnlburbuchxzxdmhuczu",
+    "db:link:prod": "npx supabase link --project-ref ukgtmxzpzprmoutqskgq",
     "db:link:stage": "npx supabase link --project-ref $(node scripts/print-ref.mjs --env=stage)",
     "db:push:prod": "npm run db:link:prod && npx supabase db push",
     "db:push:stage": "npm run db:link:stage && npx supabase db push",

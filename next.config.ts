@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
     // qualities: [75],
     // remotePatterns: [
     //   { protocol: "https", hostname: "aloe.kg" },
-    //   { protocol: "https", hostname: "dnlburbuchxzxdmhuczu.supabase.co" },
+    //   { protocol: "https", hostname: "ukgtmxzpzprmoutqskgq.supabase.co" },
     // ],
     unoptimized: true,
   },
