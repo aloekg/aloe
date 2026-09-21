@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildContentSecurityPolicy, supabaseOrigin } from "@/lib/csp";
 
 const PROD = "https://ukgtmxzpzprmoutqskgq.supabase.co";
-const STAGE = "https://puqmkruyhjfvhyjfriig.supabase.co";
+const STAGE = "https://zzyeeazpxgpfenfyxqed.supabase.co";
 
 /** Split the rendered header back into directives so a test can assert on one without substring games. */
 function directives(policy: string): Record<string, string[]> {

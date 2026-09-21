@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getCachedBrands } from "@/lib/cached-queries";
 import { supabase } from "@/lib/supabase";
-import { getBrandsForSearch, searchProducts } from "@/services/product.service";
+import { getBrandIdsForSearch, searchProducts } from "@/services/product.service";
 import MainContainer from "./MainContainer";
 import ManufacturerFilter from "./ManufacturerFilter";
 import Pagination from "./Pagination";
@@ -35,10 +37,20 @@ export default async function SearchResults({
   emptyLabel = "Вернуться в каталог",
   className = "mb-4",
 }: Props) {
-  const [{ products, total }, brands] = await Promise.all([
+  // The facet query returns ids; the names come from the brand list that is cached for an hour
+  // anyway, so a broad search no longer carries a join on every page of matches. `getCachedBrands`
+  // is already ordered by name, which is the order the filter renders in.
+  const [{ products, total }, facetBrandIds, allBrands] = await Promise.all([
     searchProducts(supabase, q, { brandIds, page, pageSize: SEARCH_PAGE_SIZE }),
-    getBrandsForSearch(supabase, q),
+    getBrandIdsForSearch(supabase, q),
+    getCachedBrands(),
   ]);
+  const facet = new Set(facetBrandIds);
+  const brands = allBrands.filter((b) => facet.has(b.id));
+
+  // Same reasoning as LabelProductsPage: page 1 with no matches is a legitimate "ничего не
+  // найдено", a page past the end is not.
+  if (page > 1 && products.length === 0) notFound();
 
   const totalPages = Math.ceil(total / SEARCH_PAGE_SIZE);
 

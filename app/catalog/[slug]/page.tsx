@@ -43,7 +43,12 @@ export default async function CategoryPage({
   // One query for the whole category rather than one per subcategory — every section renders on
   // this page anyway, so fifteen round trips bought nothing.
   const subSubsBySub = new Map(subcategories.map((s) => [s.id, allCategories.filter((c) => c.parent_id === s.id)]));
-  const allCategoryIds = subcategories.flatMap((s) => [s.id, ...(subSubsBySub.get(s.id) ?? []).map((c) => c.id)]);
+  // Sorted because getCachedCategoryProducts says callers do: the ids land in an unstable_cache
+  // key, so [1,2] and [2,1] are two entries for one payload. The flatMap order follows
+  // categories.sort_order, which a drag-reorder in the admin re-permutes.
+  const allCategoryIds = subcategories
+    .flatMap((s) => [s.id, ...(subSubsBySub.get(s.id) ?? []).map((c) => c.id)])
+    .sort((a, b) => a - b);
   const byCategory = new Map(await getCachedCategoryProducts(allCategoryIds, validSort));
 
   const sections = subcategories.map((s) => {

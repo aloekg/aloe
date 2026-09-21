@@ -16,7 +16,7 @@ describe("parsePage", () => {
   });
 
   it("caps absurd offsets", () => {
-    expect(parsePage("99999999")).toBe(10_000);
+    expect(parsePage("99999999")).toBe(500);
   });
 });
 

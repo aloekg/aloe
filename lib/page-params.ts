@@ -1,7 +1,15 @@
 import type { SortValue } from "@/components/SortSelect";
 
-/** Guards against `?page=abc` — `Math.max(1, parseInt("abc"))` is NaN, which reaches `.range()`. */
-const MAX_PAGE = 10_000;
+/**
+ * Guards against `?page=abc` — `Math.max(1, parseInt("abc"))` is NaN, which reaches `.range()`.
+ *
+ * The ceiling is also a cache-budget control, which is why it is 500 and not 10 000. Every distinct
+ * `?page=` on /new, /sale and /popular mints both a Data Cache entry and an ISR entry, and on
+ * Vercel's Hobby plan those are the one metric this project has come close to exhausting (see
+ * "Cache budget" in CODEBASE.md). At 20-24 products a page, 500 covers ten times the catalogue;
+ * everything above it was an empty, indexable 200 that anyone could mint at will.
+ */
+const MAX_PAGE = 500;
 
 export function parsePage(page?: string): number {
   const n = Number.parseInt(page ?? "1", 10);

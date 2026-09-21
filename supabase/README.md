@@ -17,6 +17,8 @@ migrations/
   20260915090000_storage_buckets.sql        # три публичных бакета — были только в дашборде
   20260916090000_orders_insert_lockdown.sql # INSERT в orders у anon/authenticated (аудит 2026-09-16)
   20260916090100_grants_and_definer_hardening.sql # дефолтные привилегии, TRUNCATE/TRIGGER, search_path, mime
+  20260921100000_indexes_followup.sql       # FK cart_items/favorites, orders по дате, trgm на product_url
+  20260921100100_schema_integrity.sql       # FK categories.parent_id, CHECK статуса заказа, UNIQUE external_id, три мёртвые политики
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```
@@ -36,6 +38,13 @@ sql/
 `..._indexes.sql`: индексы не видны через PostgREST. Миграция идемпотентна, так что push
 создаст отсутствующие и не тронет существующие.
 
+**`..._schema_integrity.sql` может не примениться — и это её работа.** Три из четырёх её
+ограничений упадут, если данные им не отвечают: висящий `categories.parent_id`, статус заказа вне
+пяти разрешённых, дубль `products.external_id`. Блок «Pre-flight» в шапке файла — это те же три
+запроса, их нужно прогнать в SQL Editor **прода** перед `db:push:prod`; на копии каталога в стейдже
+(21 сентября 2026) все три дают ноль строк, но заказы там мок-данные, так что CHECK статуса стейдж
+не проверяет.
+
 **Baseline подправлен руками.** Дословный `db pull` не поднимался на пустом проекте: `DROP EXTENSION
 pg_net` падает там, где расширения никогда не было, а `rls_auto_enable()` и событийный триггер
 `ensure_rls` Supabase создаёт на новых проектах сам — дамп ловил их как наши и спотыкался о
@@ -49,7 +58,10 @@ pg_net` падает там, где расширения никогда не б�
 | окружение  | project ref            | env-файл     |
 | ---------- | ---------------------- | ------------ |
 | production | `ukgtmxzpzprmoutqskgq` | `.env.prod`  |
-| staging    | `puqmkruyhjfvhyjfriig` | `.env.local` |
+| staging    | `zzyeeazpxgpfenfyxqed` | `.env.local` |
+
+Стейдж не чинят и не переносят — его пересоздают с нуля: новый проект, `db push`, сиды.
+Порядок в [STAGING-RESET.md](STAGING-RESET.md).
 
 CLI умеет держать связь ровно с одним проектом, и хранит её в **неотслеживаемом**
 `supabase/.temp/project-ref` — то есть на разных машинах она молча разная. Отсюда два правила:
