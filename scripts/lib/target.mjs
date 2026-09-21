@@ -26,14 +26,8 @@ export const PROD_REF = "ukgtmxzpzprmoutqskgq";
 /**
  * .env.prod rather than .env.production: Next auto-loads .env.production and .env.production.local,
  * so production credentials under either name would be picked up by a local `npm run build`.
- *
- * `.env.new` is the project production is being moved to — the Frankfurt one during the region
- * migration, and nothing afterwards. It is deliberately unreachable from the ordinary scripts:
- * resolveTarget()'s `allow` defaults to stage+prod, so `--env=new` dies on that check rather than
- * opening a half-populated database. Only the two migration scripts ask for it, and they ask
- * through resolveEndpoint().
  */
-const ENV_FILES = { stage: ".env.local", prod: ".env.prod", new: ".env.new" };
+const ENV_FILES = { stage: ".env.local", prod: ".env.prod" };
 
 export function parseEnvFile(file) {
   return Object.fromEntries(
@@ -81,17 +75,16 @@ export function resolveTarget({ destructive = false, allow = ["stage", "prod"] }
 }
 
 /**
- * One endpoint, loaded by name, with none of resolveTarget()'s stage/prod cross-checks — those
- * assume a script opens a single database, and the migration scripts open two at once (they carry
- * their own guards instead: a copy must not end where it started, and writing to production still
- * needs --i-know-this-is-production).
+ * One endpoint, loaded by name, with none of resolveTarget()'s stage/prod cross-checks. It is the
+ * half of resolveTarget() that only reads the credentials; nothing outside this file calls it now
+ * that the region-migration scripts, which opened two projects at once, are gone.
  *
- * @param {"stage"|"prod"|"new"} named
+ * @param {"stage"|"prod"} named
  * @param {object}  [options]
  * @param {string}  [options.flag] the flag this name came from, so the error names it
  * @returns {{name: string, ref: string, isProd: boolean, url: string, key: string, env: Record<string,string>}}
  */
-export function resolveEndpoint(named, { flag = "--env" } = {}) {
+function resolveEndpoint(named, { flag = "--env" } = {}) {
   if (!named) die(`Pass ${flag}=${Object.keys(ENV_FILES).join(" | ")}. There is no default.`);
   if (!ENV_FILES[named]) die(`Unknown ${flag}=${named}. Use ${Object.keys(ENV_FILES).join(", ")}.`);
 
