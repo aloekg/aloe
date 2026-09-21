@@ -58,7 +58,10 @@ pg_net` падает там, где расширения никогда не б�
 | окружение  | project ref            | env-файл     |
 | ---------- | ---------------------- | ------------ |
 | production | `ukgtmxzpzprmoutqskgq` | `.env.prod`  |
-| staging    | `puqmkruyhjfvhyjfriig` | `.env.local` |
+| staging    | `zzyeeazpxgpfenfyxqed` | `.env.local` |
+
+Стейдж не чинят и не переносят — его пересоздают с нуля: новый проект, `db push`, сиды.
+Порядок в [STAGING-RESET.md](STAGING-RESET.md).
 
 CLI умеет держать связь ровно с одним проектом, и хранит её в **неотслеживаемом**
 `supabase/.temp/project-ref` — то есть на разных машинах она молча разная. Отсюда два правила:
