@@ -40,7 +40,7 @@ export default function AuthButton() {
       title="Войти"
       className="p-2 rounded-full flex items-center justify-center text-gray-400 hover:text-green-600 transition-colors"
     >
-      <LogInIcon />
+      <LogInIcon className="size-5" />
     </Link>
   );
 }
