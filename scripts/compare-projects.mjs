@@ -97,8 +97,15 @@ console.log(`\n${pad("", 14)}${pad(from.ref, 26)}${pad(to.ref, 26)}`);
 for (const { name } of TABLES) {
   const a = left.tables[name] ?? {};
   const b = right.tables[name] ?? {};
+  // A missing table comes back as a null count rather than an error, and "null rows" reads like a
+  // table that is there and empty — which during a restore is the one thing it must not be
+  // confused with.
   const cell = (row) =>
-    row.error ? `error: ${row.error}` : `${row.count} rows${row.maxId != null ? `, max id ${row.maxId}` : ""}`;
+    row.error
+      ? `error: ${row.error}`
+      : row.count == null
+        ? "нет таблицы"
+        : `${row.count} rows${row.maxId != null ? `, max id ${row.maxId}` : ""}`;
   const flag = mark(a.count, b.count);
   if (flag.trim()) differences++;
   console.log(`${pad(name, 14)}${pad(cell(a), 26)}${pad(cell(b), 26)}${flag}`);

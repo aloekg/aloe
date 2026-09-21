@@ -101,8 +101,14 @@ grep -c 'COPY "auth"."users"' data.sql   # должно быть 1
 
 ```bash
 node scripts/migrate-storage.mjs --from=prod --to=new             # что будет скопировано
-node scripts/migrate-storage.mjs --from=prod --to=new --execute   # ~245 MB, 6957 объектов
+node scripts/migrate-storage.mjs --from=prod --to=new --execute --concurrency=24
 ```
+
+Выполнено 21 сентября 2026: 6955 объектов из 6957, ~15 минут при `--concurrency=24` (на дефолтных
+8 выходило 1,7 объекта/с, то есть больше часа — Мумбай далеко). Не поехали ровно два объекта, и это
+правильно: `product-images/inline/.emptyFolderPlaceholder` и `banners/.emptyFolderPlaceholder` —
+служебные пустышки дашборда с `content-type: application/octet-stream`, которого нет в mime-списке
+бакета. Содержимого в них нет, ссылок на них тоже.
 
 Скрипт создаёт бакеты с настройками старого проекта (public, file_size_limit, allowed_mime_types),
 копирует всё рекурсивно (`thumb/`, `inline/`, `specials/`), ничего не удаляет и пропускает уже
@@ -124,12 +130,24 @@ docker run --rm -i -v "$PWD:/dumps" -w /dumps postgres:17-alpine psql \
   --file schema.sql \
   --command 'SET session_replication_role = replica' \
   --file data.sql \
-  --dbname "$NEW_DB_URL"
+  --dbname "$NEW_DB_URL" > restore.out 2>&1; echo "psql: $?"
 
 docker run --rm -i -v "$PWD:/dumps" -w /dumps postgres:17-alpine psql \
   --single-transaction --variable ON_ERROR_STOP=1 \
   --file history_schema.sql --file history_data.sql --dbname "$NEW_DB_URL"
 ```
+
+**Вывод `psql` перенаправлять в файл, а не в конвейер.** На репетиции `psql … | grep … | head -30`
+закрыл поток на тридцатой строке, `psql` получил SIGPIPE и умер посреди транзакции — restore
+откатился целиком, а в логе остались только безобидные предупреждения. Транзакция отработала как
+надо (проект остался пустым), но полчаса ушло на поиск ошибки, которой не было. И `$?` в конвейере —
+это код последней команды, то есть `head`, а не `psql`.
+
+Предупреждения `no privileges were granted for "gtrgm_…"` — норма: дамп выдаёт гранты на внутренние
+функции `pg_trgm`, владелец которых расширение.
+
+Историю миграций грузить **отдельной** командой, как выше: при повторном restore её таблицу надо
+сперва очистить, иначе конфликт по `version`.
 
 Грабли, описанные в гайде Supabase, — если вылезут, правятся в дампе и запускаются снова:
 
@@ -143,6 +161,35 @@ docker run --rm -i -v "$PWD:/dumps" -w /dumps postgres:17-alpine psql \
 ```sql
 select extname from pg_extension where extname = 'pg_trgm';
 ```
+
+### Обнуление копии перед повторным restore
+
+Нужно только потому, что репетиция уже загрузила данные в новый проект: `COPY` поверх существующих
+строк — конфликт по ключу. Выполняется в SQL Editor **нового** проекта (или через `psql`), и только
+там — против рабочей базы этот блок недопустим.
+
+```sql
+set session_replication_role = replica;  -- FK это тоже триггеры: порядок удаления перестаёт мешать
+drop schema if exists public cascade;    -- забирает с собой и pg_trgm, schema.sql создаст заново
+create schema public;
+-- строки схемы auth, которые data.sql импортирует снова
+delete from auth.identities;
+delete from auth.sessions;
+delete from auth.refresh_tokens;
+delete from auth.mfa_factors;
+delete from auth.mfa_amr_claims;
+delete from auth.mfa_challenges;
+delete from auth.one_time_tokens;
+delete from auth.flow_state;
+delete from auth.audit_log_entries;
+delete from auth.users;
+truncate supabase_migrations.schema_migrations;
+reset all;
+```
+
+Если какая-то таблица `auth.*` в дампе непустая и здесь не перечислена, `COPY` упадёт по
+дублирующему ключу — список составлен по `grep 'COPY "auth"' data.sql` того дампа, который
+восстанавливается.
 
 ## 6. Переписать URL картинок
 
@@ -160,6 +207,11 @@ docker run --rm -i -v "$PWD:/dumps" -w /dumps postgres:17-alpine psql \
 Скрипт — одна транзакция, и сам же в конце проверяет, что ни одной ссылки на старый хост не
 осталось (иначе откатывается). Альтернатива без докера: вставить заполненный файл в SQL Editor
 нового проекта.
+
+На репетиции переписал `products` 3164, `categories` 10, `banners` 2, `orders` 34 — и после этого
+все шесть видов ссылок отдавались новым хостом с `200 image/webp`: обычная картинка, `thumb/`,
+категория, баннер, картинка из замороженного `orders.items` и `inline/`-картинка из
+Markdown-описания.
 
 ## 7. Переключение приложения
 
