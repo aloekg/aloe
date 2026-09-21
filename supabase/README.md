@@ -51,6 +51,9 @@ pg_net` падает там, где расширения никогда не б�
 | production | `ukgtmxzpzprmoutqskgq` | `.env.prod`  |
 | staging    | `puqmkruyhjfvhyjfriig` | `.env.local` |
 
+Стейдж пересоздаётся (в том числе чтобы сменить регион) не как прод: без дампа, restore и
+переписывания URL — раздел «Стейдж» в [REGION-MIGRATION.md](REGION-MIGRATION.md).
+
 CLI умеет держать связь ровно с одним проектом, и хранит её в **неотслеживаемом**
 `supabase/.temp/project-ref` — то есть на разных машинах она молча разная. Отсюда два правила:
 
