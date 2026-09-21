@@ -4,7 +4,7 @@
 // --data-only` carries the *rows* of storage.buckets and storage.objects across, and those rows
 // describe files that only exist in the old project's S3 bucket — restore them alone and every
 // product photo 404s while the database insists they are there. So the files move first, through
-// this script, and the restore excludes both storage tables (see supabase/REGION-MIGRATION.md):
+// this script, and the restore excludes both storage tables:
 // the rows in the new project are then the ones these uploads created, which is the only version
 // of them that is true.
 //

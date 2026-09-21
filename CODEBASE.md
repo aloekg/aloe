@@ -407,9 +407,10 @@ Two independent Supabase projects and two Vercel deployments:
 | production | `aloe.kg` (branch `main`)          | `ukgtmxzpzprmoutqskgq` | **unset**               | yes     |
 | staging    | `stage.aloe.kg` (branch `staging`) | its own project        | `https://stage.aloe.kg` | no      |
 
-Production runs in **eu-central-1 (Frankfurt)**, moved there from ap-south-1 (Mumbai) on
-2026-09-21 — `supabase/REGION-MIGRATION.md` has the procedure and, more usefully, the list of what a
-dump does not carry across.
+Both projects run in **eu-central-1 (Frankfurt)**. Staging is not migrated or repaired when
+something goes wrong with it — it is recreated from scratch (`supabase/STAGING-RESET.md`), which
+costs half an hour and is also the only thing that exercises the migration chain on an empty
+database.
 
 Staging sits behind Vercel Authentication and holds a copy of the production **catalogue only** —
 no orders, profiles, favorites or carts. Product photos are the deliberate exception to the
