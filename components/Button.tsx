@@ -6,6 +6,12 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "icon";
   size?: "sm" | "md" | "lg";
   iconColor?: "default" | "danger" | "green";
+  /**
+   * Declared so callers can reach the element — QuantityStepper focuses its "+" after the card's
+   * "В корзину" has replaced itself. React 19 passes `ref` through as an ordinary prop, so it rides
+   * along in the spread below and needs no `forwardRef`.
+   */
+  ref?: React.Ref<HTMLButtonElement>;
 };
 
 export default function Button({

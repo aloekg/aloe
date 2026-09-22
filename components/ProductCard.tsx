@@ -7,6 +7,7 @@ import { LABEL_MAP } from "@/lib/constants";
 import type { ProductListItem } from "@/types";
 import AddToCart from "./AddToCart";
 import Currency from "./Currency";
+import OldPrice from "./OldPrice";
 import FavoriteButton from "./FavoriteButton";
 
 type Props = {
@@ -62,11 +63,7 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
             <p className="text-base font-bold">
               {p.price} <Currency />
             </p>
-            {p.old_price && (
-              <p className="text-sm text-gray-500 line-through">
-                {p.old_price} <Currency />
-              </p>
-            )}
+            {p.old_price && <OldPrice value={p.old_price} className="text-sm text-gray-500" />}
           </div>
         </div>
       </Link>

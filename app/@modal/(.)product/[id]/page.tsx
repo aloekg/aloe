@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AddToCart, Currency, FavoriteButton, ProductDescription } from "@/components";
+import { AddToCart, Currency, FavoriteButton, OldPrice, ProductDescription } from "@/components";
 import ProductModal from "@/components/ProductModal";
 import { getCachedProduct } from "@/lib/cached-queries";
 import { LABEL_MAP } from "@/lib/constants";
@@ -61,11 +61,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
             <span className="text-2xl font-bold">
               {product.price} <Currency />
             </span>
-            {product.old_price && (
-              <span className="text-lg text-gray-500 line-through">
-                {product.old_price} <Currency />
-              </span>
-            )}
+            {product.old_price && <OldPrice value={product.old_price} className="text-lg text-gray-500" />}
           </div>
 
           <div className="mb-6 hidden sm:block">
@@ -95,9 +91,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-500 line-through whitespace-nowrap">
-                {product.old_price} <Currency />
-              </span>
+              <OldPrice value={product.old_price} className="text-xs text-gray-500 whitespace-nowrap" />
             )}
           </div>
           <div className="grow">

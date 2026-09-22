@@ -124,8 +124,19 @@ export default function ProfileForm({ initial }: Props) {
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {saved && <p className="text-sm text-green-700">Данные сохранены ✓</p>}
+      {/*
+        Both outcomes were announced to nobody: plain <p> elements appearing after the save, with no
+        role and no live region, so a screen reader user pressed "Сохранить" and got silence either
+        way. The wrappers are always mounted and hidden by `empty:hidden` while they hold nothing —
+        a live region that appears together with its text is the same bug as the one in
+        components/Toaster.tsx, and the empty element would otherwise take a slot in `space-y-4`.
+      */}
+      <div role="alert" className="empty:hidden">
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+      <div role="status" className="empty:hidden">
+        {saved && <p className="text-sm text-green-700">Данные сохранены ✓</p>}
+      </div>
 
       {editing && (
         <div className="flex gap-2">

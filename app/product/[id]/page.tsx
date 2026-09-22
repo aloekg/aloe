@@ -9,6 +9,7 @@ import {
   FavoriteButton,
   JsonLd,
   MainContainer,
+  OldPrice,
   ProductCard,
   ProductDescription,
   Title,
@@ -202,11 +203,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <span className="text-2xl md:text-3xl font-bold">
               {product.price} <Currency />
             </span>
-            {product.old_price && (
-              <span className="text-lg text-gray-500 line-through">
-                {product.old_price} <Currency />
-              </span>
-            )}
+            {product.old_price && <OldPrice value={product.old_price} className="text-lg text-gray-500" />}
           </div>
 
           <div className="mb-6 hidden md:block">
@@ -232,9 +229,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-500 line-through whitespace-nowrap">
-                {product.old_price} <Currency />
-              </span>
+              <OldPrice value={product.old_price} className="text-xs text-gray-500 whitespace-nowrap" />
             )}
           </div>
           <div className="flex-1">

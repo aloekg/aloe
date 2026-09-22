@@ -59,6 +59,9 @@ function NavItem({
     <Link
       href={href}
       onNavigate={() => window.scrollTo(0, 0)}
+      // Which category you are in was said by the dark circle and nothing else, so it was said only
+      // to people who can see it — and colour alone is never allowed to carry information (1.4.1).
+      aria-current={active ? "page" : undefined}
       className={`flex flex-col items-center gap-1.5 rounded-lg transition-colors shrink-0 w-18`}
     >
       <div

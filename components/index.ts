@@ -6,6 +6,7 @@ export { default as Button } from "./Button";
 export { default as CategoryNav } from "./CategoryNav";
 export { default as Container } from "./Container";
 export { default as Currency } from "./Currency";
+export { default as OldPrice } from "./OldPrice";
 export { default as DeliveryContent } from "./DeliveryContent";
 export { default as FavoriteButton } from "./FavoriteButton";
 export { default as InstallAppIos } from "./InstallAppIos";

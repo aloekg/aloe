@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Button from "./Button";
 
@@ -12,6 +13,14 @@ type Props = {
   size?: "sm" | "md" | "lg";
   /** Cart page uses a filled pill; the product card sits on plain background. */
   variant?: "plain" | "pill";
+  /**
+   * Put focus on "+" as soon as this mounts. AddToCart passes it when the press on "В корзину" is
+   * what swapped that button out for this control: the pressed element is unmounted mid-interaction
+   * and focus falls back to <body>, which drops a keyboard user out of a grid of forty products and
+   * back to the top of the page. Left unset everywhere the stepper is simply rendered, so nothing
+   * steals focus from a page the visitor has just opened.
+   */
+  focusIncrementOnMount?: boolean;
 };
 
 /**
@@ -25,8 +34,16 @@ export default function QuantityStepper({
   label,
   size = "md",
   variant = "plain",
+  focusIncrementOnMount = false,
 }: Props) {
+  const incrementRef = useRef<HTMLButtonElement>(null);
   const atMinimum = quantity === 1;
+
+  // Mount only: re-running it on later renders would pull focus back every time the quantity moves.
+  useEffect(() => {
+    if (focusIncrementOnMount) incrementRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const rounded = variant === "pill" ? "rounded-full" : "border border-gray-300 rounded-lg";
 
   return (
@@ -54,6 +71,7 @@ export default function QuantityStepper({
       </span>
 
       <Button
+        ref={incrementRef}
         variant="icon"
         size={size}
         onClick={onIncrement}
