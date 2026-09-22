@@ -217,18 +217,28 @@ export default function BannerCarousel({
         <>
           <div className="md:hidden">
             <div className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none" />
+            {/*
+              Edge strips, not halves. These are invisible and used to be `w-1/2` each, so together
+              they covered the banner end to end — and they sit above the <Link> that wraps the
+              image, so a tap anywhere on a banner paged the carousel and its link was unreachable
+              on a phone. `w-14` is 56px, comfortably past the 24px WCAG 2.5.8 asks of a target and
+              past the ~44px that is comfortable in practice, and it leaves the middle — 208px even
+              on a 320px screen — to the link.
+            */}
             <Button
               onClick={scrollPrev}
               aria-label="Предыдущий баннер"
-              className="absolute left-0 top-0 w-1/2 h-full"
+              className="absolute left-0 top-0 w-14 h-full"
             />
             <Button
               onClick={scrollNext}
               aria-label="Следующий баннер"
-              className="absolute right-0 top-0 w-1/2 h-full"
+              className="absolute right-0 top-0 w-14 h-full"
             />
-            {/* Right edge cleared for the toggle, which sits in the same strip. */}
-            <div className="absolute bottom-0 left-0 right-9 flex gap-1 px-2 pb-2">
+            {/* Right edge cleared for the toggle, which sits in the same strip. `pointer-events-none`
+                because these bars are a readout, not a control: without it the bottom band of the
+                banner swallowed taps meant for the link behind it. */}
+            <div className="pointer-events-none absolute bottom-0 left-0 right-9 flex gap-1 px-2 pb-2">
               {banners.map((_, i) => (
                 <div key={i} className="flex-1 h-1 rounded-full bg-white/40 overflow-hidden">
                   {i < selected && <div className="h-full w-full bg-green-700" />}
@@ -243,7 +253,7 @@ export default function BannerCarousel({
                 </div>
               ))}
             </div>
-            {/* After the two half-width arrows in the DOM, so the tap reaches it and not them. */}
+            {/* After the two edge strips in the DOM, so a tap in the corner reaches it, not them. */}
             <AutoplayToggle playing={playing} onToggle={toggleAutoplay} className="bottom-1 right-1.5 size-7" />
           </div>
 
