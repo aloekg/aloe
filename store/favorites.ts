@@ -33,8 +33,8 @@ function sync(run: (supabase: Awaited<ReturnType<typeof getSupabase>>) => Promis
  * because those ids belong to one account: without it, the next person to sign in on this browser
  * would briefly see someone else's favourites.
  *
- * Unlike the cart there is nothing to keep for a guest — FavoriteButton sends them to /auth rather
- * than storing anything — so signing out drops the lot.
+ * Unlike the cart there is nothing to keep for a guest — FavoriteButton opens the sign-in modal
+ * rather than storing anything — so signing out drops the lot.
  */
 export const useFavorites = create<FavoritesStore>()(
   persist(

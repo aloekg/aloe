@@ -3,7 +3,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Lobster } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
-import { AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
+import { AuthModal, AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
 import { getCachedCategories } from "@/lib/cached-queries";
 import { BRAND_COLOR, SITE_URL, WHATSAPP_LINK, WHATSAPP_NUMBER } from "@/lib/constants";
 import { IS_CANONICAL_HOST } from "@/lib/deploy-origin";
@@ -118,6 +118,7 @@ export default async function RootLayout({ children, modal }: { children: React.
         <Footer />
         <MobileBottomNav />
         <Toaster />
+        <AuthModal />
         {modal}
         {/* Core Web Vitals and page views from real visits, reported to Vercel. Both are
             measurement only — they set no cookie and store no identity: a visitor is a daily
