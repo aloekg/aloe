@@ -52,7 +52,10 @@ export default function HeaderSearchInput({ className }: { className?: string })
     (product: AutocompleteProduct) => {
       setQuery("");
       setActiveIndex(-1);
-      router.push(`/product/${product.id}`);
+      // Same intercepted quick-view modal as ProductCard — see the note there on `scroll: false`.
+      // The push moved up here from the dropdown when the options stopped being buttons, so this
+      // flag had to come with it.
+      router.push(`/product/${product.id}`, { scroll: false });
     },
     [router],
   );
@@ -127,11 +130,7 @@ export default function HeaderSearchInput({ className }: { className?: string })
         reports that a list exists, not how much is in it.
       */}
       <div role="status" aria-live="polite" className="sr-only">
-        {open && !pending
-          ? results.length > 0
-            ? `Найдено совпадений: ${results.length}`
-            : "Ничего не найдено"
-          : ""}
+        {open && !pending ? (results.length > 0 ? `Найдено совпадений: ${results.length}` : "Ничего не найдено") : ""}
       </div>
     </form>
   );

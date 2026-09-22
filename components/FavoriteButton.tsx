@@ -1,7 +1,7 @@
 "use client";
 
 import { Heart } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useAuthModal } from "@/store/auth-modal";
 import { useFavorites } from "@/store/favorites";
 import { useToast } from "@/store/toast";
 import Button from "./Button";
@@ -13,7 +13,7 @@ export default function FavoriteButton({ productId }: { productId: number }) {
   const add = useFavorites((s) => s.add);
   const remove = useFavorites((s) => s.remove);
   const show = useToast((s) => s.show);
-  const router = useRouter();
+  const openAuthModal = useAuthModal((s) => s.openModal);
 
   function toggle(e: React.MouseEvent) {
     e.preventDefault();
@@ -24,8 +24,10 @@ export default function FavoriteButton({ productId }: { productId: number }) {
     if (!initialized) return;
 
     if (!userId) {
-      show("Войдите, чтобы добавить в избранное", "info");
-      router.push("/auth");
+      // The modal says why it opened and presses this heart once the session lands, so there is no
+      // toast here: a card in a grid can be one tap from a sign-in without losing the customer's
+      // place in the catalogue.
+      openAuthModal(productId);
       return;
     }
 

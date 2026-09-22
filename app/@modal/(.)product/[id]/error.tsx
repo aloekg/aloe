@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import Button from "@/components/Button";
-import ProductModal from "@/components/ProductModal";
 
 /**
  * Without this, a failed quick-view fetch bubbles to the page-level boundary and replaces the
@@ -14,14 +13,12 @@ export default function ProductModalError({ error, reset }: { error: Error & { d
   }, [error]);
 
   return (
-    <ProductModal>
-      <div className="p-8 text-center">
-        <p className="font-medium mb-1">Не удалось загрузить товар</p>
-        <p className="text-sm text-gray-500 mb-5">Закройте окно и попробуйте ещё раз.</p>
-        <Button variant="primary" size="md" onClick={reset}>
-          Повторить
-        </Button>
-      </div>
-    </ProductModal>
+    <div className="m-auto p-8 text-center">
+      <p className="font-medium mb-1">Не удалось загрузить товар</p>
+      <p className="text-sm text-gray-500 mb-5">Закройте окно и попробуйте ещё раз.</p>
+      <Button variant="primary" size="md" onClick={reset}>
+        Повторить
+      </Button>
+    </div>
   );
 }

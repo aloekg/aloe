@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AddToCart, Currency, FavoriteButton, OldPrice, ProductDescription } from "@/components";
-import ProductModal from "@/components/ProductModal";
 import { getCachedProduct } from "@/lib/cached-queries";
 import { LABEL_MAP } from "@/lib/constants";
 import type { ProductRow } from "@/types";
@@ -27,8 +26,8 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
   const cartImage = product.thumbnail_url || product.image_url;
 
   return (
-    <ProductModal>
-      <div className="grid sm:grid-cols-2 gap-6 px-4 pb-4 md:px-6 md:pb-6">
+    <>
+      <div className="grow content-start grid sm:grid-cols-2 gap-6 px-4 pb-4 md:px-6 md:pb-6">
         <div className="relative md:sticky md:top-0 aspect-square bg-gray-50 rounded-xl overflow-hidden">
           <Image
             src={product.image_url}
@@ -107,6 +106,6 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           </div>
         </div>
       </div>
-    </ProductModal>
+    </>
   );
 }

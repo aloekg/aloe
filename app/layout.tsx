@@ -3,7 +3,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Lobster } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
-import { AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
+import { AuthModal, AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
 import { getCachedCategories } from "@/lib/cached-queries";
 import { BRAND_COLOR, SITE_URL, WHATSAPP_LINK, WHATSAPP_NUMBER } from "@/lib/constants";
 import { IS_CANONICAL_HOST } from "@/lib/deploy-origin";
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   // Search Console verified aloe.kg by this tag in the old JoomShopping template. The cutover left
   // the tag behind on old.aloe.kg, and Google re-checks periodically — without it here the property
   // (and the search history it holds for this domain) would eventually be lost. A DNS TXT
-  // "Domain" property is the durable form of this; see MIGRATION.md.
+  // "Domain" property is the durable form of this, and is not set up.
   verification: { google: "d0YIirmB5tX_do99ES_OLfJoMkW9gltVw4WnyeRQ8n8" },
   title: { default: "Aloe.kg — бытовая химия и косметика в Бишкеке", template: "%s — Aloe.kg" },
   description: SITE_DESCRIPTION,
@@ -118,6 +118,7 @@ export default async function RootLayout({ children, modal }: { children: React.
         <Footer />
         <MobileBottomNav />
         <Toaster />
+        <AuthModal />
         {modal}
         {/* Core Web Vitals and page views from real visits, reported to Vercel. Both are
             measurement only — they set no cookie and store no identity: a visitor is a daily

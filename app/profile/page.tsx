@@ -26,6 +26,12 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     getProfile(supabase, user.id),
   ]);
 
+  const registeredAt = new Date(user.created_at).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <>
       <MobileHeader title="Мой профиль">
@@ -36,11 +42,16 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <MainContainer className="max-w-2xl">
         <Title className="hidden md:block mb-6">Мой профиль</Title>
 
-        <div className="flex md:hidden flex-col items-center gap-4 mb-4">
+        {/* The same facts as the desktop card below, stacked: the phone used to show the avatar and
+            the name alone, which left the account itself unidentified — and an empty heading
+            whenever the customer had not filled the profile in yet. */}
+        <div className="flex md:hidden flex-col items-center gap-2 mb-6 text-center">
           <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-lg shrink-0">
             {user.email?.[0].toUpperCase()}
           </div>
-          <h2 className="text-3xl">{profile?.name}</h2>
+          {profile?.name && <h2 className="text-3xl">{profile.name}</h2>}
+          <p className="font-medium break-all">{user.email}</p>
+          <p className="text-sm text-gray-500">Зарегистрирован: {registeredAt}</p>
         </div>
 
         <div className="hidden md:flex border border-gray-300 rounded-xl p-5 mb-6 items-center gap-4">
@@ -49,14 +60,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
           <div className="flex-1">
             <p className="font-medium">{user.email}</p>
-            <p className="text-sm text-gray-500">
-              Зарегистрирован:{" "}
-              {new Date(user.created_at).toLocaleDateString("ru-RU", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
+            <p className="text-sm text-gray-500">Зарегистрирован: {registeredAt}</p>
           </div>
           <LogoutButton />
         </div>

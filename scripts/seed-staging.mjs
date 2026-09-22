@@ -7,7 +7,7 @@
 //
 // Ids are preserved deliberately. Storage objects are named <product-id>.webp, products.product_url
 // feeds the legacy 301s (lib/legacy-redirect.ts), and category ids are written down in
-// scripts/migrate-categories.mjs. Reseeding with fresh ids would quietly break all three.
+// the migration that built the category tree. Reseeding with fresh ids would quietly break all three.
 //
 // Images are NOT copied. Rows keep their absolute production storage URLs and staging reads the
 // photos out of production's public buckets — see CODEBASE.md → «Окружения». Nothing here can

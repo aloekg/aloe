@@ -11,7 +11,7 @@
 // They are all unpublished, so nothing on the storefront is waiting on this.
 //
 // What they still carry is `products.category`, the denormalised label from the old site. The
-// category tree was reorganised and renamed in scripts/migrate-categories.mjs, so those labels no
+// category tree was reorganised and renamed wholesale during the migration, so those labels no
 // longer match one-to-one:
 //
 //   * Normalised match — identical once case, ё/е and spacing around punctuation are ignored.

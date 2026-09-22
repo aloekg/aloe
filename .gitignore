@@ -49,6 +49,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# old-site scraper credentials + scraped data
-.env.joomla
-scripts/joomla/data/
+# leftovers of the removed old-store sync: credentials and 2 MB of scraped JSON that
+# stay on the developer's disk after the scripts themselves were deleted. Kept ignored so
+# a `git add .` cannot sweep them back in.
+scripts/joomla/
+
+# local agent/CLI state. Until now this was only invisible through a personal global
+# ignore file, so a fresh clone would have offered settings.local.json up to `git add .`.
+.claude/

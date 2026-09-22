@@ -225,16 +225,8 @@ export default function BannerCarousel({
               past the ~44px that is comfortable in practice, and it leaves the middle — 208px even
               on a 320px screen — to the link.
             */}
-            <Button
-              onClick={scrollPrev}
-              aria-label="Предыдущий баннер"
-              className="absolute left-0 top-0 w-14 h-full"
-            />
-            <Button
-              onClick={scrollNext}
-              aria-label="Следующий баннер"
-              className="absolute right-0 top-0 w-14 h-full"
-            />
+            <Button onClick={scrollPrev} aria-label="Предыдущий баннер" className="absolute left-0 top-0 w-14 h-full" />
+            <Button onClick={scrollNext} aria-label="Следующий баннер" className="absolute right-0 top-0 w-14 h-full" />
             {/* Right edge cleared for the toggle, which sits in the same strip. `pointer-events-none`
                 because these bars are a readout, not a control: without it the bottom band of the
                 banner swallowed taps meant for the link behind it. */}
