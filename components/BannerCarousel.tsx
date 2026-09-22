@@ -45,9 +45,10 @@ const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAE
 
 /**
  * Autoplay moves the banners on its own, which WCAG 2.2.2 (level A) allows only alongside a way to
- * stop it. `stopOnMouseEnter` is not that way — it reaches a mouse and nothing else, so a phone, a
- * keyboard and a screen reader were all left watching content change every four seconds with no
- * recourse. Hence this button, which is always rendered and always focusable.
+ * stop it. The `stopOnMouseEnter` this used to rely on was never that way — it reaches a mouse and
+ * nothing else, so a phone, a keyboard and a screen reader were all left watching content change
+ * every four seconds with no recourse. Hence this button, which is always rendered, always
+ * focusable, and the only thing that starts autoplay once it has stopped.
  *
  * It is a toggle whose *label* changes rather than an `aria-pressed` switch: "Остановить" and
  * "Возобновить" name the action the press performs, which is what a screen reader user needs here,
@@ -106,14 +107,18 @@ export default function BannerCarousel({
   // server cannot know the visitor's motion preference, and reading it during render would make the
   // first client render disagree with the markup it is hydrating. The effect below starts it.
   //
-  // `stopOnInteraction: false` is about the *mouse*, not about interaction generally: in Embla the
-  // two options are entangled, and hover only resumes on mouse-leave while this is false. Set true,
-  // a cursor crossing a full-width banner on the way somewhere else would end autoplay for the rest
-  // of the visit. So hovering stays a temporary pause, and the interactions that really mean "I am
-  // driving now" — arrows, dots, a swipe — stop it explicitly through `stopAutoplay` below.
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
-    Autoplay({ delay: 4000, stopOnMouseEnter: true, stopOnInteraction: false, playOnInit: false }),
-  ]);
+  // No `stopOnMouseEnter`. It paused on hover and resumed on mouse-leave, so the toggle flipped
+  // between ⏸ and ▶ as the cursor crossed a banner nobody had pressed anything on — a control
+  // changing state on its own reads as a glitch, and it is worse than cosmetic: while
+  // `stopOnInteraction` is false the plugin wires `mouseleave` and `focusout` straight to
+  // `startAutoplay` with no check, so a deliberate pause was undone by moving the mouse off the
+  // banner, or by tabbing past it. The mechanism WCAG 2.2.2 asks for cannot be revocable like that.
+  //
+  // With hover gone, the defaults are exactly right: `stopOnInteraction` (true) stops autoplay on a
+  // swipe and registers neither resume listener, and `stopOnFocusIn` (true) stops it when focus
+  // enters the carousel — deliberate, unlike a passing cursor, and it no longer restarts on the way
+  // out. Only the toggle starts it again.
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 4000, playOnInit: false })]);
   const [selected, setSelected] = useState(0);
   const [playing, setPlaying] = useState(false);
   const multiple = banners.length > 1;
@@ -137,11 +142,6 @@ export default function BannerCarousel({
     const sync = () => setPlaying(autoplay.isPlaying());
     emblaApi.on("autoplay:play", sync).on("autoplay:stop", sync).on("reInit", sync);
 
-    // A swipe is the touch equivalent of pressing an arrow, and `stopOnInteraction: false` would
-    // otherwise let autoplay drag the banner out from under the thumb that just moved it.
-    const onPointerDown = () => autoplay.stop();
-    emblaApi.on("pointerDown", onPointerDown);
-
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (!reduced.matches) autoplay.play();
     sync();
@@ -155,12 +155,15 @@ export default function BannerCarousel({
 
     return () => {
       reduced.removeEventListener("change", stopIfReduced);
-      emblaApi.off("pointerDown", onPointerDown);
       emblaApi.off("autoplay:play", sync).off("autoplay:stop", sync).off("reInit", sync);
     };
   }, [emblaApi, multiple]);
 
-  /** Hands control to the visitor: once they have steered, the carousel stops steering itself. */
+  /**
+   * Hands control to the visitor: once they have steered, the carousel stops steering itself. The
+   * plugin covers a swipe on its own, but the arrows and dots sit outside the drag container, so it
+   * never sees those presses.
+   */
   const stopAutoplay = useCallback(() => emblaApi?.plugins().autoplay?.stop(), [emblaApi]);
 
   const scrollPrev = useCallback(() => {
