@@ -28,9 +28,24 @@ export const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, "")
 /** The green everything brand-coloured keys off — matches Tailwind's green-600. */
 export const BRAND_COLOR = "#16a34a";
 
+/**
+ * `cls` carries the text colour as well as the background, because neither can be chosen alone.
+ * The badge text is 10px, so WCAG counts it as normal text and wants 4.5:1, and the vivid fills
+ * this started as gave white only 3.76:1 (blue-500) and 2.89:1 (orange-500).
+ *
+ * Both of the ways to fix that while keeping a saturated fill were tried and rejected on looks:
+ * near-black text on the same fills reads as a warning sticker rather than a badge, and white on a
+ * fill dark enough to carry it (orange-700, #ca3500) is no longer orange. The tint inverts the
+ * problem instead — the colour moves into the text, where it has the whole white card to sit
+ * against — and clears the bar with the most room of anything measured, 7.25:1 and 6.41:1.
+ *
+ * The cost is deliberate: a pale badge draws less attention than a solid one. If "Акция" turns out
+ * to need more presence on a grid, `border border-orange-200` defines its edge without touching
+ * the text contrast. Render sites must not add a `text-*` of their own.
+ */
 export const LABEL_MAP = {
-  new: { text: "Новинка", cls: "bg-blue-500" },
-  sale: { text: "Акция", cls: "bg-orange-500" },
+  new: { text: "Новинка", cls: "bg-blue-100 text-blue-800" },
+  sale: { text: "Акция", cls: "bg-orange-100 text-orange-800" },
 } as const;
 
 export const FREE_DELIVERY_THRESHOLD = 10000;

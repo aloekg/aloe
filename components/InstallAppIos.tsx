@@ -92,7 +92,7 @@ export default function InstallAppIos({ className }: { className?: string }) {
         size="sm"
         onClick={dismiss}
         aria-label="Скрыть подсказку"
-        className="absolute right-1 top-1 text-gray-400 hover:bg-green-100 hover:text-gray-600"
+        className="absolute right-1 top-1 text-gray-500 hover:bg-green-100 hover:text-gray-600"
       >
         <X className="w-4 h-4" />
       </Button>
@@ -107,7 +107,7 @@ export default function InstallAppIos({ className }: { className?: string }) {
           const Icon = step.icon;
           return (
             <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-600 text-xs font-medium text-white">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-700 text-xs font-medium text-white">
                 {i + 1}
               </span>
               <span>

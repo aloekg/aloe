@@ -61,7 +61,7 @@ export default function AnalyticsHeatmap({ heatmap }: { heatmap: HeatmapInsight 
         <div className="min-w-[520px]" role="img" aria-label={`Заказы по дням недели и часам. ${readout}`}>
           {cells.map((row, weekday) => (
             <div key={weekday} className="mb-[2px] flex items-center gap-[2px]">
-              <span className="w-6 shrink-0 text-[10px] text-gray-400">{WEEKDAYS[weekday]}</span>
+              <span className="w-6 shrink-0 text-[10px] text-gray-500">{WEEKDAYS[weekday]}</span>
               {row.map((value, hour) => (
                 <div
                   key={hour}
@@ -78,7 +78,7 @@ export default function AnalyticsHeatmap({ heatmap }: { heatmap: HeatmapInsight 
           ))}
           <div className="flex gap-[2px] pl-[26px]">
             {Array.from({ length: 24 }, (_, hour) => (
-              <span key={hour} className="flex-1 text-center text-[10px] text-gray-400">
+              <span key={hour} className="flex-1 text-center text-[10px] text-gray-500">
                 {hour % 3 === 0 ? hour : ""}
               </span>
             ))}

@@ -23,7 +23,7 @@ export default function MobileHeader({
         <button
           onClick={() => router.back()}
           aria-label="Назад"
-          className={"md:hidden absolute flex items-center bg-white rounded-full text-green-600 transition-colors p-2"}
+          className={"md:hidden absolute flex items-center bg-white rounded-full text-green-700 transition-colors p-2"}
         >
           <ArrowLeft className="size-5" />
         </button>
@@ -33,7 +33,14 @@ export default function MobileHeader({
           <ArrowLeft className="size-5" />
         </Link>
       ) : null}
-      {title ? <p className="flex-1 text-center text-xl font-medium">{title}</p> : null}
+      {/*
+        An <h1>, not a <p>. Ten pages pair this bar with `<Title className="hidden md:block">`, and
+        `hidden` is `display: none` — the heading is gone from the accessibility tree, not just from
+        view. So on a phone those pages had no heading at all, only this line of text that looked
+        like one. The split works because the bar is itself `md:hidden`: exactly one of the two is
+        in the tree at any width, so neither duplicates the other.
+      */}
+      {title ? <h1 className="flex-1 text-center text-xl font-medium">{title}</h1> : null}
       {children}
     </div>
   );

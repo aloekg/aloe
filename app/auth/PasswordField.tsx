@@ -53,7 +53,7 @@ export default function PasswordField({
           // pr-11 keeps the text clear of the toggle.
           className={cn(
             "w-full border rounded-lg pl-3 pr-11 py-2 text-base md:text-sm focus:outline-none focus:ring-2",
-            error ? "border-red-400 focus:ring-red-500" : "border-gray-300 focus:ring-green-500",
+            error ? "border-red-500 focus:ring-red-600" : "border-gray-500 focus:ring-green-700",
           )}
         />
         <button
@@ -63,7 +63,7 @@ export default function PasswordField({
           // as a mouse user, and it is the last control before the submit button anyway.
           aria-label={visible ? "Скрыть пароль" : "Показать пароль"}
           aria-pressed={visible}
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 cursor-pointer"
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-500 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 cursor-pointer"
         >
           {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>

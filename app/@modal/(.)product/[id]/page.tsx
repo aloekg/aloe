@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AddToCart, Currency, FavoriteButton, ProductDescription } from "@/components";
+import { AddToCart, Currency, FavoriteButton, OldPrice, ProductDescription } from "@/components";
 import { getCachedProduct } from "@/lib/cached-queries";
 import { LABEL_MAP } from "@/lib/constants";
 import type { ProductRow } from "@/types";
@@ -38,7 +38,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           />
           {label && (
             <div className="absolute top-3 left-3">
-              <span className={`${label.cls} text-white text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
+              <span className={`${label.cls} text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
             </div>
           )}
           {discount && (
@@ -60,11 +60,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
             <span className="text-2xl font-bold">
               {product.price} <Currency />
             </span>
-            {product.old_price && (
-              <span className="text-lg text-gray-400 line-through">
-                {product.old_price} <Currency />
-              </span>
-            )}
+            {product.old_price && <OldPrice value={product.old_price} className="text-lg text-gray-500" />}
           </div>
 
           <div className="mb-6 hidden sm:block">
@@ -81,7 +77,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
 
           {product.description && <ProductDescription text={product.description} />}
 
-          <a href={productHref} className="text-sm text-green-600 hover:underline mt-auto pt-4 w-fit">
+          <a href={productHref} className="text-sm text-green-700 hover:underline mt-auto pt-4 w-fit">
             Открыть страницу товара →
           </a>
         </div>
@@ -94,9 +90,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-400 line-through whitespace-nowrap">
-                {product.old_price} <Currency />
-              </span>
+              <OldPrice value={product.old_price} className="text-xs text-gray-500 whitespace-nowrap" />
             )}
           </div>
           <div className="grow">

@@ -26,6 +26,14 @@
     padding-right: env(safe-area-inset-right);
   }
 
+  /* SearchInput is `type="search"` for the role and the phone keyboard's search key, but draws its
+     own clear button — one that also returns to the unfiltered URL. WebKit's native one would sit
+     on top of it and only empty the field. */
+  ::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   ::-webkit-scrollbar {
     width: 4px;
     height: 2px;
@@ -51,6 +59,23 @@
 
 .animate-slide-up {
   animation: slide-up 0.2s ease-out;
+}
+
+/* Targeted rather than the usual blanket `*{animation:none}`: that rule also freezes `animate-spin`,
+   and a spinner that does not spin stops reporting that anything is loading — it would trade one
+   accessibility problem for another. What is silenced here is decoration (a toast sliding up, the
+   banner's timer bar). The rest of the motion is handled where it is produced: Sheet and
+   BannerCarousel read the preference in JS, and hooks/useActiveSectionSync.ts swaps its smooth
+   scroll for a jump. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-up {
+    animation: none;
+  }
+
+  .animate-banner-progress {
+    animation: none;
+    width: 100%;
+  }
 }
 
 .scrollbar-hide::-webkit-scrollbar {

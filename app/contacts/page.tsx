@@ -30,7 +30,7 @@ export default function ContactsPage() {
           rel="noopener noreferrer"
           className="flex items-center gap-3 rounded-xl bg-green-50 px-4 py-4 transition-colors hover:bg-green-100"
         >
-          <FaWhatsapp className="w-8 h-8 text-green-600 shrink-0" />
+          <FaWhatsapp className="w-8 h-8 text-green-700 shrink-0" />
           <span>
             <span className="block text-xs text-gray-500">WhatsApp</span>
             <span className="block text-base font-bold text-gray-900">{WHATSAPP_NUMBER}</span>
@@ -55,7 +55,7 @@ export default function ContactsPage() {
             <ul className="space-y-2">
               {topics.map((topic) => (
                 <li key={topic} className="flex gap-2 text-sm text-gray-700">
-                  <span className="text-green-600" aria-hidden>
+                  <span className="text-green-700" aria-hidden>
                     •
                   </span>
                   <span>{topic}</span>

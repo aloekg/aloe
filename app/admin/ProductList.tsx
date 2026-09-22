@@ -17,7 +17,7 @@ type Props = {
 
 export default function ProductList({ products, selectedIds, onToggle, onToggleAll, onEdit, onDelete }: Props) {
   if (products.length === 0) {
-    return <p className="text-sm text-gray-400 py-6 text-center">Ничего не найдено</p>;
+    return <p className="text-sm text-gray-500 py-6 text-center">Ничего не найдено</p>;
   }
 
   const allSelected = products.every((p) => selectedIds.has(p.id));
@@ -52,7 +52,7 @@ export default function ProductList({ products, selectedIds, onToggle, onToggleA
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-medium truncate">{p.name}</p>
               {!p.published && (
-                <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
                   Скрыт
                 </span>
               )}
@@ -64,7 +64,7 @@ export default function ProductList({ products, selectedIds, onToggle, onToggleA
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               {p.category} · {p.price} <Currency />
               {p.old_price ? ` (было ${p.old_price})` : ""} · продано {p.purchase_count}
             </p>

@@ -59,10 +59,13 @@ function NavItem({
     <Link
       href={href}
       onNavigate={() => window.scrollTo(0, 0)}
+      // Which category you are in was said by the dark circle and nothing else, so it was said only
+      // to people who can see it — and colour alone is never allowed to carry information (1.4.1).
+      aria-current={active ? "page" : undefined}
       className={`flex flex-col items-center gap-1.5 rounded-lg transition-colors shrink-0 w-18`}
     >
       <div
-        className={`w-11 h-11 rounded-full ${active ? "bg-gray-700 text-green-600" : "bg-gray-100"} transition-colors flex items-center justify-center`}
+        className={`w-11 h-11 rounded-full ${active ? "bg-gray-700 text-green-500" : "bg-gray-100"} transition-colors flex items-center justify-center`}
       >
         {Icon ? <Icon className="size-5" /> : <div className="w-5 h-5 rounded bg-gray-300" />}
       </div>

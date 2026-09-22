@@ -63,7 +63,7 @@ const STRENGTH_LEVELS: Record<1 | 2 | 3 | 4, Omit<PasswordStrength, "score">> = 
   1: { label: "Слабый", barClass: "w-1/4 bg-red-500" },
   2: { label: "Простой", barClass: "w-2/4 bg-orange-500" },
   3: { label: "Средний", barClass: "w-3/4 bg-yellow-500" },
-  4: { label: "Надёжный", barClass: "w-full bg-green-600" },
+  4: { label: "Надёжный", barClass: "w-full bg-green-700" },
 };
 
 /**

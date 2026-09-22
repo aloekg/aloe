@@ -39,7 +39,7 @@ export function Card({
 }
 
 export function EmptyNote({ children }: { children: React.ReactNode }) {
-  return <p className="py-4 text-center text-sm text-gray-400">{children}</p>;
+  return <p className="py-4 text-center text-sm text-gray-500">{children}</p>;
 }
 
 /**

@@ -58,7 +58,7 @@ export default async function SearchResults({
     <MainContainer>
       <div className={className}>
         <Title>
-          Результаты поиска: <span className="text-green-600">«{q}»</span>
+          Результаты поиска: <span className="text-green-700">«{q}»</span>
         </Title>
         <p className="text-sm text-gray-500 mt-1">Найдено: {total} товаров</p>
       </div>
@@ -68,7 +68,7 @@ export default async function SearchResults({
       {products.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
           <p className="text-lg">Ничего не найдено</p>
-          <Link href={emptyHref} className="text-green-600 text-sm mt-2 inline-block hover:underline">
+          <Link href={emptyHref} className="text-green-700 text-sm mt-2 inline-block hover:underline">
             {emptyLabel}
           </Link>
         </div>

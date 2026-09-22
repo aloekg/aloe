@@ -121,7 +121,7 @@ export default function AdminOrders({
           <Button
             type="button"
             onClick={() => navigate({ status: "" })}
-            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
+            className="text-xs text-gray-500 hover:text-gray-600 px-2 py-1"
           >
             Сбросить ✕
           </Button>
@@ -130,18 +130,18 @@ export default function AdminOrders({
 
       {/* Search */}
       <div className="relative mb-5">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
         <input
           type="text"
           value={search.value}
           onChange={(e) => search.onChange(e.target.value)}
           placeholder="Поиск по имени или телефону..."
-          className="w-full border border-gray-300 rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-gray-500 rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
         />
         {search.value && (
           <Button
             onClick={search.clear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -151,7 +151,7 @@ export default function AdminOrders({
       <p className="text-sm text-gray-500 mb-4">Заказов: {total}</p>
 
       {orders.length === 0 && (
-        <p className="text-gray-400 text-sm">{q ? `Ничего не найдено по запросу «${q}»` : "Заказов пока нет"}</p>
+        <p className="text-gray-500 text-sm">{q ? `Ничего не найдено по запросу «${q}»` : "Заказов пока нет"}</p>
       )}
 
       <div className="space-y-4">
@@ -185,8 +185,8 @@ export default function AdminOrders({
             <div key={order.id} className="border border-gray-300 rounded-lg p-4 hover:shadow-sm transition-shadow">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0 space-y-0.5">
-                  <p className="font-mono text-xs text-gray-400">#{order.id}</p>
-                  <p className="text-xs text-gray-400">{date}</p>
+                  <p className="font-mono text-xs text-gray-500">#{order.id}</p>
+                  <p className="text-xs text-gray-500">{date}</p>
                   {!(order.notified_at || notified[order.id]) && (
                     <div className="my-1.5 flex w-fit flex-wrap items-center gap-x-2 gap-y-0.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
                       {/* "not confirmed", not "not sent": rows predating this tracking are NULL
@@ -236,19 +236,19 @@ export default function AdminOrders({
                       <Button
                         type="button"
                         onClick={() => setEditingDeliveryId(order.id)}
-                        className="inline-flex items-center gap-1 align-baseline text-xs text-gray-400 hover:text-gray-700"
+                        className="inline-flex items-center gap-1 align-baseline text-xs text-gray-500 hover:text-gray-700"
                       >
                         <Pencil className="w-3 h-3" /> Изменить
                       </Button>
                     </p>
                   )}
-                  {order.comment && <p className="text-sm text-gray-400 italic">💬 {order.comment}</p>}
+                  {order.comment && <p className="text-sm text-gray-500 italic">💬 {order.comment}</p>}
                 </div>
                 {/* Narrow screens: one wrapping row so the total, the status select and the
                     invoice link stay left-aligned under the customer block instead of floating
                     in a shrink-to-fit right-aligned column. */}
                 <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 sm:flex-col sm:items-end">
-                  <p className="text-xl font-bold text-green-600">
+                  <p className="text-xl font-bold text-green-700">
                     {order.total} <Currency />
                   </p>
                   <OrderStatusSelect

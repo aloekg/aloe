@@ -80,108 +80,132 @@ export default function ProductEditDrawer({
       <ImageDropzone imageUrl={editing.image_url} uploading={uploading} onFileSelect={onFileSelect} />
 
       <Field label="Название *">
-        <input
-          value={editing.name}
-          onChange={(e) => onChange("name", e.target.value)}
-          className={inp}
-          placeholder="Например: Масло оливковое Extra Virgin"
-        />
+        {(id) => (
+          <input
+            id={id}
+            value={editing.name}
+            onChange={(e) => onChange("name", e.target.value)}
+            className={inp}
+            placeholder="Например: Масло оливковое Extra Virgin"
+          />
+        )}
       </Field>
 
       <Field label="Производитель">
-        <select
-          value={editing.brand_id ?? ""}
-          onChange={(e) => onChange("brand_id", e.target.value ? Number(e.target.value) : null)}
-          className={inp}
-        >
-          <option value="">Не указан</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        {(id) => (
+          <select
+            id={id}
+            value={editing.brand_id ?? ""}
+            onChange={(e) => onChange("brand_id", e.target.value ? Number(e.target.value) : null)}
+            className={inp}
+          >
+            <option value="">Не указан</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Категория *">
-          <select
-            value={categories.some((c) => c.selectable && c.id === editing.category_id) ? editing.category_id : ""}
-            onChange={(e) => {
-              const cat = categories.find((c) => c.selectable && String(c.id) === e.target.value);
-              if (cat) {
-                onChange("category_id", cat.id);
-                onChange("category", cat.name);
-              }
-            }}
-            className={inp}
-          >
-            <option value="" disabled>
-              Выберите
-            </option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id} disabled={!c.selectable}>
-                {"--".repeat(c.depth) + c.name}
+          {(id) => (
+            <select
+              id={id}
+              value={categories.some((c) => c.selectable && c.id === editing.category_id) ? editing.category_id : ""}
+              onChange={(e) => {
+                const cat = categories.find((c) => c.selectable && String(c.id) === e.target.value);
+                if (cat) {
+                  onChange("category_id", cat.id);
+                  onChange("category", cat.name);
+                }
+              }}
+              className={inp}
+            >
+              <option value="" disabled>
+                Выберите
               </option>
-            ))}
-          </select>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id} disabled={!c.selectable}>
+                  {"--".repeat(c.depth) + c.name}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
 
         <Field label="Метка">
-          <select
-            value={editing.label ?? ""}
-            onChange={(e) => onChange("label", (e.target.value as ProductInput["label"]) || null)}
-            className={inp}
-          >
-            {LABELS.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+          {(id) => (
+            <select
+              id={id}
+              value={editing.label ?? ""}
+              onChange={(e) => onChange("label", (e.target.value as ProductInput["label"]) || null)}
+              className={inp}
+            >
+              {LABELS.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Цена *">
-          <input
-            type="number"
-            value={editing.price || ""}
-            onChange={(e) => onChange("price", Number(e.target.value))}
-            className={inp}
-            placeholder="0"
-            min={0}
-          />
+          {(id) => (
+            <input
+              id={id}
+              type="number"
+              value={editing.price || ""}
+              onChange={(e) => onChange("price", Number(e.target.value))}
+              className={inp}
+              placeholder="0"
+              min={0}
+            />
+          )}
         </Field>
         <Field label="Старая цена">
-          <input
-            type="number"
-            value={editing.old_price ?? ""}
-            onChange={(e) => onChange("old_price", e.target.value ? Number(e.target.value) : null)}
-            className={inp}
-            placeholder="0"
-            min={0}
-          />
+          {(id) => (
+            <input
+              id={id}
+              type="number"
+              value={editing.old_price ?? ""}
+              onChange={(e) => onChange("old_price", e.target.value ? Number(e.target.value) : null)}
+              className={inp}
+              placeholder="0"
+              min={0}
+            />
+          )}
         </Field>
       </div>
 
       <Field label="Описание (Markdown)" action={<DescriptionImageButton onInsert={insertIntoDescription} />}>
-        <textarea
-          ref={descriptionRef}
-          value={editing.description ?? ""}
-          onChange={(e) => onChange("description", e.target.value || null)}
-          className={`${inp} min-h-35 resize-y font-mono text-xs`}
-          placeholder={"## Заголовок\n\nОписание товара..."}
-        />
+        {(id) => (
+          <textarea
+            id={id}
+            ref={descriptionRef}
+            value={editing.description ?? ""}
+            onChange={(e) => onChange("description", e.target.value || null)}
+            className={`${inp} min-h-35 resize-y font-mono text-xs`}
+            placeholder={"## Заголовок\n\nОписание товара..."}
+          />
+        )}
       </Field>
 
       <Field label="SEO текст (keywords / title / description)">
-        <textarea
-          value={editing.seo_text ?? ""}
-          onChange={(e) => onChange("seo_text", e.target.value || null)}
-          className={`${inp} min-h-24 resize-y text-xs`}
-          placeholder="Текст для мета-тегов keywords, title и description"
-        />
+        {(id) => (
+          <textarea
+            id={id}
+            value={editing.seo_text ?? ""}
+            onChange={(e) => onChange("seo_text", e.target.value || null)}
+            className={`${inp} min-h-24 resize-y text-xs`}
+            placeholder="Текст для мета-тегов keywords, title и description"
+          />
+        )}
       </Field>
 
       <label className="flex items-center gap-2 cursor-pointer select-none">

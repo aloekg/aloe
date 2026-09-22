@@ -37,7 +37,7 @@ export default async function LabelProductsPage({
       <h1 className="text-lg font-semibold mb-4 text-center md:text-left">{title}</h1>
 
       {products.length === 0 ? (
-        <p className="text-gray-400 text-sm">{emptyText}</p>
+        <p className="text-gray-500 text-sm">{emptyText}</p>
       ) : (
         <>
           <ProductGrid>

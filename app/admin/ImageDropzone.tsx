@@ -48,7 +48,7 @@ export default function ImageDropzone({ imageUrl, uploading, onFileSelect }: Pro
           </div>
           {uploading && (
             <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+              <Loader2 className="w-6 h-6 animate-spin text-green-700" />
             </div>
           )}
         </div>
@@ -57,12 +57,12 @@ export default function ImageDropzone({ imageUrl, uploading, onFileSelect }: Pro
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
           onClick={() => !uploading && fileRef.current?.click()}
-          className="w-full aspect-video max-h-48 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-green-500 hover:text-green-600 transition-colors hover:cursor-pointer select-none"
+          className="w-full aspect-video max-h-48 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-600 hover:text-green-700 transition-colors hover:cursor-pointer select-none"
         >
           {uploading ? (
             <>
-              <Loader2 className="w-8 h-8 animate-spin text-green-600" />
-              <span className="text-sm text-green-600">Загрузка...</span>
+              <Loader2 className="w-8 h-8 animate-spin text-green-700" />
+              <span className="text-sm text-green-700">Загрузка...</span>
             </>
           ) : (
             <>

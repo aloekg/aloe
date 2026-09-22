@@ -98,7 +98,7 @@ export default function CheckoutForm({ initial }: Props) {
     return (
       <div className="text-center py-16 text-gray-500">
         <p className="text-lg">Корзина пуста</p>
-        <Link href="/" className="text-green-600 text-sm mt-2 inline-block hover:underline">
+        <Link href="/" className="text-green-700 text-sm mt-2 inline-block hover:underline">
           Перейти в каталог
         </Link>
       </div>
@@ -190,13 +190,13 @@ export default function CheckoutForm({ initial }: Props) {
                 {deliveryCost} <Currency />
               </>
             ) : (
-              <span className="text-green-600 font-medium">бесплатно</span>
+              <span className="text-green-700 font-medium">бесплатно</span>
             )}
           </span>
         </div>
         <div className="border-t border-gray-300 mt-3 pt-3 flex justify-between font-bold">
           <span>Итого:</span>
-          <span className="text-green-600">
+          <span className="text-green-700">
             {orderTotal} <Currency />
           </span>
         </div>
@@ -212,7 +212,7 @@ export default function CheckoutForm({ initial }: Props) {
               <label
                 key={option.id}
                 className={`flex items-start gap-3 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${
-                  deliveryType === option.id ? "border-green-500 bg-green-50" : "border-gray-300"
+                  deliveryType === option.id ? "border-green-600 bg-green-50" : "border-gray-300"
                 }`}
               >
                 <input
@@ -227,8 +227,8 @@ export default function CheckoutForm({ initial }: Props) {
                   {option.label}{" "}
                   {free ? (
                     <span className="whitespace-nowrap">
-                      (<span className="line-through text-gray-400">{option.cost} сом</span>{" "}
-                      <span className="text-green-600 font-medium">
+                      (<span className="line-through text-gray-500">{option.cost} сом</span>{" "}
+                      <span className="text-green-700 font-medium">
                         бесплатно, заказ свыше {FREE_DELIVERY_THRESHOLD} сом
                       </span>
                       )
@@ -259,7 +259,7 @@ export default function CheckoutForm({ initial }: Props) {
             onChange={(e) => setName(e.target.value)}
             autoComplete="name"
             required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
             placeholder="Ваше имя"
           />
         </div>
@@ -276,7 +276,7 @@ export default function CheckoutForm({ initial }: Props) {
             autoComplete="tel"
             required
             // text-base, not text-bas: below 16px iOS Safari zooms the viewport on focus.
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
             placeholder="+996 700 000 000"
           />
         </div>
@@ -291,7 +291,7 @@ export default function CheckoutForm({ initial }: Props) {
             onChange={(e) => setAddress(e.target.value)}
             autoComplete="street-address"
             required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
             placeholder="Улица, дом, квартира"
           />
         </div>
@@ -304,7 +304,7 @@ export default function CheckoutForm({ initial }: Props) {
             id={commentId}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700 resize-none"
             rows={2}
             placeholder="Дополнительная информация, ориентиры..."
           />
@@ -342,7 +342,7 @@ export default function CheckoutForm({ initial }: Props) {
       )}
 
       {error && rejected.length === 0 && (
-        <p role="alert" className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <p role="alert" className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           {error}
         </p>
       )}

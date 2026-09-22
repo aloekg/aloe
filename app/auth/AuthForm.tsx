@@ -215,7 +215,7 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
             // text-base, not text-sm: below 16px iOS Safari zooms the viewport on focus.
             className={cn(
               "w-full border rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2",
-              fieldErrors.email ? "border-red-400 focus:ring-red-500" : "border-gray-300 focus:ring-green-500",
+              fieldErrors.email ? "border-red-500 focus:ring-red-600" : "border-gray-500 focus:ring-green-700",
             )}
           />
           {fieldErrors.email && (
@@ -271,7 +271,7 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
         {!isReset && (
           <div className="flex items-center gap-3">
             <div className="flex-1 border-t border-gray-200" />
-            <span className="text-xs text-gray-400">или</span>
+            <span className="text-xs text-gray-500">или</span>
             <div className="flex-1 border-t border-gray-200" />
           </div>
         )}
@@ -374,7 +374,7 @@ function CheckMailboxNotice({
 
   return (
     <div className="border border-gray-300 rounded-xl p-6 text-center flex flex-col gap-4">
-      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto text-green-600 text-2xl">
+      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto text-green-700 text-2xl">
         ✉
       </div>
       <Title>{kind === "signup" ? "Подтвердите email" : "Письмо отправлено"}</Title>
@@ -385,7 +385,7 @@ function CheckMailboxNotice({
           ? "Перейдите по ссылке в письме, чтобы завершить регистрацию."
           : "Перейдите по ссылке в письме, чтобы задать новый пароль."}
       </p>
-      <p className="text-xs text-gray-400">Не пришло письмо? Проверьте папку «Спам».</p>
+      <p className="text-xs text-gray-500">Не пришло письмо? Проверьте папку «Спам».</p>
 
       {status && (
         <p

@@ -41,7 +41,7 @@ export default function NewPasswordScreen({ email }: { email: string }) {
     return (
       <MainContainer className="max-w-sm pt-20">
         <div className="border border-gray-300 rounded-xl p-6 text-center flex flex-col gap-4">
-          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto text-green-600 text-2xl">
+          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto text-green-700 text-2xl">
             ✓
           </div>
           <Title>Пароль изменён</Title>

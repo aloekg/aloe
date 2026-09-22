@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Button from "@/components/Button";
 import { saveProfile } from "./actions";
 
@@ -17,6 +17,9 @@ export default function ProfileForm({ initial }: Props) {
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const nameId = useId();
+  const phoneId = useId();
+  const addressId = useId();
 
   useEffect(() => () => clearTimeout(savedTimerRef.current), []);
 
@@ -45,9 +48,9 @@ export default function ProfileForm({ initial }: Props) {
   }
 
   const inputCls = (active: boolean) =>
-    `w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm transition-colors ${
+    `w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm transition-colors ${
       active
-        ? "focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+        ? "focus:outline-none focus:ring-2 focus:ring-green-700 bg-white"
         : "bg-gray-50 text-gray-500 cursor-default"
     }`;
 
@@ -63,47 +66,77 @@ export default function ProfileForm({ initial }: Props) {
       </div>
 
       {!editing && !initial.name && !initial.phone && !initial.address && (
-        <p className="text-sm text-gray-400">Данные не заполнены. Нажмите «Изменить» чтобы добавить.</p>
+        <p className="text-sm text-gray-500">Данные не заполнены. Нажмите «Изменить» чтобы добавить.</p>
       )}
 
+      {/*
+        The three labels used to be bare <label> elements with no `htmlFor` and no `id` on the
+        inputs, and they do not wrap them either — so nothing tied caption to control and all three
+        fields were announced as unnamed. `autoComplete` goes with them: these are the visitor's own
+        name, phone and address, which is exactly what WCAG 2.1's "Identify Input Purpose" asks be
+        marked, and it lets the browser fill them. app/checkout/CheckoutForm.tsx already does both.
+      */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Имя</label>
+        <label htmlFor={nameId} className="block text-sm font-medium text-gray-700 mb-1">
+          Имя
+        </label>
         <input
+          id={nameId}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={!editing}
+          autoComplete="name"
           placeholder="Ваше имя"
           className={inputCls(editing)}
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+        <label htmlFor={phoneId} className="block text-sm font-medium text-gray-700 mb-1">
+          Телефон
+        </label>
         <input
+          id={phoneId}
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           disabled={!editing}
+          autoComplete="tel"
           placeholder="+996 700 000 000"
           className={inputCls(editing)}
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Адрес доставки</label>
+        <label htmlFor={addressId} className="block text-sm font-medium text-gray-700 mb-1">
+          Адрес доставки
+        </label>
         <input
+          id={addressId}
           type="text"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           disabled={!editing}
+          autoComplete="street-address"
           placeholder="Город, улица, дом, квартира"
           className={inputCls(editing)}
         />
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {saved && <p className="text-sm text-green-600">Данные сохранены ✓</p>}
+      {/*
+        Both outcomes were announced to nobody: plain <p> elements appearing after the save, with no
+        role and no live region, so a screen reader user pressed "Сохранить" and got silence either
+        way. The wrappers are always mounted and hidden by `empty:hidden` while they hold nothing —
+        a live region that appears together with its text is the same bug as the one in
+        components/Toaster.tsx, and the empty element would otherwise take a slot in `space-y-4`.
+      */}
+      <div role="alert" className="empty:hidden">
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+      <div role="status" className="empty:hidden">
+        {saved && <p className="text-sm text-green-700">Данные сохранены ✓</p>}
+      </div>
 
       {editing && (
         <div className="flex gap-2">

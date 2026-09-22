@@ -47,7 +47,7 @@ export default function AdminDrawer({ title, onClose, saving, onSave, saveDisabl
           <h2 id={titleId} className="text-lg font-bold">
             {title}
           </h2>
-          <Button onClick={onClose} aria-label="Закрыть" className="text-gray-400 hover:text-gray-700">
+          <Button onClick={onClose} aria-label="Закрыть" className="text-gray-500 hover:text-gray-700">
             <XIcon className="size-5" />
           </Button>
         </div>

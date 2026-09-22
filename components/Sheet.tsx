@@ -120,7 +120,7 @@ export default function Sheet({
         <div className="w-full absolute top-0 left-0 z-10 flex bg-white p-2">
           <button
             onClick={close}
-            className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            className="ml-auto p-1.5 text-gray-500 hover:text-gray-600 transition-colors cursor-pointer"
             aria-label="Закрыть"
             title="Закрыть"
           >

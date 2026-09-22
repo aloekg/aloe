@@ -51,7 +51,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
           {profile?.name && <h2 className="text-3xl">{profile.name}</h2>}
           <p className="font-medium break-all">{user.email}</p>
-          <p className="text-sm text-gray-400">Зарегистрирован: {registeredAt}</p>
+          <p className="text-sm text-gray-500">Зарегистрирован: {registeredAt}</p>
         </div>
 
         <div className="hidden md:flex border border-gray-300 rounded-xl p-5 mb-6 items-center gap-4">
@@ -60,7 +60,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
           <div className="flex-1">
             <p className="font-medium">{user.email}</p>
-            <p className="text-sm text-gray-400">Зарегистрирован: {registeredAt}</p>
+            <p className="text-sm text-gray-500">Зарегистрирован: {registeredAt}</p>
           </div>
           <LogoutButton />
         </div>

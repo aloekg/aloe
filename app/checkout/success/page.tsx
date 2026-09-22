@@ -25,7 +25,7 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
           <Link href="/" className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
             На главную
           </Link>
-          <Link href="/profile" className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+          <Link href="/profile" className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800">
             Мои заказы
           </Link>
         </div>

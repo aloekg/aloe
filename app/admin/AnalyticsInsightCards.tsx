@@ -49,7 +49,7 @@ export function PromoCard({ insights: { promo } }: { insights: AnalyticsInsights
       {/* Two parts of one whole, so a single split bar rather than a two-slice pie. */}
       <div className="mt-3 flex h-2 gap-[2px] overflow-hidden rounded-full">
         <div
-          className="rounded-l-full bg-green-600"
+          className="rounded-l-full bg-green-700"
           style={{ width: promo.goodsRevenue ? `${(promo.promoRevenue / promo.goodsRevenue) * 100}%` : 0 }}
         />
         <div className="flex-1 rounded-r-full bg-gray-200" />
@@ -131,7 +131,7 @@ export function ThresholdCard({ insights: { threshold } }: { insights: Analytics
               <span className="size-2.5 rounded-sm bg-gray-300" /> платная доставка
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-green-600/80" /> бесплатная
+              <span className="size-2.5 rounded-sm bg-green-700/80" /> бесплатная
             </span>
             <span className="ml-auto">тыс. сом</span>
           </div>

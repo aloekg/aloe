@@ -39,7 +39,7 @@ export default function SortSelect({ current }: { current: SortValue }) {
         id="sort"
         value={current}
         onChange={(e) => onChange(e.target.value as SortValue)}
-        className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 hover:cursor-pointer"
+        className="text-sm border border-gray-500 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-700 focus:border-green-700 hover:cursor-pointer"
       >
         {OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>

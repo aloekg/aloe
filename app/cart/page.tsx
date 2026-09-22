@@ -39,7 +39,7 @@ export default function CartPage() {
         <MobileHeader title="Корзина" />
         <MainContainer className="text-center py-16 pt-28">
           <p className="text-gray-500 text-lg">Корзина пуста</p>
-          <Link href="/catalog" className="text-green-600 text-sm mt-2 inline-block hover:underline">
+          <Link href="/catalog" className="text-green-700 text-sm mt-2 inline-block hover:underline">
             Перейти в каталог
           </Link>
         </MainContainer>
@@ -72,7 +72,7 @@ export default function CartPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium line-clamp-3 mb-1">{item.name}</p>
                 <div className="flex justify-between items-center">
-                  <p className="text-sm text-green-600 font-medium md:font-bold">
+                  <p className="text-sm text-green-700 font-medium md:font-bold">
                     {item.price} <Currency />
                   </p>
                   <QuantityStepper
@@ -106,7 +106,7 @@ export default function CartPage() {
         <div className="mt-6 md:border-t md:pt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-gray-500 text-sm">Итого:</p>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-green-700">
               {total()} <Currency />
             </p>
           </div>

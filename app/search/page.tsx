@@ -30,7 +30,7 @@ export default async function SearchPage({
           <MobileSearchInput searchPath="/search" />
         </MobileHeader>
         <MainContainer>
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-gray-500">
             <p className="text-lg">Введите название товара для поиска</p>
           </div>
         </MainContainer>
