@@ -68,7 +68,7 @@ export default function OrderDeliveryEditor({
         value={type}
         onChange={(e) => setType(e.target.value)}
         aria-label="Способ доставки"
-        className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        className="w-full border border-gray-500 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
       >
         {DELIVERY_OPTIONS.map((option) => (
           <option key={option.id} value={option.id}>
@@ -95,7 +95,7 @@ export default function OrderDeliveryEditor({
             value={cost}
             onChange={(e) => setCost(e.target.value)}
             aria-label="Стоимость доставки"
-            className="w-24 text-right border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-24 text-right border border-gray-500 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
           />
           <Currency />
         </div>
@@ -113,7 +113,7 @@ export default function OrderDeliveryEditor({
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {error && <span className="mr-auto text-xs text-red-500">{error}</span>}
+        {error && <span className="mr-auto text-xs text-red-600">{error}</span>}
         <Button
           type="button"
           onClick={onCancel}
@@ -125,7 +125,7 @@ export default function OrderDeliveryEditor({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          className="text-xs px-3 py-1.5 bg-green-700 text-white rounded-lg hover:bg-green-800"
         >
           {saving ? "Сохраняем..." : "Сохранить"}
         </Button>

@@ -58,7 +58,7 @@ export default function AutocompleteDropdown({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm truncate">{p.name}</p>
-            <p className="text-xs text-green-600 font-medium">
+            <p className="text-xs text-green-700 font-medium">
               {p.price} <Currency />
             </p>
           </div>

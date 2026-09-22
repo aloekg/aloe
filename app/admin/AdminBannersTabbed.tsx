@@ -17,8 +17,8 @@ export default function AdminBannersTabbed({
   return (
     <div>
       <details className="group mb-5 border border-gray-200 rounded-xl">
-        <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none text-sm font-medium text-gray-700 hover:text-green-600">
-          <HelpCircleIcon className="size-4 shrink-0 text-gray-400 group-hover:text-green-600" />
+        <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none text-sm font-medium text-gray-700 hover:text-green-700">
+          <HelpCircleIcon className="size-4 shrink-0 text-gray-500 group-hover:text-green-700" />
           Инструкция: как загружать баннеры
           <ChevronDownIcon className="size-4 ml-auto shrink-0 transition-transform group-open:rotate-180" />
         </summary>
@@ -40,7 +40,7 @@ export default function AdminBannersTabbed({
               href="https://squoosh.app/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-green-600 underline hover:text-green-700"
+              className="text-green-700 underline hover:text-green-700"
             >
               squoosh.app
             </a>
@@ -70,7 +70,7 @@ export default function AdminBannersTabbed({
           onClick={() => setTab("desktop")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === "desktop"
-              ? "border-green-600 text-green-600"
+              ? "border-green-600 text-green-700"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -80,7 +80,7 @@ export default function AdminBannersTabbed({
           onClick={() => setTab("mobile")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === "mobile"
-              ? "border-green-600 text-green-600"
+              ? "border-green-600 text-green-700"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >

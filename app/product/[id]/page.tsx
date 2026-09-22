@@ -171,7 +171,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           />
           {label && (
             <div className="absolute top-3 left-3">
-              <span className={`${label.cls} text-white text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
+              <span className={`${label.cls} text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
             </div>
           )}
           {discount && (
@@ -183,7 +183,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div className="flex flex-col">
-          <Link href={catalogHref} className="text-sm text-green-600 hover:underline mb-2 w-fit">
+          <Link href={catalogHref} className="text-sm text-green-700 hover:underline mb-2 w-fit">
             {product.category}
           </Link>
 
@@ -192,7 +192,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           {brandInfo && (
             <p className="text-sm text-gray-500 mb-4">
               Производитель:{" "}
-              <Link href={`/brands/${brandInfo.slug}`} className="text-green-600 hover:underline">
+              <Link href={`/brands/${brandInfo.slug}`} className="text-green-700 hover:underline">
                 {brandInfo.name}
               </Link>
             </p>
@@ -203,7 +203,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-lg text-gray-400 line-through">
+              <span className="text-lg text-gray-500 line-through">
                 {product.old_price} <Currency />
               </span>
             )}
@@ -232,7 +232,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-400 line-through whitespace-nowrap">
+              <span className="text-xs text-gray-500 line-through whitespace-nowrap">
                 {product.old_price} <Currency />
               </span>
             )}

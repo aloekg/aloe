@@ -56,7 +56,7 @@ export default function ProfileTabs({
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t ? "border-green-600 text-green-700" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
             {t === "profile" ? "Личные данные" : `История заказов${totalOrders > 0 ? ` (${totalOrders})` : ""}`}
@@ -76,7 +76,7 @@ export default function ProfileTabs({
       {tab === "orders" && (
         <>
           {orders.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center">Заказов пока нет.</p>
+            <p className="text-gray-500 text-sm text-center">Заказов пока нет.</p>
           ) : (
             <>
               <div className="flex flex-col gap-4">
@@ -86,7 +86,7 @@ export default function ProfileTabs({
                     <div key={order.id} className="border border-gray-300 rounded-xl p-4">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-gray-500">
                             {new Date(order.created_at ?? 0).toLocaleDateString("ru-RU", {
                               day: "numeric",
                               month: "long",

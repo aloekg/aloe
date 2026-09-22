@@ -45,9 +45,9 @@ export default function ProfileForm({ initial }: Props) {
   }
 
   const inputCls = (active: boolean) =>
-    `w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm transition-colors ${
+    `w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm transition-colors ${
       active
-        ? "focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+        ? "focus:outline-none focus:ring-2 focus:ring-green-700 bg-white"
         : "bg-gray-50 text-gray-500 cursor-default"
     }`;
 
@@ -63,7 +63,7 @@ export default function ProfileForm({ initial }: Props) {
       </div>
 
       {!editing && !initial.name && !initial.phone && !initial.address && (
-        <p className="text-sm text-gray-400">Данные не заполнены. Нажмите «Изменить» чтобы добавить.</p>
+        <p className="text-sm text-gray-500">Данные не заполнены. Нажмите «Изменить» чтобы добавить.</p>
       )}
 
       <div>
@@ -102,8 +102,8 @@ export default function ProfileForm({ initial }: Props) {
         />
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {saved && <p className="text-sm text-green-600">Данные сохранены ✓</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {saved && <p className="text-sm text-green-700">Данные сохранены ✓</p>}
 
       {editing && (
         <div className="flex gap-2">

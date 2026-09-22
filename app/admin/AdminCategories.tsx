@@ -211,7 +211,7 @@ export default function AdminCategories({
                 )}
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">{parent.name}</span>
-                  <span className="text-xs text-gray-400 ml-2">{parent.slug}</span>
+                  <span className="text-xs text-gray-500 ml-2">{parent.slug}</span>
                 </div>
                 <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
                   <Button
@@ -252,7 +252,7 @@ export default function AdminCategories({
                       <GripVerticalIcon className="size-4 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
                       <div className="flex-1 min-w-0">
                         <span className="text-sm text-gray-700">{sub.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">{sub.slug}</span>
+                        <span className="text-xs text-gray-500 ml-2">{sub.slug}</span>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
@@ -291,7 +291,7 @@ export default function AdminCategories({
                         <GripVerticalIcon className="size-4 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-gray-600">{subsub.name}</span>
-                          <span className="text-xs text-gray-400 ml-2">{subsub.slug}</span>
+                          <span className="text-xs text-gray-500 ml-2">{subsub.slug}</span>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="icon" size="sm" onClick={() => openEdit(subsub)}>
@@ -328,7 +328,7 @@ export default function AdminCategories({
               className={inp}
               placeholder="bytovaya-khimiya"
             />
-            <p className="text-xs text-gray-400 mt-1">Используется в URL: /catalog/slug</p>
+            <p className="text-xs text-gray-500 mt-1">Используется в URL: /catalog/slug</p>
           </Field>
 
           <Field label="Название *">
@@ -365,7 +365,7 @@ export default function AdminCategories({
                   );
                 })}
             </select>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-500 mt-1">
               Выберите подкатегорию, чтобы создать под-подкатегорию (используется только для группировки товаров на
               странице подкатегории, отдельной страницы у неё не будет)
             </p>
@@ -417,10 +417,10 @@ export default function AdminCategories({
                     const file = e.dataTransfer.files?.[0];
                     if (file && file.type.startsWith("image/")) handleImageFile(file);
                   }}
-                  className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-green-500 hover:text-green-600 transition-colors cursor-pointer select-none py-8"
+                  className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-600 hover:text-green-700 transition-colors cursor-pointer select-none py-8"
                 >
                   {uploading ? (
-                    <Loader2Icon className="size-6 animate-spin text-green-600" />
+                    <Loader2Icon className="size-6 animate-spin text-green-700" />
                   ) : (
                     <>
                       <ImagePlusIcon className="size-6" />

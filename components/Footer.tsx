@@ -18,7 +18,7 @@ export default function Footer() {
 
         <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className="hover:text-green-600 transition-colors">
+            <Link key={link.href} href={link.href} className="hover:text-green-700 transition-colors">
               {link.label}
             </Link>
           ))}
@@ -28,12 +28,12 @@ export default function Footer() {
             client-navigate. `nofollow` keeps the old shop's duplicated catalogue from competing with
             this one in search, and it opens in the same tab because switching versions is the intent.
           */}
-          <a href={LEGACY_SITE_URL} rel="nofollow" className="hover:text-green-600 transition-colors">
+          <a href={LEGACY_SITE_URL} rel="nofollow" className="hover:text-green-700 transition-colors">
             Перейти на старую версию сайта
           </a>
         </nav>
 
-        <span className="text-sm text-gray-400">© {new Date().getFullYear()} Aloe.kg</span>
+        <span className="text-sm text-gray-500">© {new Date().getFullYear()} Aloe.kg</span>
       </Container>
     </footer>
   );

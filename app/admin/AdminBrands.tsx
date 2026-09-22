@@ -97,7 +97,7 @@ export default function AdminBrands({
             <div key={brand.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 group">
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium">{brand.name}</span>
-                <span className="text-xs text-gray-400 ml-2">{brand.slug}</span>
+                <span className="text-xs text-gray-500 ml-2">{brand.slug}</span>
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button variant="icon" size="sm" onClick={() => openEdit(brand)} aria-label="Редактировать">
@@ -135,7 +135,7 @@ export default function AdminBrands({
               className={inp}
               placeholder="garnier"
             />
-            <p className="text-xs text-gray-400 mt-1">Используется в URL: /brands/slug</p>
+            <p className="text-xs text-gray-500 mt-1">Используется в URL: /brands/slug</p>
           </Field>
 
           <Field label="Название *">

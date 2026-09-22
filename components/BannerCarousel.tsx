@@ -124,8 +124,8 @@ export default function BannerCarousel({
             <div className="absolute bottom-0 left-0 right-0 flex gap-1 px-2 pb-2">
               {banners.map((_, i) => (
                 <div key={i} className="flex-1 h-1 rounded-full bg-white/40 overflow-hidden">
-                  {i < selected && <div className="h-full w-full bg-green-600" />}
-                  {i === selected && <div key={selected} className="h-full bg-green-600 animate-banner-progress" />}
+                  {i < selected && <div className="h-full w-full bg-green-700" />}
+                  {i === selected && <div key={selected} className="h-full bg-green-700 animate-banner-progress" />}
                 </div>
               ))}
             </div>

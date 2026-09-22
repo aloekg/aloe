@@ -24,7 +24,7 @@ export default function Toaster() {
           className={`
             flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
             cursor-pointer max-w-xs animate-slide-up
-            ${toast.type === "success" ? "bg-green-600 text-white" : ""}
+            ${toast.type === "success" ? "bg-green-700 text-white" : ""}
             ${toast.type === "error" ? "bg-red-500 text-white" : ""}
             ${toast.type === "info" ? "bg-gray-800 text-white" : ""}
           `}

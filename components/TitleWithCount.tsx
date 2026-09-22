@@ -18,7 +18,7 @@ export default function TitleWithCount({
     <div className={cn("flex items-baseline gap-3 mb-6", className)}>
       <Title className={titleClassname}>{children}</Title>
       {count ? (
-        <span className="hidden md:inline text-sm text-gray-400">
+        <span className="hidden md:inline text-sm text-gray-500">
           {count} {isBrands ? "производителей" : "товаров"}
         </span>
       ) : null}

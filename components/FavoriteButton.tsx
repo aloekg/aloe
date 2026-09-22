@@ -46,7 +46,7 @@ export default function FavoriteButton({ productId }: { productId: number }) {
       aria-pressed={isFav}
       disabled={!initialized}
       className={`absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-colors z-9
-        ${isFav ? "md:bg-red-50 text-red-500 md:hover:bg-red-100" : "md:bg-white/80 text-gray-400 hover:text-red-400 md:hover:bg-white"}`}
+        ${isFav ? "md:bg-red-50 text-red-500 md:hover:bg-red-100" : "md:bg-white/80 text-gray-500 hover:text-red-500 md:hover:bg-white"}`}
     >
       <Heart className="size-6 md:size-4" fill={isFav ? "currentColor" : "none"} />
     </Button>

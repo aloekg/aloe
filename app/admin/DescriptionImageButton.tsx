@@ -46,7 +46,7 @@ export default function DescriptionImageButton({ onInsert }: Props) {
       <Button
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
-        className="flex items-center gap-1 text-xs text-green-700 hover:text-green-800 disabled:text-gray-400"
+        className="flex items-center gap-1 text-xs text-green-700 hover:text-green-800 disabled:text-gray-500"
       >
         <ImagePlus className="w-3.5 h-3.5" />
         {uploading ? "Загрузка..." : "Вставить картинку"}

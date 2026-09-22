@@ -24,7 +24,7 @@ export default function LogoutButton() {
   return (
     <Button
       onClick={signOut}
-      className="flex items-center gap-2 px-4 py-2 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+      className="flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
     >
       <LogOut className="size-4" />
       <span className="hidden md:inline">Выйти из аккаунта</span>

@@ -23,7 +23,7 @@ export default function MobileHeader({
         <button
           onClick={() => router.back()}
           aria-label="Назад"
-          className={"md:hidden absolute flex items-center bg-white rounded-full text-green-600 transition-colors p-2"}
+          className={"md:hidden absolute flex items-center bg-white rounded-full text-green-700 transition-colors p-2"}
         >
           <ArrowLeft className="size-5" />
         </button>

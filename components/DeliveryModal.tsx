@@ -27,7 +27,7 @@ export default function DeliveryModal() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="p-2 text-gray-400 hover:text-green-600 transition-colors cursor-pointer"
+        className="p-2 text-gray-500 hover:text-green-700 transition-colors cursor-pointer"
         aria-label="Доставка и оплата"
         title="Доставка"
       >
@@ -53,7 +53,7 @@ export default function DeliveryModal() {
               </h2>
               <button
                 onClick={() => setOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1 text-gray-500 hover:text-gray-600 transition-colors"
                 aria-label="Закрыть"
               >
                 <X className="size-5" />

@@ -125,7 +125,7 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
         {isPending && (
           <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
             <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-gray-600 shadow-lg ring-1 ring-gray-200">
-              <Loader2Icon className="size-4 animate-spin text-green-600" />
+              <Loader2Icon className="size-4 animate-spin text-green-700" />
               Считаем…
             </div>
           </div>

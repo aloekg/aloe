@@ -28,9 +28,16 @@ export const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, "")
 /** The green everything brand-coloured keys off — matches Tailwind's green-600. */
 export const BRAND_COLOR = "#16a34a";
 
+/**
+ * `cls` carries the text colour as well as the background, because the two are chosen together:
+ * white on these backgrounds fails WCAG AA (3.76:1 on blue-500, 2.89:1 on orange-500) and the badge
+ * text is 10px, so it is "normal" text needing 4.5:1. Darkening the backgrounds instead would cost
+ * the bright accent the card is designed around; near-black on the same vivid fills reaches 4.72:1
+ * and 6.14:1. Render sites must not add a `text-*` of their own.
+ */
 export const LABEL_MAP = {
-  new: { text: "Новинка", cls: "bg-blue-500" },
-  sale: { text: "Акция", cls: "bg-orange-500" },
+  new: { text: "Новинка", cls: "bg-blue-500 text-gray-900" },
+  sale: { text: "Акция", cls: "bg-orange-500 text-gray-900" },
 } as const;
 
 export const FREE_DELIVERY_THRESHOLD = 10000;

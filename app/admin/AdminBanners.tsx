@@ -108,7 +108,7 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
       <div className="flex justify-between items-center mb-5">
         <p className="text-sm text-gray-500">
           Баннеров: {banners.length}
-          {saving && <span className="ml-2 text-gray-400">Сохранение...</span>}
+          {saving && <span className="ml-2 text-gray-500">Сохранение...</span>}
         </p>
         <input ref={fileRef} type="file" accept="image/*" onChange={onFileChange} className="hidden" />
         <Button
@@ -130,10 +130,10 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
           if (f) handleFile(f);
         }}
         onClick={() => !uploading && fileRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-green-500 hover:text-green-600 transition-colors hover:cursor-pointer select-none py-10 mb-5"
+        className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-600 hover:text-green-700 transition-colors hover:cursor-pointer select-none py-10 mb-5"
       >
         {uploading ? (
-          <Loader2Icon className="size-8 animate-spin text-green-600" />
+          <Loader2Icon className="size-8 animate-spin text-green-700" />
         ) : (
           <>
             <ImagePlusIcon className="size-8" />
@@ -165,7 +165,7 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
                   : "border-gray-100 bg-gray-50"
             }`}
           >
-            <GripVerticalIcon className="size-4 text-gray-400 shrink-0 cursor-grab active:cursor-grabbing" />
+            <GripVerticalIcon className="size-4 text-gray-500 shrink-0 cursor-grab active:cursor-grabbing" />
             <div
               className={`relative shrink-0 bg-gray-100 rounded-lg overflow-hidden ${type === "mobile" ? "w-16 aspect-5/2" : "w-40 aspect-4/1 lg:aspect-6/1"}`}
             >
@@ -179,14 +179,14 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-700 mb-1">Баннер {i + 1}</p>
-              <p className="text-xs text-gray-400 mb-1.5">{b.active ? "Активен" : "Скрыт"}</p>
+              <p className="text-xs text-gray-500 mb-1.5">{b.active ? "Активен" : "Скрыт"}</p>
               <div className="flex gap-1.5">
                 <input
                   type="url"
                   placeholder="Ссылка (необязательно)"
                   value={links[b.id] ?? ""}
                   onChange={(e) => setLinks((prev) => ({ ...prev, [b.id]: e.target.value }))}
-                  className="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-green-500"
+                  className="flex-1 min-w-0 text-xs border border-gray-500 rounded-lg px-2 py-1 focus:outline-none focus:border-green-700"
                 />
                 <Button
                   variant="icon"
@@ -203,7 +203,7 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
                       show(result.error, "error");
                     }
                   }}
-                  className={`shrink-0 ${(links[b.id] ?? "") !== (b.link ?? "") ? "text-green-600 hover:bg-green-50" : "hover:bg-gray-100"}`}
+                  className={`shrink-0 ${(links[b.id] ?? "") !== (b.link ?? "") ? "text-green-700 hover:bg-green-50" : "hover:bg-gray-100"}`}
                   title="Сохранить ссылку"
                 >
                   {savingLink[b.id] ? (

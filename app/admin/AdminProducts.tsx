@@ -262,7 +262,7 @@ export default function AdminProducts({
         <select
           value={pageSize}
           onChange={(e) => navigate({ pageSize: e.target.value })}
-          className="border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 hover:cursor-pointer"
+          className="border border-gray-500 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-700 hover:cursor-pointer"
         >
           <option value="20">20</option>
           <option value="50">50</option>

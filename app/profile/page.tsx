@@ -49,7 +49,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </div>
           <div className="flex-1">
             <p className="font-medium">{user.email}</p>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-500">
               Зарегистрирован:{" "}
               {new Date(user.created_at).toLocaleDateString("ru-RU", {
                 day: "numeric",

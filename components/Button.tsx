@@ -21,7 +21,7 @@ export default function Button({
       className={cn(
         "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
         variant === "primary" && [
-          "bg-green-600 hover:bg-green-700 disabled:hover:bg-green-600 text-white font-medium rounded-lg transition-colors",
+          "bg-green-700 hover:bg-green-800 disabled:hover:bg-green-700 text-white font-medium rounded-lg transition-colors",
           size === "sm" && "px-3 py-1.5 text-xs",
           size === "md" && "px-4 py-1.5 text-sm",
           size === "lg" && "px-4 py-2.5 text-base",
@@ -33,7 +33,7 @@ export default function Button({
           size === "lg" && "px-4 py-2.5 text-base",
         ],
         variant === "ghost" && [
-          "text-green-600 hover:text-green-700 hover:underline",
+          "text-green-700 hover:text-green-700 hover:underline",
           size === "sm" && "text-xs",
           size === "md" && "text-sm",
           size === "lg" && "text-base",
@@ -44,8 +44,8 @@ export default function Button({
           size === "md" && "w-8 h-8",
           size === "lg" && "w-10 h-10",
           iconColor === "default" && "text-gray-500 hover:bg-gray-200 hover:text-gray-700",
-          iconColor === "danger" && "text-gray-400 hover:bg-red-100 hover:text-red-600",
-          iconColor === "green" && "text-gray-400 hover:bg-green-100 hover:text-green-600",
+          iconColor === "danger" && "text-gray-500 hover:bg-red-100 hover:text-red-600",
+          iconColor === "green" && "text-gray-500 hover:bg-green-100 hover:text-green-700",
         ],
         className,
       )}

@@ -27,7 +27,7 @@ export default function PasswordHints({ password }: { password: string }) {
         {rules.map((rule) => (
           <li
             key={rule.label}
-            className={cn("flex items-center gap-1.5 text-xs", rule.ok ? "text-green-600" : "text-gray-500")}
+            className={cn("flex items-center gap-1.5 text-xs", rule.ok ? "text-green-700" : "text-gray-500")}
           >
             {rule.ok ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Circle className="w-3.5 h-3.5 shrink-0" />}
             {rule.label}

@@ -52,7 +52,7 @@ export default function AnalyticsBarChart({
     <div className="flex gap-2">
       {/* y axis: three labels, enough to read a bar's height off the grid without a ruler */}
       <div
-        className="relative w-12 shrink-0 text-[10px] text-gray-400 text-right tabular-nums"
+        className="relative w-12 shrink-0 text-[10px] text-gray-500 text-right tabular-nums"
         style={{ height: PLOT_HEIGHT }}
       >
         {[1, 0.5, 0].map((fraction) => (
@@ -99,7 +99,7 @@ export default function AnalyticsBarChart({
                           ? "bg-gray-200"
                           : point.muted
                             ? "bg-gray-300 group-hover:bg-gray-400"
-                            : "bg-green-600/80 group-hover:bg-green-600",
+                            : "bg-green-700/80 group-hover:bg-green-700",
                       )}
                       style={{ height: point.value > 0 ? `max(2px, ${height}%)` : 2 }}
                     />
@@ -125,7 +125,7 @@ export default function AnalyticsBarChart({
               <div
                 key={point.key}
                 className={cn(
-                  "min-w-0 flex-1 text-[10px] whitespace-nowrap text-gray-400",
+                  "min-w-0 flex-1 text-[10px] whitespace-nowrap text-gray-500",
                   // A centred label on the first or last bar hangs half of itself off the plot.
                   index === 0 ? "text-left" : index === series.length - 1 ? "text-right" : "text-center",
                 )}

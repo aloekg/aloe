@@ -39,7 +39,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           />
           {label && (
             <div className="absolute top-3 left-3">
-              <span className={`${label.cls} text-white text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
+              <span className={`${label.cls} text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
             </div>
           )}
           {discount && (
@@ -62,7 +62,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-lg text-gray-400 line-through">
+              <span className="text-lg text-gray-500 line-through">
                 {product.old_price} <Currency />
               </span>
             )}
@@ -82,7 +82,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
 
           {product.description && <ProductDescription text={product.description} />}
 
-          <a href={productHref} className="text-sm text-green-600 hover:underline mt-auto pt-4 w-fit">
+          <a href={productHref} className="text-sm text-green-700 hover:underline mt-auto pt-4 w-fit">
             Открыть страницу товара →
           </a>
         </div>
@@ -95,7 +95,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-400 line-through whitespace-nowrap">
+              <span className="text-xs text-gray-500 line-through whitespace-nowrap">
                 {product.old_price} <Currency />
               </span>
             )}

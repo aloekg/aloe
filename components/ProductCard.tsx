@@ -24,7 +24,7 @@ function ProductBadge({ label }: { label: ProductListItem["label"] }) {
   const { text, cls } = LABEL_MAP[label];
   return (
     <div className="absolute top-1.5 left-1.5 z-10">
-      <span className={`${cls} text-white text-[10px] font-semibold px-1.5 py-0.5 rounded`}>{text}</span>
+      <span className={`${cls} text-[10px] font-semibold px-1.5 py-0.5 rounded`}>{text}</span>
     </div>
   );
 }
@@ -57,13 +57,13 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
           <p className="flex-1 text-sm font-medium line-clamp-3 w-fit" title={p.name}>
             {p.name}
           </p>
-          {p.brand_name && <p className="text-xs text-gray-400 mt-0.5 truncate">{p.brand_name}</p>}
+          {p.brand_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.brand_name}</p>}
           <div className="flex items-baseline gap-1.5 mt-1">
             <p className="text-base font-bold">
               {p.price} <Currency />
             </p>
             {p.old_price && (
-              <p className="text-sm text-gray-400 line-through">
+              <p className="text-sm text-gray-500 line-through">
                 {p.old_price} <Currency />
               </p>
             )}

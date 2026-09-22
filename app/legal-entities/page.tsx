@@ -37,7 +37,7 @@ export default function LegalEntitiesPage() {
             <div className="space-y-3">
               {conditions.map((item) => (
                 <div key={item} className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 text-green-700 shrink-0" />
                   <span className="text-sm text-gray-700">{item}</span>
                 </div>
               ))}

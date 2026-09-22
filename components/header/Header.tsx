@@ -18,7 +18,7 @@ export default function Header({ className }: { className?: string }) {
 
         <div className="hidden md:flex items-center gap-2 text-gray-600">
           <DeliveryModal />
-          <Link href="/favorites" className="p-2 text-gray-400 hover:text-red-400 transition-colors" title="Избранное">
+          <Link href="/favorites" className="p-2 text-gray-500 hover:text-red-500 transition-colors" title="Избранное">
             <Heart className="size-5" />
           </Link>
           <CartIcon />
