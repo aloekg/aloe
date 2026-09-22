@@ -69,7 +69,9 @@ Note: the `discount` label/route from earlier iterations has been removed — `P
 
 Note: "popular" is no longer a manually-set admin label. `products.purchase_count` is incremented atomically (via the `increment_product_purchase_counts` Postgres RPC) in `app/checkout/actions.ts` when an order is placed, and `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`). Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been placed.
 
-**Quick-view modal:** `/product/[id]` also renders as a modal overlay via a parallel route — `app/@modal/(.)product/[id]/page.tsx` intercepts client-side navigation from `ProductCard`'s `<Link>` and renders `components/ProductModal.tsx` (closes on `Esc`/backdrop click via `router.back()`). A direct/hard navigation still renders the full `/product/[id]` page. `app/@modal/default.tsx` renders `null` when no intercept matches.
+**Quick-view modal:** `/product/[id]` also renders as a modal overlay via a parallel route — `app/@modal/(.)product/[id]/page.tsx` intercepts client-side navigation from `ProductCard`'s `<Link>` and renders it inside `components/ProductModal.tsx` (closes on `Esc`/backdrop click via `router.back()`). A direct/hard navigation still renders the full `/product/[id]` page. `app/@modal/default.tsx` renders `null` when no intercept matches. The shell lives in `app/@modal/(.)product/[id]/layout.tsx`, not in the page: `page`/`loading`/`error` swap places inside a Suspense boundary, and wrapping each of them would remount the sheet and replay its open animation when the product data lands. That is also why the sheet has a fixed height rather than a `max-h` — it must not resize when the skeleton is replaced — and why the folder has its own `not-found.tsx`.
+
+Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `AutocompleteDropdown`). The modal is `position: fixed`, which Next's post-navigation scroll handler skips (`shouldSkipElement` in `layout-router`), so with nothing left to consider it falls back to `documentElement.scrollTop = 0` — opening a quick view sent the grid behind it to the top, which showed up on closing and reset the category page's sticky subcategory bar out of its scrolled layout.
 
 **Category page (`/catalog/[slug]`):** renders every subcategory of the top-level category as its own section in one `VirtualCategoryContent` window-virtualized scroll (`@tanstack/react-virtual`). `SubcategoryFilter` renders a pill per subcategory; clicking one calls `scrollToSection` (`lib/section-scroll.ts`) to jump to it, and the pill that's currently scrolled into view is tracked via `lib/active-section.ts` pub/sub and highlighted (`useActiveSectionSync`). As the active section changes, `SubcategoryFilter` mirrors it into the URL as `?sub=<subcategorySlug>` via `history.replaceState` directly (not `router.replace`) so the address bar stays shareable/bookmarkable without forcing a server re-render on every scroll tick. Landing on `/catalog/[slug]?sub=<slug>` (a shared link, a reload, or the breadcrumb/sitemap links below) resolves that slug to a subcategory id server-side and passes it to `VirtualCategoryContent` as `initialSectionId`, which scrolls to it on mount — reasserting the scroll position for the first ~20 frames to win a race against the App Router's own post-navigation scroll handling, which otherwise snaps it back to the top a couple of frames after mount.
 
@@ -379,6 +381,7 @@ still has four neighbours to show. The rendered result is identical to the old q
 - **cart store** (`store/cart.ts`) — cart items array, persisted to localStorage (key `"cart"`, only `items` is persisted); syncs with DB when user logs in (local items win on conflict, DB-only items appended, `reconcileCartItems` pushes local-only items back).
 - **favorites store** (`store/favorites.ts`) — product IDs; syncs with DB on auth. Persisted to localStorage (key `"favorites"`, `ids` + `userId`) so a returning customer's hearts are right on first paint and survive an offline reload; `userId` rides along because the ids belong to one account, and they are dropped whenever a different user signs in or the current one signs out. Unlike the cart there is nothing to keep for a guest — `FavoriteButton` sends them to `/auth` rather than storing anything. A failed load leaves `initialized` false, which both keeps the button disabled and lets the next auth event retry.
 - **toast store** (`store/toast.ts`) — notification queue, auto-dismiss after 3.5s, keeps at most 3 toasts.
+- **auth modal store** (`store/auth-modal.ts`) — whether the sign-in sheet is open, plus the product a guest was trying to favourite when it opened. Not persisted, like the toast store. `FavoriteButton` opens it instead of navigating to `/auth`, and `AuthModal` presses that heart once `favorites` reports the account's list loaded — adding any earlier writes into a store the `setUser` load is about to replace. A Google sign-in leaves the site, so that pending heart does not survive it; the sheet passes the current path as `next` so the customer at least comes back where they were.
 
 ## Server Actions
 
@@ -617,6 +620,10 @@ until it lands, because `loading.tsx` only covers entering the route, not a sear
 
 **Drag-to-reorder** for admin categories and banners shares one hook, `useDragReorder()` — tracks drag/drop indices per group and hands back a reordered array; the caller persists the new `sort_order` via a server action (`reorderSubcategories()` / `reorderBanners()`).
 
+**One sheet component.** `components/Sheet.tsx` is the bottom sheet on a phone and the centred dialog from `md` up, with the scroll lock, focus trap, `Esc` handling and the enter/exit animation in one place; `ProductModal` and `AuthModal` are thin wrappers over it. Mounted means open — the panel animates in on mount and out through its own `close()`, and `onClose` runs only after the exit, which is what lets the quick view defer `router.back()` until the sheet is off screen. `requestClose` is for dismissing it from outside (the sign-in sheet closes itself once the session lands) rather than unmounting it mid-animation. It transitions `translate`/`scale`, **not** `transform`: Tailwind 4 compiles those utilities to the standalone CSS properties, so a `transition-[transform,…]` names a property nothing animates and the sheet appears without moving.
+
+**The sign-in form is shared, not duplicated.** `app/auth/AuthForm.tsx` holds the login/register/reset form with no page chrome; `/auth` wraps it in `MainContainer` and supplies the confirmation banners (it owns the `useSearchParams` read, so the form can be used where there is no Suspense boundary), and `AuthModal` wraps it in a sheet, passes `onAuthenticated` so a successful sign-in closes the sheet instead of pushing to `/`, and loads it with `next/dynamic` — it is mounted in the root layout on every page but only ever opened by a guest.
+
 **Product quick-view modal:** `ProductCard` links to `/product/[id]` normally; the `@modal` parallel route (`app/@modal/(.)product/[id]/page.tsx`) intercepts that soft navigation and renders it inside `ProductModal` instead, so browsing stays on the originating grid/carousel while the URL still updates. See "Quick-view modal" note under App Routes.
 
 **Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
@@ -774,12 +781,12 @@ orders, and Serwist — the offline route the Next guide points at — still req
 project builds with Turbopack. `themeColor` lives in `viewport`, not `metadata`, where Next has
 deprecated it since v14.
 
-`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/auth`, `/profile`
-and after a completed order. `/auth` earns its place for a reason the card does not state: an
-installed iOS web app gets its own storage container, separate from Safari's, so a session
-started in the browser does not follow it in, and installing first means signing in once rather
-than twice. That is worth knowing here and not worth explaining to a customer, so the copy is
-the same on all three pages. iOS is handled alone because it has no install API at all — Safari offers
+`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/auth`, `/profile`,
+in the sign-in sheet and after a completed order. The two sign-in surfaces earn it for a reason
+the card does not state: an installed iOS web app gets its own storage container, separate from
+Safari's, so a session started in the browser does not follow it in, and installing first means
+signing in once rather than twice. That is worth knowing here and not worth explaining to a
+customer, so the copy is the same everywhere it appears. iOS is handled alone because it has no install API at all — Safari offers
 nothing to call, so a site can only describe the share sheet, while Android fires
 `beforeinstallprompt` and wants a button instead. It is also the one component that reads the user
 agent, for the same reason: "show the iOS steps" is not a capability a browser can be asked about.

@@ -41,7 +41,13 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
     // screen-reader users.
     <div className={`relative flex flex-col rounded-lg overflow-hidden ${className}`}>
       <FavoriteButton productId={p.id} />
-      <Link className="flex-1 flex flex-col" href={productHref}>
+      {/* `scroll={false}`: this link is intercepted into the quick-view modal, and the modal is
+          `position: fixed`, which Next's post-navigation scroll handler skips (layout-router's
+          `shouldSkipElement`). With no sibling left to consider it falls back to
+          `documentElement.scrollTop = 0`, so opening a quick view silently sent the grid behind
+          it back to the top — visible on closing, and it reset the category page's sticky
+          subcategory bar out of its scrolled layout. */}
+      <Link className="flex-1 flex flex-col" href={productHref} scroll={false}>
         <div className="relative p-2 aspect-square shadow-xs rounded-lg">
           <Image
             src={cardImage}

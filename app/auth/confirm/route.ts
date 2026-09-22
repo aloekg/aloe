@@ -19,7 +19,13 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
-    if (error) return NextResponse.redirect(`${resolvedOrigin}/auth?error=confirmation_failed`);
+    if (error) {
+      // The customer only ever sees "ссылка недействительна", which is right for them and useless
+      // for us: an expired token, a token already spent and a project misconfiguration all land
+      // here. The reason goes to the server log instead.
+      console.error("[auth/confirm] verifyOtp failed:", type, error.message);
+      return NextResponse.redirect(`${resolvedOrigin}/auth?error=confirmation_failed`);
+    }
 
     // Recovery is the one type whose session IS the point. verifyOtp is what proves the person
     // reading the mailbox owns the account, and /auth/new-password spends that proof on a single
@@ -51,8 +57,13 @@ export async function GET(request: NextRequest) {
       await supabase.auth.signOut({ scope: "local" });
       return NextResponse.redirect(`${resolvedOrigin}/auth?confirmed=true`);
     }
+    console.error("[auth/confirm] code exchange failed:", error.message);
     return NextResponse.redirect(`${resolvedOrigin}/auth?error=confirmation_failed`);
   }
 
+  // Neither an OTP nor a code: an OAuth provider that refused, or a link that lost its query.
+  // `error`/`error_description` are the provider's own, and they are the only account of what
+  // went wrong that exists.
+  console.error("[auth/confirm] no token_hash or code:", Object.fromEntries(searchParams));
   return NextResponse.redirect(`${resolvedOrigin}/auth?error=confirmation_failed`);
 }

@@ -41,7 +41,8 @@ export default function AutocompleteDropdown({
         <Button
           key={p.id}
           onClick={() => {
-            router.push(`/product/${p.id}`);
+            // Same intercepted modal as ProductCard — see the note there on `scroll: false`.
+            router.push(`/product/${p.id}`, { scroll: false });
             onSelect();
           }}
           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left"
