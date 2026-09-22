@@ -26,6 +26,14 @@
     padding-right: env(safe-area-inset-right);
   }
 
+  /* SearchInput is `type="search"` for the role and the phone keyboard's search key, but draws its
+     own clear button — one that also returns to the unfiltered URL. WebKit's native one would sit
+     on top of it and only empty the field. */
+  ::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   ::-webkit-scrollbar {
     width: 4px;
     height: 2px;

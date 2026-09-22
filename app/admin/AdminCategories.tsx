@@ -322,53 +322,70 @@ export default function AdminCategories({
           error={error}
         >
           <Field label="Slug *">
-            <input
-              value={editing.slug}
-              onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-              className={inp}
-              placeholder="bytovaya-khimiya"
-            />
-            <p className="text-xs text-gray-500 mt-1">Используется в URL: /catalog/slug</p>
+            {(id) => (
+              <>
+                <input
+                  aria-describedby={`${id}-hint`}
+                  id={id}
+                  value={editing.slug}
+                  onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                  className={inp}
+                  placeholder="bytovaya-khimiya"
+                />
+                <p id={`${id}-hint`} className="text-xs text-gray-500 mt-1">
+                  Используется в URL: /catalog/slug
+                </p>
+              </>
+            )}
           </Field>
 
           <Field label="Название *">
-            <input
-              value={editing.name}
-              onChange={(e) => set("name", e.target.value)}
-              className={inp}
-              placeholder="Бытовая химия"
-            />
+            {(id) => (
+              <input
+                id={id}
+                value={editing.name}
+                onChange={(e) => set("name", e.target.value)}
+                className={inp}
+                placeholder="Бытовая химия"
+              />
+            )}
           </Field>
 
           <Field label="Родительская категория">
-            <select
-              value={editing.parent_id ?? ""}
-              onChange={(e) => set("parent_id", e.target.value ? parseInt(e.target.value) : null)}
-              className={inp}
-            >
-              <option value="">— Верхний уровень</option>
-              {parents
-                .filter((p) => p.id !== editing.id)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              {subs
-                .filter((s) => s.id !== editing.id && s.parent_id !== editing.id)
-                .map((s) => {
-                  const parentName = parents.find((p) => p.id === s.parent_id)?.name;
-                  return (
-                    <option key={s.id} value={s.id}>
-                      {parentName ? `${parentName} — ${s.name}` : s.name}
-                    </option>
-                  );
-                })}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Выберите подкатегорию, чтобы создать под-подкатегорию (используется только для группировки товаров на
-              странице подкатегории, отдельной страницы у неё не будет)
-            </p>
+            {(id) => (
+              <>
+                <select
+                  aria-describedby={`${id}-hint`}
+                  id={id}
+                  value={editing.parent_id ?? ""}
+                  onChange={(e) => set("parent_id", e.target.value ? parseInt(e.target.value) : null)}
+                  className={inp}
+                >
+                  <option value="">— Верхний уровень</option>
+                  {parents
+                    .filter((p) => p.id !== editing.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  {subs
+                    .filter((s) => s.id !== editing.id && s.parent_id !== editing.id)
+                    .map((s) => {
+                      const parentName = parents.find((p) => p.id === s.parent_id)?.name;
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {parentName ? `${parentName} — ${s.name}` : s.name}
+                        </option>
+                      );
+                    })}
+                </select>
+                <p id={`${id}-hint`} className="text-xs text-gray-500 mt-1">
+                  Выберите подкатегорию, чтобы создать под-подкатегорию (используется только для группировки товаров на
+                  странице подкатегории, отдельной страницы у неё не будет)
+                </p>
+              </>
+            )}
           </Field>
 
           {!editing.parent_id && (

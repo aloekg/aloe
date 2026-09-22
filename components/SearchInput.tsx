@@ -22,8 +22,20 @@ export default function SearchInput({ value, onChange, searchPath, loading, inpu
   return (
     <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500 pointer-events-none" />
+      {/*
+        `aria-label` rather than a visible <label>: the field had neither, and a placeholder is not
+        a name — it is announced inconsistently and disappears the moment anything is typed, so a
+        screen reader user who paused mid-query had nothing left telling them what the field was.
+        It sits before the spread so a caller can still override it.
+
+        `type="search"` gives the field its real role and the phone keyboard its search key. Its
+        one side effect is WebKit's own clear button, which app/globals.css hides: it would sit on
+        top of the X below, and clearing through it would empty the field without the navigation
+        `handleClear` does, leaving results on screen for a query no longer in the box.
+      */}
       <input
-        type="text"
+        type="search"
+        aria-label="Поиск товаров"
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
         placeholder="Я ищу..."

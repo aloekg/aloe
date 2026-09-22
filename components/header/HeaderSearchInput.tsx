@@ -36,7 +36,12 @@ export default function HeaderSearchInput({ className }: { className?: string })
   };
 
   return (
-    <form ref={searchRef} onSubmit={handleSubmit} className={cn("relative flex flex-1", className)}>
+    <form
+      ref={searchRef}
+      onSubmit={handleSubmit}
+      role="search"
+      className={cn("relative flex flex-1", className)}
+    >
       <SearchInput searchPath="/search" value={query} onChange={setQuery} loading={loading} />
 
       {open && <AutocompleteDropdown results={results} loading={pending} onSelect={() => setQuery("")} />}

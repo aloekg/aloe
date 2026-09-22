@@ -77,7 +77,9 @@ export default async function CategoryPage({
   return (
     <>
       <MobileHeader title={category.name} withBackButton />
-      <h1 className="sr-only md:not-sr-only md:container md:mx-auto md:px-4 md:pt-2 md:text-2xl md:font-bold">
+      {/* `hidden`, not `sr-only`: MobileHeader now carries the <h1> below md, and an `sr-only` copy
+          here would make the same name a second heading on a phone. */}
+      <h1 className="hidden md:block md:container md:mx-auto md:px-4 md:pt-2 md:text-2xl md:font-bold">
         {category.name}
       </h1>
 

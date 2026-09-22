@@ -129,22 +129,33 @@ export default function AdminBrands({
           error={error}
         >
           <Field label="Slug *">
-            <input
-              value={editing.slug}
-              onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-              className={inp}
-              placeholder="garnier"
-            />
-            <p className="text-xs text-gray-500 mt-1">Используется в URL: /brands/slug</p>
+            {(id) => (
+              <>
+                <input
+                  aria-describedby={`${id}-hint`}
+                  id={id}
+                  value={editing.slug}
+                  onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                  className={inp}
+                  placeholder="garnier"
+                />
+                <p id={`${id}-hint`} className="text-xs text-gray-500 mt-1">
+                  Используется в URL: /brands/slug
+                </p>
+              </>
+            )}
           </Field>
 
           <Field label="Название *">
-            <input
-              value={editing.name}
-              onChange={(e) => set("name", e.target.value)}
-              className={inp}
-              placeholder="Garnier"
-            />
+            {(id) => (
+              <input
+                id={id}
+                value={editing.name}
+                onChange={(e) => set("name", e.target.value)}
+                className={inp}
+                placeholder="Garnier"
+              />
+            )}
           </Field>
         </AdminDrawer>
       )}

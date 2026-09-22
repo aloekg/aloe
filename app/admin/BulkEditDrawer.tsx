@@ -89,21 +89,24 @@ export default function BulkEditDrawer({ count, brands, categories, saving, erro
         />
         <div className="flex-1">
           <Field label="Категория">
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : "")}
-              disabled={!enabled.category_id}
-              className={inp}
-            >
-              <option value="" disabled>
-                Выберите
-              </option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id} disabled={!c.selectable}>
-                  {"--".repeat(c.depth) + c.name}
+            {(id) => (
+              <select
+                id={id}
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : "")}
+                disabled={!enabled.category_id}
+                className={inp}
+              >
+                <option value="" disabled>
+                  Выберите
                 </option>
-              ))}
-            </select>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id} disabled={!c.selectable}>
+                    {"--".repeat(c.depth) + c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
         </div>
       </div>
@@ -117,19 +120,22 @@ export default function BulkEditDrawer({ count, brands, categories, saving, erro
         />
         <div className="flex-1">
           <Field label="Производитель">
-            <select
-              value={brandId ?? ""}
-              onChange={(e) => setBrandId(e.target.value ? Number(e.target.value) : null)}
-              disabled={!enabled.brand_id}
-              className={inp}
-            >
-              <option value="">Не указан</option>
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+            {(id) => (
+              <select
+                id={id}
+                value={brandId ?? ""}
+                onChange={(e) => setBrandId(e.target.value ? Number(e.target.value) : null)}
+                disabled={!enabled.brand_id}
+                className={inp}
+              >
+                <option value="">Не указан</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
         </div>
       </div>
@@ -143,15 +149,18 @@ export default function BulkEditDrawer({ count, brands, categories, saving, erro
         />
         <div className="flex-1">
           <Field label="Цена">
-            <input
-              type="number"
-              value={price || ""}
-              onChange={(e) => setPrice(Number(e.target.value))}
-              disabled={!enabled.price}
-              className={inp}
-              placeholder="0"
-              min={0}
-            />
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                value={price || ""}
+                onChange={(e) => setPrice(Number(e.target.value))}
+                disabled={!enabled.price}
+                className={inp}
+                placeholder="0"
+                min={0}
+              />
+            )}
           </Field>
         </div>
       </div>
@@ -165,15 +174,18 @@ export default function BulkEditDrawer({ count, brands, categories, saving, erro
         />
         <div className="flex-1">
           <Field label="Старая цена">
-            <input
-              type="number"
-              value={oldPrice ?? ""}
-              onChange={(e) => setOldPrice(e.target.value ? Number(e.target.value) : null)}
-              disabled={!enabled.old_price}
-              className={inp}
-              placeholder="0"
-              min={0}
-            />
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                value={oldPrice ?? ""}
+                onChange={(e) => setOldPrice(e.target.value ? Number(e.target.value) : null)}
+                disabled={!enabled.old_price}
+                className={inp}
+                placeholder="0"
+                min={0}
+              />
+            )}
           </Field>
         </div>
       </div>
@@ -187,18 +199,21 @@ export default function BulkEditDrawer({ count, brands, categories, saving, erro
         />
         <div className="flex-1">
           <Field label="Метка">
-            <select
-              value={label}
-              onChange={(e) => setLabel(e.target.value as typeof label)}
-              disabled={!enabled.label}
-              className={inp}
-            >
-              {LABELS.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
+            {(id) => (
+              <select
+                id={id}
+                value={label}
+                onChange={(e) => setLabel(e.target.value as typeof label)}
+                disabled={!enabled.label}
+                className={inp}
+              >
+                {LABELS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
         </div>
       </div>
@@ -212,15 +227,18 @@ export default function BulkEditDrawer({ count, brands, categories, saving, erro
         />
         <div className="flex-1">
           <Field label="Опубликован">
-            <select
-              value={published ? "yes" : "no"}
-              onChange={(e) => setPublished(e.target.value === "yes")}
-              disabled={!enabled.published}
-              className={inp}
-            >
-              <option value="yes">Да</option>
-              <option value="no">Нет</option>
-            </select>
+            {(id) => (
+              <select
+                id={id}
+                value={published ? "yes" : "no"}
+                onChange={(e) => setPublished(e.target.value === "yes")}
+                disabled={!enabled.published}
+                className={inp}
+              >
+                <option value="yes">Да</option>
+                <option value="no">Нет</option>
+              </select>
+            )}
           </Field>
         </div>
       </div>
