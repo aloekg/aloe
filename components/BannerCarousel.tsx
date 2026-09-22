@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import Link from "next/link";
 import Button from "./Button";
 
@@ -43,6 +43,39 @@ const BANNER_MEDIA = {
 /** 1×1 transparent GIF: inline, so it costs no request, and `img-src data:` is already in the CSP. */
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
+/**
+ * Autoplay moves the banners on its own, which WCAG 2.2.2 (level A) allows only alongside a way to
+ * stop it. `stopOnMouseEnter` is not that way — it reaches a mouse and nothing else, so a phone, a
+ * keyboard and a screen reader were all left watching content change every four seconds with no
+ * recourse. Hence this button, which is always rendered and always focusable.
+ *
+ * It is a toggle whose *label* changes rather than an `aria-pressed` switch: "Остановить" and
+ * "Возобновить" name the action the press performs, which is what a screen reader user needs here,
+ * where "pressed"/"not pressed" says nothing about whether anything is moving.
+ */
+function AutoplayToggle({
+  playing,
+  onToggle,
+  className,
+}: {
+  playing: boolean;
+  onToggle: () => void;
+  className: string;
+}) {
+  const Icon = playing ? Pause : Play;
+  const label = playing ? "Остановить смену баннеров" : "Возобновить смену баннеров";
+  return (
+    <Button
+      onClick={onToggle}
+      aria-label={label}
+      title={label}
+      className={`absolute z-10 flex items-center justify-center rounded-full bg-black/40 text-white transition-colors hover:bg-black/60 ${className}`}
+    >
+      <Icon className="size-3.5" fill="currentColor" />
+    </Button>
+  );
+}
+
 function BannerImage({ banner, index, media }: { banner: Banner; index: number; media: keyof typeof BANNER_MEDIA }) {
   const first = index === 0;
   return (
@@ -69,10 +102,21 @@ export default function BannerCarousel({
   /** Which breakpoint this instance is the visible one at — see BANNER_MEDIA. */
   media: keyof typeof BANNER_MEDIA;
 }) {
+  // `playOnInit: false` because whether autoplay may run at all is a client-only question: the
+  // server cannot know the visitor's motion preference, and reading it during render would make the
+  // first client render disagree with the markup it is hydrating. The effect below starts it.
+  //
+  // `stopOnInteraction: false` is about the *mouse*, not about interaction generally: in Embla the
+  // two options are entangled, and hover only resumes on mouse-leave while this is false. Set true,
+  // a cursor crossing a full-width banner on the way somewhere else would end autoplay for the rest
+  // of the visit. So hovering stays a temporary pause, and the interactions that really mean "I am
+  // driving now" — arrows, dots, a swipe — stop it explicitly through `stopAutoplay` below.
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
-    Autoplay({ delay: 4000, stopOnMouseEnter: true, stopOnInteraction: false }),
+    Autoplay({ delay: 4000, stopOnMouseEnter: true, stopOnInteraction: false, playOnInit: false }),
   ]);
   const [selected, setSelected] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const multiple = banners.length > 1;
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -83,14 +127,73 @@ export default function BannerCarousel({
     };
   }, [emblaApi]);
 
-  const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
-  const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
-  const scrollTo = useCallback((i: number) => emblaApi?.scrollTo(i), [emblaApi]);
+  useEffect(() => {
+    // With one banner the plugin's own init bails out before it has anything to drive, so there is
+    // nothing to start and no control to label.
+    if (!emblaApi || !multiple) return;
+    const autoplay = emblaApi.plugins().autoplay;
+    if (!autoplay) return;
+
+    const sync = () => setPlaying(autoplay.isPlaying());
+    emblaApi.on("autoplay:play", sync).on("autoplay:stop", sync).on("reInit", sync);
+
+    // A swipe is the touch equivalent of pressing an arrow, and `stopOnInteraction: false` would
+    // otherwise let autoplay drag the banner out from under the thumb that just moved it.
+    const onPointerDown = () => autoplay.stop();
+    emblaApi.on("pointerDown", onPointerDown);
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!reduced.matches) autoplay.play();
+    sync();
+
+    // Turning the preference on mid-visit is a request for motion to stop now. The reverse does not
+    // hold: turning it off is not a request to start moving, and must not undo a deliberate pause.
+    const stopIfReduced = () => {
+      if (reduced.matches) autoplay.stop();
+    };
+    reduced.addEventListener("change", stopIfReduced);
+
+    return () => {
+      reduced.removeEventListener("change", stopIfReduced);
+      emblaApi.off("pointerDown", onPointerDown);
+      emblaApi.off("autoplay:play", sync).off("autoplay:stop", sync).off("reInit", sync);
+    };
+  }, [emblaApi, multiple]);
+
+  /** Hands control to the visitor: once they have steered, the carousel stops steering itself. */
+  const stopAutoplay = useCallback(() => emblaApi?.plugins().autoplay?.stop(), [emblaApi]);
+
+  const scrollPrev = useCallback(() => {
+    stopAutoplay();
+    emblaApi?.scrollPrev();
+  }, [emblaApi, stopAutoplay]);
+  const scrollNext = useCallback(() => {
+    stopAutoplay();
+    emblaApi?.scrollNext();
+  }, [emblaApi, stopAutoplay]);
+  const scrollTo = useCallback(
+    (i: number) => {
+      stopAutoplay();
+      emblaApi?.scrollTo(i);
+    },
+    [emblaApi, stopAutoplay],
+  );
+  const toggleAutoplay = useCallback(() => {
+    const autoplay = emblaApi?.plugins().autoplay;
+    if (!autoplay) return;
+    if (autoplay.isPlaying()) autoplay.stop();
+    else autoplay.play();
+  }, [emblaApi]);
 
   if (banners.length === 0) return null;
 
   return (
-    <div className="relative w-full h-full overflow-hidden md:rounded-xl lg:rounded-2xl aspect-5/2 md:aspect-6/1">
+    <div
+      className="relative w-full h-full overflow-hidden md:rounded-xl lg:rounded-2xl aspect-5/2 md:aspect-6/1"
+      role="region"
+      aria-roledescription="карусель"
+      aria-label="Акции и новости"
+    >
       <div ref={emblaRef} className="h-full overflow-hidden">
         <div className="flex h-full">
           {banners.map((b, i) => (
@@ -121,14 +224,24 @@ export default function BannerCarousel({
               aria-label="Следующий баннер"
               className="absolute right-0 top-0 w-1/2 h-full"
             />
-            <div className="absolute bottom-0 left-0 right-0 flex gap-1 px-2 pb-2">
+            {/* Right edge cleared for the toggle, which sits in the same strip. */}
+            <div className="absolute bottom-0 left-0 right-9 flex gap-1 px-2 pb-2">
               {banners.map((_, i) => (
                 <div key={i} className="flex-1 h-1 rounded-full bg-white/40 overflow-hidden">
                   {i < selected && <div className="h-full w-full bg-green-700" />}
-                  {i === selected && <div key={selected} className="h-full bg-green-700 animate-banner-progress" />}
+                  {/* Paused, the bar fills rather than freezing part-way: it then reads as "this is
+                      the current banner" instead of as a timer that has stalled. */}
+                  {i === selected &&
+                    (playing ? (
+                      <div key={selected} className="h-full bg-green-700 animate-banner-progress" />
+                    ) : (
+                      <div className="h-full w-full bg-green-700" />
+                    ))}
                 </div>
               ))}
             </div>
+            {/* After the two half-width arrows in the DOM, so the tap reaches it and not them. */}
+            <AutoplayToggle playing={playing} onToggle={toggleAutoplay} className="bottom-1 right-1.5 size-7" />
           </div>
 
           <div className="hidden md:block">
@@ -157,6 +270,7 @@ export default function BannerCarousel({
                 />
               ))}
             </div>
+            <AutoplayToggle playing={playing} onToggle={toggleAutoplay} className="bottom-2.5 right-3 size-7" />
           </div>
         </>
       )}
