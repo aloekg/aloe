@@ -362,6 +362,7 @@ export type Database = {
       }
       reviews: {
         Row: {
+          author_name: string | null
           body: string | null
           created_at: string
           id: number
@@ -372,6 +373,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          author_name?: string | null
           body?: string | null
           created_at?: string
           id?: never
@@ -382,6 +384,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          author_name?: string | null
           body?: string | null
           created_at?: string
           id?: never

@@ -436,13 +436,23 @@ if (existingOrders.length) {
 
   const ids = existingOrders.map((o) => o.id);
   for (let i = 0; i < ids.length; i += 200) {
+    // Reviews first: reviews.order_id is ON DELETE RESTRICT, so an order that was reviewed cannot
+    // be deleted while the review stands. That is the right rule for production — deleting an order
+    // must not silently erase what a customer wrote — and it means this script has to clean up
+    // after itself explicitly, since the reviews above are its own.
+    const { error: reviewError } = await db
+      .from("reviews")
+      .delete()
+      .in("order_id", ids.slice(i, i + 200));
+    if (reviewError) fail(`could not delete mock reviews: ${reviewError.message}`);
+
     const { error } = await db
       .from("orders")
       .delete()
       .in("id", ids.slice(i, i + 200));
     if (error) fail(`could not delete mock orders: ${error.message}`);
   }
-  console.log(`\nremoved ${ids.length} mock orders`);
+  console.log(`\nremoved ${ids.length} mock orders (with their reviews)`);
 }
 
 for (const user of existingUsers) {
@@ -526,6 +536,20 @@ const REVIEW_BODIES = [
   null,
 ];
 
+// The published form of a name: "Айгерим Садыкова" → "Айгерим С.". Duplicated from
+// lib/reviews.ts `displayAuthorName` for the same reason the delivery tariff is — scripts are plain
+// ESM with no TS step. A stale copy only makes the mock data slightly off.
+const shortName = (full) => {
+  const parts = String(full ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return null;
+  const [first, ...rest] = parts;
+  const surname = rest.at(-1);
+  return surname ? `${first} ${[...surname][0].toUpperCase()}.` : first;
+};
+
 const reviewRows = [];
 for (const o of orders) {
   if (o.row.status !== "delivered" || !o.email) continue;
@@ -548,6 +572,7 @@ for (const o of orders) {
       // Skewed high, the way real ratings are: someone who disliked it usually just does not write.
       rating: roll < 0.55 ? 5 : roll < 0.8 ? 4 : roll < 0.92 ? 3 : between(1, 2),
       body: pick(REVIEW_BODIES),
+      author_name: shortName(o.row.customer_name),
       status: roll < 0.66 ? "approved" : roll < 0.9 ? "pending" : "rejected",
     });
   }

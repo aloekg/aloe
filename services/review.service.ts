@@ -4,7 +4,7 @@ import { isReviewToken } from "@/lib/reviews";
 import type { Review, ReviewWithProduct } from "@/types";
 import type { Database } from "@/types/database";
 
-const PUBLIC_COLUMNS = "id, product_id, rating, body, created_at";
+const PUBLIC_COLUMNS = "id, product_id, rating, body, author_name, created_at";
 
 /** Approved reviews of one product, newest first — what the product page renders. */
 export async function getProductReviews(supabase: SupabaseClient<Database>, productId: number, limit = 20) {
@@ -44,7 +44,14 @@ export async function getReviewedProductIds(admin: SupabaseClient<Database>, ord
 
 export async function insertReview(
   admin: SupabaseClient<Database>,
-  review: { productId: number; orderId: number; userId: string; rating: number; body: string | null },
+  review: {
+    productId: number;
+    orderId: number;
+    userId: string;
+    rating: number;
+    body: string | null;
+    authorName: string | null;
+  },
 ) {
   return admin.from("reviews").insert({
     product_id: review.productId,
@@ -52,7 +59,19 @@ export async function insertReview(
     user_id: review.userId,
     rating: review.rating,
     body: review.body,
+    author_name: review.authorName,
   });
+}
+
+/** The name on a customer's profile, for the review they are about to write. Absent is ordinary. */
+export async function getProfileName(admin: SupabaseClient<Database>, userId: string): Promise<string | null> {
+  const { data, error } = await admin.from("profiles").select("name").eq("id", userId).maybeSingle();
+  if (error) {
+    // Logged, not thrown: a review signed "Покупатель" is worth more than a failed submission.
+    console.error(`[reviews] profile lookup failed: ${error.message}`);
+    return null;
+  }
+  return data?.name ?? null;
 }
 
 /**

@@ -1,0 +1,21 @@
+-- Who wrote the review, as it is shown.
+--
+-- Denormalised onto the row rather than joined from `profiles`, for three reasons:
+--
+--   1. `profiles` is RLS'd to its owner, and the storefront reads reviews through the anon client —
+--      a join would come back empty in public and full for nobody;
+--   2. the name belongs to the moment the review was written. A customer who later edits their
+--      profile should not silently rename a published review;
+--   3. anon can select every column of an approved review, so whatever is stored here is public.
+--      That is why the *shortened* form is stored — "Айгерим С." and never the surname. Publishing a
+--      full name against a purchase is not something this shop asked permission to do.
+--
+-- Null is an ordinary value: it covers the reviews written before this column existed, and anyone
+-- whose profile has no name. The storefront renders "Покупатель" for those.
+--
+-- There is no avatar column and no avatar URL. 13 of 14 accounts here signed up by email and have
+-- no picture at all; the one Google account's photo lives on googleusercontent.com, which `img-src`
+-- does not allow — widening the CSP and sending a request to Google from every product page, for
+-- one user in fourteen, buys less than a generated initial does.
+alter table public.reviews
+  add column if not exists author_name text check (author_name is null or char_length(author_name) <= 60);

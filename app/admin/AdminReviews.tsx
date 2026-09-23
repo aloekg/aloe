@@ -108,7 +108,8 @@ export default function AdminReviews({
                     <div className="flex items-center gap-2 mt-1">
                       <StarRating average={review.rating} />
                       <span className="text-xs text-gray-500">
-                        заказ #{review.order_id} · {dateFmt.format(new Date(review.created_at))}
+                        {review.author_name ?? "Покупатель"} · заказ #{review.order_id} ·{" "}
+                        {dateFmt.format(new Date(review.created_at))}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${badge?.cls ?? ""}`}>{badge?.label}</span>
                     </div>

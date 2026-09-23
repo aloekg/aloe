@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ORDER_STATUS } from "@/lib/constants";
 import {
+  authorInitial,
+  avatarTone,
   averageRating,
+  displayAuthorName,
   isReviewToken,
   MAX_REVIEW_BODY,
   normalizeReviewBody,
@@ -133,5 +136,49 @@ describe("isReviewToken", () => {
     ]) {
       expect(isReviewToken(bad as string)).toBe(false);
     }
+  });
+});
+
+describe("displayAuthorName", () => {
+  it("shortens a surname to its initial — the full one would be public", () => {
+    expect(displayAuthorName("Айгерим Садыкова")).toBe("Айгерим С.");
+    expect(displayAuthorName("Тимур Асанов")).toBe("Тимур А.");
+  });
+
+  it("keeps a single name as it is", () => {
+    expect(displayAuthorName("Айгерим")).toBe("Айгерим");
+  });
+
+  it("uses the last part when there is a patronymic", () => {
+    expect(displayAuthorName("Айгерим Болотовна Садыкова")).toBe("Айгерим С.");
+  });
+
+  it("copes with stray whitespace", () => {
+    expect(displayAuthorName("  Тимур   Асанов  ")).toBe("Тимур А.");
+  });
+
+  it("is null when there is nothing to show", () => {
+    for (const bad of ["", "   ", null, undefined]) expect(displayAuthorName(bad)).toBeNull();
+  });
+});
+
+describe("authorInitial", () => {
+  it("takes the first letter, upper-cased", () => {
+    expect(authorInitial("айгерим С.")).toBe("А");
+  });
+
+  it("falls back rather than rendering an empty circle", () => {
+    expect(authorInitial(null)).toBe("—");
+    expect(authorInitial("  ")).toBe("—");
+  });
+});
+
+describe("avatarTone", () => {
+  it("is stable for the same name", () => {
+    expect(avatarTone("Айгерим С.")).toBe(avatarTone("Айгерим С."));
+  });
+
+  it("returns a tone even for nothing", () => {
+    expect(avatarTone(null)).toMatch(/^bg-/);
   });
 });

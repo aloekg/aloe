@@ -670,9 +670,19 @@ Two deliberate silences: `aggregateRating` appears in the product JSON-LD **only
 something to aggregate** (Google's policy forbids inventing ratings, and this closes one of the
 merchant-listing gaps in `lib/seo.ts` honestly), and neither the card nor the product page renders
 anything at all for an unrated product — 5% of the catalogue has ever been delivered, and a row of
-grey stars on the other 95% reads as "rated badly" rather than "new". Reviews are shown
-anonymously: the schema keeps `user_id`, nothing renders it, because publishing a customer's name
-against a purchase is not something this shop ever asked permission to do.
+grey stars on the other 95% reads as "rated badly" rather than "new". Reviews are signed with a
+first name and the initial of a surname — "Айгерим С." — shortened by `displayAuthorName()` **before
+it is stored**, because `anon` may read every column of an approved review; `user_id` is still never
+rendered, and a full name against a purchase is more than this shop asked permission to publish. The
+avatar is a generated initial in a deterministic colour, not a photo: 13 of 14 accounts signed up by
+email and have none, and the one Google avatar lives on `googleusercontent.com`, which `img-src`
+does not allow — widening the CSP and calling Google from every product page, for one user in
+fourteen, buys less than a coloured circle. A review written before the column existed, or by
+someone whose profile has no name, renders as "Покупатель".
+
+`reviews.order_id` is `on delete restrict`: deleting an order must not silently erase what a
+customer wrote. `scripts/purge-test-data.mjs` therefore cannot force such an order away, and
+`seed-staging-orders.mjs --reset` deletes its own reviews before its own orders.
 
 **Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
 both for regenerating an ISR page and for filling a Data Cache entry — `unstable_cache` included.

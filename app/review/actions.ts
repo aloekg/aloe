@@ -1,12 +1,13 @@
 "use server";
 
 import { rateLimit } from "@/lib/rate-limit";
-import { normalizeReviewBody, orderCanBeReviewed, validateReview } from "@/lib/reviews";
+import { displayAuthorName, normalizeReviewBody, orderCanBeReviewed, validateReview } from "@/lib/reviews";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import {
   claimOrderForUser,
   getOrderByReviewToken,
+  getProfileName,
   getReviewedProductIds,
   insertReview,
 } from "@/services/review.service";
@@ -75,12 +76,22 @@ export async function submitReview({
   const alreadyReviewed = await getReviewedProductIds(admin, order.id);
   if (alreadyReviewed.includes(productId)) return fail("Вы уже оставили отзыв на этот товар.");
 
+  // Shortened here, before it is stored: `anon` may read every column of an approved review, so the
+  // surname must never reach the row — see displayAuthorName and the 20260923160000 migration. Falls
+  // back to the name Google supplied for an OAuth account whose profile is still empty.
+  const profileName =
+    (await getProfileName(admin, user.id)) ??
+    (user.user_metadata?.full_name as string | undefined) ??
+    (user.user_metadata?.name as string | undefined) ??
+    null;
+
   const { error } = await insertReview(admin, {
     productId,
     orderId: order.id,
     userId: user.id,
     rating,
     body: normalizeReviewBody(body),
+    authorName: displayAuthorName(profileName),
   });
   if (error) {
     // The unique constraint is the race the check above cannot close — two tabs, one order.

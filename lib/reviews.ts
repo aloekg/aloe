@@ -105,3 +105,52 @@ export function reviewPlural(n: number): string {
   if (mod10 >= 2 && mod10 <= 4) return "отзыва";
   return "отзывов";
 }
+
+export const MAX_AUTHOR_NAME = 60;
+
+/**
+ * The name to publish, from the one on the customer's profile: first name plus the initial of the
+ * surname. "Айгерим Садыкова" becomes "Айгерим С."
+ *
+ * Shortened before it is stored, not before it is rendered, because `anon` may read every column of
+ * an approved review — whatever the row holds is public. A full name against a purchase is more
+ * than this shop ever asked permission to publish, and a first name is enough to make a review read
+ * as written by a person.
+ *
+ * Returns null when there is nothing usable, and the storefront says "Покупатель".
+ */
+export function displayAuthorName(fullName: string | null | undefined): string | null {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
+  const [first, ...rest] = parts;
+  const surname = rest.at(-1);
+  const name = surname ? `${first} ${[...surname][0].toUpperCase()}.` : first;
+  return name.slice(0, MAX_AUTHOR_NAME);
+}
+
+/** The letter in the avatar circle. "—" rather than an empty circle when there is no name. */
+export function authorInitial(name: string | null | undefined): string {
+  const first = [...(name ?? "").trim()][0];
+  return first ? first.toUpperCase() : "—";
+}
+
+/**
+ * Which of the avatar tints a name gets, chosen deterministically so the same person keeps the same
+ * colour across reviews and across renders. All six are `-700` weights carrying white text, which
+ * clears AA at this size — see ACCESSIBILITY.md.
+ */
+const AVATAR_TONES = [
+  "bg-green-700",
+  "bg-teal-700",
+  "bg-sky-700",
+  "bg-indigo-700",
+  "bg-rose-700",
+  "bg-amber-700",
+] as const;
+
+export function avatarTone(seed: string | null | undefined): string {
+  const key = seed ?? "";
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
