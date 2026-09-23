@@ -4,6 +4,7 @@ import {
   authorInitial,
   avatarTone,
   averageRating,
+  canEditReview,
   displayAuthorName,
   isReviewToken,
   MAX_REVIEW_BODY,
@@ -214,5 +215,23 @@ describe("reviewTabFromParam / reviewTabFilter", () => {
     for (const junk of ["bogus", "ALL", "Pending", "1", "'; --"]) {
       expect(reviewTabFromParam(junk)).toBe("pending");
     }
+  });
+});
+
+describe("canEditReview", () => {
+  it("allows editing while the review is unpublished", () => {
+    expect(canEditReview("pending")).toBe(true);
+    // Rejected stays editable: the unique (user_id, product_id) means it cannot be replaced either,
+    // so freezing it would leave the customer unable to ever rate that product.
+    expect(canEditReview("rejected")).toBe(true);
+  });
+
+  it("freezes a published review", () => {
+    // Otherwise: post something bland, wait for approval, rewrite the live page.
+    expect(canEditReview("approved")).toBe(false);
+  });
+
+  it("refuses anything unexpected rather than allowing it", () => {
+    for (const junk of ["", "APPROVED", "draft", null, undefined]) expect(canEditReview(junk)).toBe(false);
   });
 });

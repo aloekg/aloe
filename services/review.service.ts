@@ -154,23 +154,30 @@ export async function getUserReviews(supabase: SupabaseClient<Database>, userId:
   return soft("user-reviews", res, []) as ReviewWithProduct[];
 }
 
+/** The statuses `updateOwnReview` will touch — see `canEditReview`. */
+const EDITABLE_STATUSES = ["pending", "rejected"];
+
 /**
- * Rewrites a review the customer owns and sends it back to moderation.
+ * Rewrites a review the customer owns, and only while it is still unpublished.
  *
  * `eq("user_id", userId)` is not decoration: without it the id alone would be enough to rewrite
- * anyone's review. The status reset is the other half — an approved review that could be edited in
- * place is a published page anyone could change after the fact, which is exactly how a moderated
- * system gets bypassed.
+ * anyone's review. The status filter is the other half — a published review is final, so there is
+ * no longer any way to have something approved and then change what it says.
  */
 export async function updateOwnReview(
   admin: SupabaseClient<Database>,
   { reviewId, userId, rating, body }: { reviewId: number; userId: string; rating: number; body: string | null },
 ) {
-  return admin
-    .from("reviews")
-    .update({ rating, body, status: "pending" })
-    .eq("id", reviewId)
-    .eq("user_id", userId)
-    .select("id, status")
-    .maybeSingle();
+  return (
+    admin
+      .from("reviews")
+      .update({ rating, body, status: "pending" })
+      .eq("id", reviewId)
+      .eq("user_id", userId)
+      // In the statement, not only in the action above it: a published review is final, and the
+      // window between reading a status and writing over it is exactly where a second tab lives.
+      .in("status", EDITABLE_STATUSES)
+      .select("id, status")
+      .maybeSingle()
+  );
 }

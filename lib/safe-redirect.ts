@@ -1,11 +1,24 @@
 import { SITE_URL } from "@/lib/constants";
 
 /**
+ * A relative, same-origin path: one leading slash and not a second, which is what separates
+ * `/review/abc` from the protocol-relative `//evil.com` a browser reads as another host. A
+ * backslash is excluded too — browsers normalise `/\evil.com` the same way.
+ *
+ * Shared by the server redirect below and by the client, where there is no origin to resolve
+ * against: `/auth` hands whatever `?next=` says to `router.push`, so an unchecked value is an open
+ * redirect with the shop's own sign-in page as the bait.
+ */
+export function safeNextPath(next: string | null | undefined, fallback = "/"): string {
+  return typeof next === "string" && /^\/(?![/\\])/.test(next) ? next : fallback;
+}
+
+/**
  * Only same-origin relative paths may be redirected to. Bare concatenation onto an origin lets
  * `next=@evil.com` resolve to a foreign host and `next=.evil.com` to a lookalike subdomain.
  */
 export function safeRedirect(next: string | null | undefined, base: string, fallback = "/auth?confirmed=true"): URL {
-  if (next && /^\/(?![/\\])/.test(next)) {
+  if (next && safeNextPath(next, "") !== "") {
     try {
       const url = new URL(next, base);
       if (url.origin === new URL(base).origin) return url;

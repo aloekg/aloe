@@ -7,7 +7,7 @@ import Link from "next/link";
 import Button from "@/components/Button";
 import RatingInput from "@/components/RatingInput";
 import StarRating from "@/components/StarRating";
-import { MAX_REVIEW_BODY, REVIEW_STATUS, validateReview, type ReviewStatus } from "@/lib/reviews";
+import { canEditReview, MAX_REVIEW_BODY, REVIEW_STATUS, validateReview, type ReviewStatus } from "@/lib/reviews";
 import { useToast } from "@/store/toast";
 import type { ReviewWithProduct } from "@/types";
 import { editReview } from "./actions";
@@ -16,8 +16,8 @@ const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long"
 
 /** What each status means for the person who wrote it — the storefront's labels say too little here. */
 const STATUS_NOTE: Record<ReviewStatus, string> = {
-  pending: "Мы проверим его и опубликуем — обычно в течение дня.",
-  approved: "Опубликован на странице товара.",
+  pending: "Мы проверим его и опубликуем — обычно в течение дня. Пока он на модерации, его можно изменить.",
+  approved: "Опубликован на странице товара. Опубликованный отзыв изменить уже нельзя.",
   rejected: "Не прошёл проверку. Отредактируйте его, и мы посмотрим ещё раз.",
 };
 
@@ -98,9 +98,9 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
             maxLength={MAX_REVIEW_BODY}
             className="mt-3 w-full text-base md:text-sm border border-gray-500 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-700 focus:border-green-700"
           />
-          {/* Said before they press save, not after: an edit sends an approved review back into the
-              queue, and finding that out afterwards feels like the site lost the review. */}
-          {review.status === "approved" && (
+          {/* Said before they press save, not after: a rejected review goes back into the queue
+              rather than straight onto the page. */}
+          {review.status === "rejected" && (
             <p className="text-xs text-gray-500 mt-2">После изменения отзыв снова уйдёт на проверку.</p>
           )}
           {error && (
@@ -122,13 +122,15 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
           <StarRating average={review.rating} />
           {review.body && <p className="text-sm text-gray-700 whitespace-pre-line mt-1.5">{review.body}</p>}
           <p className="text-xs text-gray-500 mt-2">{STATUS_NOTE[review.status as ReviewStatus]}</p>
-          <Button
-            variant="secondary"
-            onClick={() => setEditing(true)}
-            className="mt-3 flex items-center gap-1.5 text-xs px-3 py-1.5"
-          >
-            <Pencil className="size-3.5" aria-hidden /> Редактировать
-          </Button>
+          {canEditReview(review.status) && (
+            <Button
+              variant="secondary"
+              onClick={() => setEditing(true)}
+              className="mt-3 flex items-center gap-1.5 text-xs px-3 py-1.5"
+            >
+              <Pencil className="size-3.5" aria-hidden /> Редактировать
+            </Button>
+          )}
         </div>
       )}
     </li>

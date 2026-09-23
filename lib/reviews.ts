@@ -40,6 +40,23 @@ export function reviewTabFilter(tab: ReviewTab): ReviewStatus | undefined {
   return tab === "all" ? undefined : tab;
 }
 
+/**
+ * Whether the author may still rewrite this review.
+ *
+ * **A published review is final.** Editing one used to send it back to moderation, which worked but
+ * meant a review could vanish from a product page at any moment, and left the door open in
+ * principle: post something bland, wait for approval, rewrite the live page.
+ *
+ * `rejected` stays editable on purpose, and that is the one place this is looser than "только те,
+ * что на модерации". A rejected review cannot be replaced either — the unique `(user_id,
+ * product_id)` sees to that — so freezing it too would leave the customer with a dead review and no
+ * way ever to rate that product. Fixing it and sending it back for another look is the whole point
+ * of showing them the rejection.
+ */
+export function canEditReview(status: string | null | undefined): boolean {
+  return status === "pending" || status === "rejected";
+}
+
 export const MIN_RATING = 1;
 export const MAX_RATING = 5;
 export const MAX_REVIEW_BODY = 2000;

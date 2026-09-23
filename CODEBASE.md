@@ -324,7 +324,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                                                                                                                                                                                                                                                                   |
 | `db.ts`                   | `soft()` / `strict()` / `maybe()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`, `maybe()` for a `.maybeSingle()` lookup where "not found" is ordinary). Also `loadAllPages()` / `PAGE_ROWS` — reads a whole list through PostgREST's 1000-row ceiling and throws on a failed page, because a half-loaded list is indistinguishable from a short one (`app/sitemap.ts`, `analytics.service.ts`) |
 | `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                                                                                                                                                                                                                                                                                |
-| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                                                                                                                                                                                                                                                      |
+| `safe-redirect.ts`        | `safeNextPath()` (a relative path or the fallback — the client-side check, since `/auth` hands `?next=` straight to `router.push`), `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                                                                                                                  |
 | `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                                                                                                                                                                                                                                                                        |
 | `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                                                                                                                                                                                                                                                                                 |
 | `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                                                                                                                                                                                                                                                                           |
@@ -694,13 +694,15 @@ allows (`status = 'approved' or user_id = auth.uid()`, widened rather than paire
 policy so that "what may anon see" has one answer); the list is read with the _user's_ client, so
 the policy is the check rather than the call site.
 
-**An edit always returns the review to moderation, published or not.** Without that, anyone could
-post something bland, wait for approval and rewrite the live page — the standard way around a
-moderated system — which is why the status reset sits in the same statement as the edit rather than
-in a branch above it, and why `updateOwnReview` matches on `user_id` as well as `id`. The UI says so
-before the customer presses save, not after. There is no update policy at all: the edit goes through
-a server action on the service role, and a direct `PATCH` from a signed-in customer is refused with
-a 403.
+**A published review is final.** Only `pending` and `rejected` may be edited (`canEditReview`), and
+`updateOwnReview` filters on the status in the same statement as the write, so a second tab cannot
+slip an edit through between the approval and the save. Editing used to send an approved review back
+to moderation, which worked but meant a live review could vanish from a product page at any moment
+and left the bypass open in principle — post something bland, wait for approval, rewrite the page.
+`rejected` stays editable on purpose: the unique `(user_id, product_id)` means it cannot be replaced
+either, so freezing it too would leave the customer unable ever to rate that product. There is no
+update policy at all — the edit goes through a server action on the service role, and a direct
+`PATCH` from a signed-in customer is refused with a 403.
 
 `reviews.order_id` is `on delete restrict`: deleting an order must not silently erase what a
 customer wrote. `scripts/purge-test-data.mjs` therefore cannot force such an order away, and

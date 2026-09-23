@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { rateLimit } from "@/lib/rate-limit";
 import { normalizeReviewBody, validateReview } from "@/lib/reviews";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -51,10 +51,11 @@ export async function saveProfile({ name, phone, address }: { name: string; phon
 /**
  * Rewrites one of the signed-in customer's own reviews.
  *
- * **An edit always returns the review to moderation**, even when it was already published. Without
- * that, anyone could post something bland, wait for approval and then rewrite the live page — which
- * is the standard way a moderated system gets bypassed, and the reason the status reset lives in the
- * same statement as the edit rather than in a branch above it.
+ * **Only while it is unpublished.** A published review is final: editing one used to send it back
+ * to moderation, which worked but meant a live review could vanish from a product page at any
+ * moment, and left the bypass open in principle — post something bland, wait for approval, rewrite
+ * the page. `updateOwnReview` filters on the status in the same statement as the write, so a second
+ * tab cannot slip an edit through between the approval and the save.
  */
 export async function editReview({
   reviewId,
@@ -87,14 +88,13 @@ export async function editReview({
     console.error("[profile] review update failed:", error.message);
     return { ok: false, error: "Не удалось сохранить отзыв. Попробуйте ещё раз." };
   }
-  // No row means the id is not this customer's. Same message either way — whose review it is, is
-  // not something a probe should be able to learn.
-  if (!data) return { ok: false, error: "Отзыв не найден." };
+  // No row means the review is not this customer's, or it has already been published. The second
+  // case is the likely one and deserves saying — a stale tab whose "Редактировать" button predates
+  // the approval would otherwise report "не найден" about a review sitting right there on screen.
+  if (!data) return { ok: false, error: "Опубликованный отзыв изменить нельзя." };
 
-  // The rating on the product changes whenever an approved review leaves that state, and the rating
-  // is on every card. Expiring unconditionally: working out whether it *was* approved would take
-  // another read to save an invalidation that costs one cached entry.
-  updateTag("products");
+  // Only unpublished reviews reach here, so nothing that is currently on a product page changed and
+  // no catalogue tag needs expiring. Said out loud so the omission does not read as an oversight.
   revalidatePath("/profile");
 
   return { ok: true };
