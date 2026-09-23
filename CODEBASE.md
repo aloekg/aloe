@@ -657,8 +657,16 @@ Every check lives in the server action rather than in RLS, because the last of t
 written as a policy — "was this product in that order" reads `orders.items`, a jsonb document.
 RLS on `reviews` is one public `select` of approved rows only; writes are revoked and go through the
 service role. Moderation is in `/admin/reviews`; rejecting keeps the row, so the unique
-`(order_id, product_id)` stops a repost, while deleting gives that back and is for content that must
+`(user_id, product_id)` stops a repost, while deleting gives that back and is for content that must
 not stay stored.
+
+That constraint is **per customer per product, not per order**, and it started out the other way.
+This shop sells consumables, so buying the same thing again is the normal case: under the old rule
+one customer accumulated a review per order on the same product — their name and avatar repeated
+down the page, their opinion weighted several times in an average built from a handful of reviews,
+and the whole thing shaped exactly like the review manipulation Google's policy is about. A repeat
+purchase earns an **edit**, which is what the profile tab is for. `order_id` stays on the row as the
+proof of purchase and the moderator's context; it is simply not part of what must be unique.
 
 The rating is **denormalised onto `products` as `rating_sum` + `rating_count`**, maintained by a
 trigger and counting approved reviews only — a card cannot join an aggregate when list queries are

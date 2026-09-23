@@ -73,8 +73,12 @@ export async function submitReview({
   const items = (order.items ?? []) as OrderItem[];
   if (!items.some((i) => i.id === productId)) return fail("Этого товара не было в заказе.");
 
-  const alreadyReviewed = await getReviewedProductIds(admin, order.id);
-  if (alreadyReviewed.includes(productId)) return fail("Вы уже оставили отзыв на этот товар.");
+  // By customer, not by order: ordering the same product again does not earn a second review. The
+  // message points at the edit, because "уже оставили" without a way to change it reads as a dead end.
+  const alreadyReviewed = await getReviewedProductIds(admin, user.id, [productId]);
+  if (alreadyReviewed.includes(productId)) {
+    return fail("Вы уже оценили этот товар. Изменить отзыв можно в профиле, во вкладке «Отзывы».");
+  }
 
   // Shortened here, before it is stored: `anon` may read every column of an approved review, so the
   // surname must never reach the row — see displayAuthorName and the 20260923160000 migration. Falls
@@ -94,8 +98,10 @@ export async function submitReview({
     authorName: displayAuthorName(profileName),
   });
   if (error) {
-    // The unique constraint is the race the check above cannot close — two tabs, one order.
-    if (error.code === "23505") return fail("Вы уже оставили отзыв на этот товар.");
+    // The unique constraint is the race the check above cannot close — two tabs, one product.
+    if (error.code === "23505") {
+      return fail("Вы уже оценили этот товар. Изменить отзыв можно в профиле, во вкладке «Отзывы».");
+    }
     console.error("[reviews] insert failed:", error.message);
     return fail("Не удалось сохранить отзыв. Попробуйте ещё раз.");
   }

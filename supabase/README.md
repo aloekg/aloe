@@ -23,6 +23,7 @@ migrations/
   20260923140000_product_reviews.sql        # отзывы: таблица + модерация, orders.review_token, денормализованный рейтинг с триггером
   20260923160000_review_author_name.sql     # reviews.author_name — уже сокращённое «Имя Ф.», хранится публично
   20260923180000_reviews_own_read.sql       # автор видит свои отзывы в любом статусе (одна select-политика)
+  20260923200000_reviews_unique_per_customer.sql  # один отзыв на товар от покупателя, а не от заказа
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```

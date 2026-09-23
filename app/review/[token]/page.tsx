@@ -35,7 +35,13 @@ export default async function ReviewPage({ params }: { params: Promise<{ token: 
   } = await supabase.auth.getUser();
 
   const items = (order.items ?? []) as OrderItem[];
-  const reviewed = await getReviewedProductIds(admin, order.id);
+  const reviewed = user
+    ? await getReviewedProductIds(
+        admin,
+        user.id,
+        items.map((i) => i.id),
+      )
+    : [];
   const pending = reviewableItems(items, reviewed);
 
   return (
@@ -64,9 +70,11 @@ export default async function ReviewPage({ params }: { params: Promise<{ token: 
         ) : pending.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-lg font-medium">Вы уже оценили всё из этого заказа</p>
-            <p className="text-sm text-gray-500 mt-1">Спасибо! Отзывы появятся после проверки.</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Спасибо! Изменить свои отзывы можно в профиле, во вкладке «Отзывы».
+            </p>
             <Link href="/profile" className="text-green-700 text-sm mt-3 inline-block hover:underline">
-              Мои заказы
+              Мои отзывы
             </Link>
           </div>
         ) : (

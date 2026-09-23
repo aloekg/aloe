@@ -35,9 +35,24 @@ export async function getOrderByReviewToken(admin: SupabaseClient<Database>, tok
   return data;
 }
 
-/** Product ids this order has already been reviewed for, so the form offers only what is left. */
-export async function getReviewedProductIds(admin: SupabaseClient<Database>, orderId: number): Promise<number[]> {
-  const { data, error } = await admin.from("reviews").select("product_id").eq("order_id", orderId);
+/**
+ * Product ids this **customer** has already reviewed, so the form offers only what is left.
+ *
+ * By customer, not by order: a repeat purchase of the same product does not earn a second review —
+ * it earns an edit of the first (see the 20260923200000 migration). Scoped to the ids in the order
+ * being reviewed, so it stays a small lookup however much the customer has written.
+ */
+export async function getReviewedProductIds(
+  admin: SupabaseClient<Database>,
+  userId: string,
+  productIds: number[],
+): Promise<number[]> {
+  if (productIds.length === 0) return [];
+  const { data, error } = await admin
+    .from("reviews")
+    .select("product_id")
+    .eq("user_id", userId)
+    .in("product_id", productIds);
   if (error) throw new Error(`[reviews] existing lookup failed: ${error.message}`);
   return (data ?? []).map((r) => r.product_id);
 }

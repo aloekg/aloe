@@ -91,6 +91,10 @@ export function normalizeReviewBody(body: string | null | undefined): string | n
  * Deduplicated by product id: `orders.items` cannot repeat a product (checkout merges duplicate
  * lines), but an order edited in the admin is typed by hand, and offering the same product twice
  * would produce a unique-constraint failure instead of a message.
+ *
+ * `alreadyReviewed` is what this customer has reviewed **anywhere**, not just in this order — a
+ * repeat purchase of the same product earns an edit, not a second review. See the 20260923200000
+ * migration.
  */
 export function reviewableItems(items: readonly OrderItem[], alreadyReviewed: readonly number[]): OrderItem[] {
   const done = new Set(alreadyReviewed);

@@ -551,6 +551,7 @@ const shortName = (full) => {
 };
 
 const reviewRows = [];
+const reviewedPairs = new Set();
 for (const o of orders) {
   if (o.row.status !== "delivered" || !o.email) continue;
   const userId = idByEmail.get(o.email);
@@ -560,10 +561,13 @@ for (const o of orders) {
   // Not every delivered order gets one — a 100% review rate would be the least realistic thing on
   // the whole of staging.
   if (rand() > 0.45) continue;
-  const seen = new Set();
   for (const item of o.row.items) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
+    // One review per customer per product, the same rule the unique constraint enforces — a repeat
+    // buyer of the same powder gets one opinion, not one per order. Keyed across all of this
+    // customer's orders, not just this one.
+    const key = `${userId}:${item.id}`;
+    if (reviewedPairs.has(key)) continue;
+    reviewedPairs.add(key);
     const roll = rand();
     reviewRows.push({
       product_id: item.id,
