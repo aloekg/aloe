@@ -13,6 +13,7 @@ import {
   ProductCard,
   ProductDescription,
   ProductReviews,
+  RatingSummary,
   Title,
 } from "@/components";
 import {
@@ -213,13 +214,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <Title className="mb-2">{product.name}</Title>
 
           {brandInfo && (
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-2">
               Производитель:{" "}
               <Link href={`/brands/${brandInfo.slug}`} className="text-green-700 hover:underline">
                 {brandInfo.name}
               </Link>
             </p>
           )}
+
+          {/* Above the price, where a shopper looks for it while deciding — and a shortcut to the
+              reviews themselves, which sit below the fold under the whole product block. */}
+          <RatingSummary ratingSum={product.rating_sum} ratingCount={product.rating_count} className="mb-4" />
 
           <div className="flex items-baseline gap-3 mb-6">
             <span className="text-2xl md:text-3xl font-bold">
@@ -241,8 +246,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
 
           {product.description && <ProductDescription text={product.description} />}
-
-          <ProductReviews reviews={reviews} ratingSum={product.rating_sum} ratingCount={product.rating_count} />
         </div>
       </div>
 
@@ -269,6 +272,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Full width and below the product block rather than inside its right-hand column: reviews are
+          about the product as a whole, and squeezed under the description they shared a column with
+          the sticky image and ran out of room long before they ran out of content. */}
+      <ProductReviews reviews={reviews} ratingSum={product.rating_sum} ratingCount={product.rating_count} />
 
       {related && related.length > 0 && (
         <section>

@@ -1,5 +1,5 @@
 import { StarRating } from "@/components";
-import { averageRating } from "@/lib/reviews";
+import { averageRating, reviewPlural } from "@/lib/reviews";
 
 type Review = { id: number; rating: number; body: string | null; created_at: string };
 
@@ -29,7 +29,9 @@ export default function ProductReviews({
   if (!average || reviews.length === 0) return null;
 
   return (
-    <section aria-labelledby="reviews-heading" className="mt-10">
+    // scroll-margin-top clears the sticky header the #reviews jump would otherwise land behind:
+    // 60px of mobile header, 166px of the desktop one (the same numbers as `top-15 md:top-41.5`).
+    <section id="reviews" aria-labelledby="reviews-heading" className="mb-12 scroll-mt-16 md:scroll-mt-44">
       <h2 id="reviews-heading" className="text-lg font-semibold mb-3">
         Отзывы
       </h2>
@@ -39,7 +41,7 @@ export default function ProductReviews({
         <span className="flex flex-col gap-0.5">
           <StarRating average={average} size="md" />
           <span className="text-xs text-gray-500">
-            {ratingCount} {plural(ratingCount, "отзыв", "отзыва", "отзывов")}
+            {ratingCount} {reviewPlural(ratingCount)}
           </span>
         </span>
       </div>
@@ -59,14 +61,4 @@ export default function ProductReviews({
       </ul>
     </section>
   );
-}
-
-/** ru-RU plurals: 1 отзыв, 2 отзыва, 5 отзывов — and 11..14 take the last form. */
-function plural(n: number, one: string, few: string, many: string): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return many;
-  const mod10 = n % 10;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
 }

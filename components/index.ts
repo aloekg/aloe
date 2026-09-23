@@ -30,6 +30,7 @@ export { default as ProductGrid } from "./ProductGrid";
 export { default as ProductGridSkeleton } from "./ProductGridSkeleton";
 export { default as ProductReviews } from "./ProductReviews";
 export { default as RatingInput } from "./RatingInput";
+export { default as RatingSummary } from "./RatingSummary";
 export { default as SearchInput } from "./SearchInput";
 export { default as SeeAllProducts } from "./SeeAllProducts";
 export { default as Skeleton } from "./Skeleton";

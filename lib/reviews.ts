@@ -95,3 +95,13 @@ export function starFill(average: number, star: number): "full" | "half" | "empt
   if (diff >= 0.25) return "half";
   return "empty";
 }
+
+/** ru-RU plurals: 1 отзыв, 2 отзыва, 5 отзывов — and 11..14 take the last form. */
+export function reviewPlural(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "отзывов";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "отзыв";
+  if (mod10 >= 2 && mod10 <= 4) return "отзыва";
+  return "отзывов";
+}
