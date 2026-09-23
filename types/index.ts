@@ -65,11 +65,20 @@ export type ProductListItem = {
   brand_id?: number | null;
   brand_name?: string | null;
   /**
-   * The rating, denormalised. A card cannot join an aggregate — list queries are cached whole (see
-   * "Cache budget" in CODEBASE.md) — so the trigger in 20260923140000 keeps sum and count on the
-   * row. Sum rather than an average because an average cannot be updated incrementally without
-   * drift; `averageRating()` in lib/reviews.ts divides once, at render.
+   * Denormalised columns every list row carries because the storefront sorts and rates an
+   * already-cached result rather than querying for it: a card cannot join an aggregate when list
+   * queries are cached whole (see "Cache budget" in CODEBASE.md). Together they cost roughly 70
+   * bytes a row — the price of not minting a cache entry per sort order, which is the cheaper side
+   * by a wide margin.
+   *
+   * `purchase_count` and `created_at` back "По популярности" and "По новизне"; `created_at` is real
+   * history, not import noise — the JoomShopping migration preserved dates spanning 2017 to 2026.
+   * `rating_sum`/`rating_count` are kept by the trigger in 20260923140000, as a sum rather than an
+   * average because an average cannot be updated incrementally without drift; `averageRating()` in
+   * lib/reviews.ts divides once, at render.
    */
+  purchase_count: number;
+  created_at: string;
   rating_sum: number;
   rating_count: number;
 };

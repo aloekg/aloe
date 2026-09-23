@@ -1,5 +1,6 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { strict } from "@/lib/db";
+import type { SortValue } from "@/lib/page-params";
 import type { ProductListItem, ProductListRow } from "@/types";
 import { withBrandName } from "@/types";
 import type { Database } from "@/types/database";
@@ -9,7 +10,7 @@ import type { Database } from "@/types/database";
  * — long free text — into every grid, carousel and RSC payload on the site.
  */
 const LIST_COLUMNS =
-  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, rating_sum, rating_count, brands(name)";
+  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, purchase_count, created_at, rating_sum, rating_count, brands(name)";
 
 /**
  * Stays "exact": these totals are user-visible ("Смотреть все N") and on the homepage
@@ -60,7 +61,6 @@ function range(page: number, pageSize: number): [number, number] {
 /** Upper bound for the admin list's "показать все" mode. */
 const ADMIN_ALL_CAP = 5000;
 
-export type SortValue = "name" | "price_asc" | "price_desc";
 export type AdminProductsSort = "id-desc" | "name-asc" | "price-asc" | "price-desc" | "purchase-count-desc";
 
 export async function getProductsByLabel(supabase: SupabaseClient<Database>, label: "new" | "sale", limit = 10) {
@@ -174,23 +174,22 @@ export async function getRelatedProducts(
 export async function getCategoryProducts(
   supabase: SupabaseClient<Database>,
   categoryIds: number[],
-  sort: SortValue,
 ): Promise<Map<number, ProductListItem[]>> {
   const byCategory = new Map<number, ProductListItem[]>();
   if (categoryIds.length === 0) return byCategory;
 
-  const orderCol = sort === "price_asc" || sort === "price_desc" ? "price" : "name";
-  const ascending = sort !== "price_desc";
-
-  // Deliberately no brand filter here. The caller caches this, and `unstable_cache` folds every
-  // argument into the key — so a brand facet on the category page would mint a ~90 KB entry per
-  // subset of brands, the same explosion `excludeId` used to cause for related products. When the
-  // filter is wanted, it belongs on the cached result, not in the query.
+  // Deliberately no brand filter, no sort and no price range here. The caller caches this, and
+  // `unstable_cache` folds every argument into the key — so a brand facet on the category page
+  // would mint a ~90 KB entry per subset of brands, and a sort order or a price range would
+  // multiply that again, the same explosion `excludeId` used to cause for related products. Sort
+  // belonged to this signature until the storefront gained a control for it, and cost up to three
+  // entries per category for a feature no UI exposed. All three belong on the cached result, not
+  // in the query — see lib/price-filter.ts and "Cache budget" in CODEBASE.md.
   const query = supabase.from("products").select(LIST_COLUMNS).eq("published", true).in("category_id", categoryIds);
 
   // strict: the category page calls notFound() when no section has products, so swallowing an
   // error here would turn an outage into a 404 that then gets cached for 60 seconds.
-  const data = strict("category-products", await query.order(orderCol, { ascending }).order("id"));
+  const data = strict("category-products", await query.order("name").order("id"));
 
   for (const row of withBrandName(data as ProductListRow[])) {
     const bucket = byCategory.get(row.category_id);
@@ -200,26 +199,45 @@ export async function getCategoryProducts(
   return byCategory;
 }
 
+/**
+ * Unlike the category page, search filters and sorts in the query rather than on the result. It can
+ * afford to: nothing here is wrapped in `unstable_cache`, so there is no key to inflate. And it has
+ * to: the page count comes from this request's COUNT, which is only right if the database counted
+ * what the customer actually asked for.
+ */
 export async function searchProducts(
   supabase: SupabaseClient<Database>,
   query: string,
-  options: { brandIds?: number[]; page: number; pageSize?: number },
+  options: {
+    brandIds?: number[];
+    page: number;
+    pageSize?: number;
+    priceMin?: number | null;
+    priceMax?: number | null;
+    sort?: SortValue;
+  },
 ) {
-  const { brandIds = [], page, pageSize = 24 } = options;
+  const { brandIds = [], page, pageSize = 24, priceMin = null, priceMax = null, sort = "name" } = options;
   const from = (page - 1) * pageSize;
 
   let q = supabase
     .from("products")
     .select(LIST_COLUMNS, COUNT)
     .eq("published", true)
-    .ilike("name", `%${escapeLike(query)}%`)
-    .order("name")
-    .order("id")
-    .range(from, from + pageSize - 1);
+    .ilike("name", `%${escapeLike(query)}%`);
 
   if (brandIds.length > 0) q = q.in("brand_id", brandIds);
+  if (priceMin != null) q = q.gte("price", priceMin);
+  if (priceMax != null) q = q.lte("price", priceMax);
 
-  const res = await q;
+  // `id` last in every order: it breaks ties deterministically, so a product on a page boundary
+  // cannot appear on both pages or on neither as the customer walks through them.
+  if (sort === "price_asc" || sort === "price_desc") q = q.order("price", { ascending: sort === "price_asc" });
+  else if (sort === "popular") q = q.order("purchase_count", { ascending: false });
+  else if (sort === "newest") q = q.order("created_at", { ascending: false });
+  else q = q.order("name");
+
+  const res = await q.order("id").range(from, from + pageSize - 1);
   return toList("search", res);
 }
 
