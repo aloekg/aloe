@@ -191,6 +191,9 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
                 >
                   {countFor ? `Показать ${countFor({ sort, range: staged })}` : "Показать"}
                 </Button>
+                {/* "Сбросить", not "Сбросить фильтры": this one clears the price and leaves the
+                    sort alone, the same scope ManufacturerFilter's reset has. The longer label is
+                    reserved for the controls that clear everything. */}
                 {hasPriceRange(staged) && (
                   <Button variant="secondary" size="lg" onClick={() => setStaged(NO_PRICE)}>
                     Сбросить

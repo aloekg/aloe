@@ -4,13 +4,19 @@ import { useCallback } from "react";
 import { useFilterNav } from "@/hooks/useFilterNav";
 import type { SortValue } from "@/lib/page-params";
 
-/** Shared with the phone's sort sheet, so the two cannot offer different orders. */
+/**
+ * Shared with the phone's sort sheet, so the two cannot offer different orders.
+ *
+ * All five read "По <noun>". They used to mix three grammatical shapes — a prepositional phrase,
+ * two bare adjectives and two adverbs — which reads as five unrelated commands rather than one
+ * list of answers to "по чему сортировать".
+ */
 export const SORT_OPTIONS: { value: SortValue; label: string }[] = [
   { value: "name", label: "По названию" },
-  { value: "popular", label: "Популярные" },
-  { value: "newest", label: "Новые" },
-  { value: "price_asc", label: "Сначала дешевле" },
-  { value: "price_desc", label: "Сначала дороже" },
+  { value: "popular", label: "По популярности" },
+  { value: "newest", label: "По новизне" },
+  { value: "price_asc", label: "По возрастанию цены" },
+  { value: "price_desc", label: "По убыванию цены" },
 ];
 
 /**
