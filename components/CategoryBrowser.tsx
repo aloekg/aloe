@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useFilterNav } from "@/hooks/useFilterNav";
 import type { PriceRange, SortValue } from "@/lib/page-params";
 import { filterCategorySections, priceBounds } from "@/lib/price-filter";
 import type { ProductListItem } from "@/types";
 import Container from "./Container";
 import MainContainer from "./MainContainer";
-import ProductFilterBar from "./ProductFilterBar";
+import ProductFilterBar, { type FilterState } from "./ProductFilterBar";
 import SubcategoryFilter from "./SubcategoryFilter";
 import VirtualCategoryContent from "./VirtualCategoryContent";
 
@@ -76,7 +76,18 @@ export default function CategoryBrowser({
     [subcategories, visibleIds],
   );
 
-  const apply = (next: { sort: SortValue; range: PriceRange }) => {
+  // What the sheet's apply button counts. Only the price narrows the set, but the signature stays
+  // general so the bar does not have to know that.
+  const countFor = useCallback(
+    (next: FilterState) =>
+      filterCategorySections(sections, next.range, next.sort).reduce(
+        (n, s) => n + s.products.length + s.groups.reduce((m, g) => m + g.products.length, 0),
+        0,
+      ),
+    [sections],
+  );
+
+  const apply = (next: FilterState) => {
     setSort(next.sort);
     setRange(next.range);
     navigate({
@@ -94,7 +105,8 @@ export default function CategoryBrowser({
           range={range}
           bounds={bounds}
           onChange={apply}
-          note={sort === "name" ? undefined : "в каждом разделе"}
+          countFor={countFor}
+          note="Сортировка по цене — в каждом разделе"
         />
       </Container>
 
