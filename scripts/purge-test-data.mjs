@@ -15,8 +15,9 @@
 //
 // Three couplings this exists to handle:
 //
-//   1. purchase_count does not follow the order. checkout increments it through
-//      increment_product_purchase_counts, and deleting the order leaves the count behind — so
+//   1. purchase_count does not follow the order. app/admin/actions.ts moves it when a status
+//      crosses into or out of confirmed/processing/delivered, and deleting the order leaves the
+//      count behind — so
 //      /popular and the homepage carousel would keep ranking by test purchases forever. With
 //      --reset-counts the counts are recomputed from the orders that remain (zero for a full
 //      purge, which correctly hides the section until a real order arrives).
@@ -126,7 +127,7 @@ if (RESET_COUNTS) {
   const { data: counted } = await db.from("products").select("id, name, purchase_count").gt("purchase_count", 0);
   const remaining = orders.filter((o) => !orderIds.includes(o.id));
   console.log(
-    `\nPURCHASE COUNTS: ${counted?.length ?? 0} product(s) carry a count, recomputed from the ${remaining.length} order(s) that remain`,
+    `\nPURCHASE COUNTS: ${counted?.length ?? 0} product(s) carry a count, recomputed from the confirmed/processing/delivered orders among the ${remaining.length} that remain`,
   );
 }
 
@@ -166,7 +167,13 @@ if (doomedOrders.length > 0) {
 }
 
 if (RESET_COUNTS) {
-  const { data: remaining, error } = await db.from("orders").select("items");
+  // Only the statuses that count as a purchase — the same rule `purchaseCountDelta` applies in
+  // lib/constants.ts, and the same set the 20260923120000 migration backfills from. Recomputing
+  // over every surviving order would quietly restore the cancelled ones this whole change removes.
+  const { data: remaining, error } = await db
+    .from("orders")
+    .select("items")
+    .in("status", ["confirmed", "processing", "delivered"]);
   if (error) {
     console.error("order reload failed:", error.message);
     process.exit(1);
@@ -189,7 +196,7 @@ if (RESET_COUNTS) {
     const { error: setError } = await db.from("products").update({ purchase_count: qty }).eq("id", id);
     if (setError) console.error(`  purchase_count for #${id} failed: ${setError.message}`);
   }
-  console.log(`Recomputed purchase_count: ${totals.size} product(s) with a surviving order.`);
+  console.log(`Recomputed purchase_count: ${totals.size} product(s) with a surviving confirmed order.`);
 }
 
 for (const u of deletableUsers) {
