@@ -36,15 +36,9 @@ export default async function NewPasswordPage() {
     );
   }
 
-  return (
-    <MainContainer className="max-w-sm pt-20">
-      <Title className="mb-6 text-center">Новый пароль</Title>
-      <div className="border border-gray-300 rounded-xl p-6">
-        <p className="mb-4 text-sm text-gray-600">
-          Аккаунт <span className="font-medium text-gray-800">{user.email}</span>
-        </p>
-        <NewPasswordScreen email={user.email} />
-      </div>
-    </MainContainer>
-  );
+  // The chrome — container, heading, card, "Аккаунт …" — belongs to NewPasswordScreen, which owns
+  // both of its states: on success it replaces the form entirely with "Пароль изменён", and a
+  // heading held here would still read "Новый пароль" above it. Rendering it in both places is what
+  // put two headings, two account lines and a card inside a card on the screen.
+  return <NewPasswordScreen email={user.email} />;
 }

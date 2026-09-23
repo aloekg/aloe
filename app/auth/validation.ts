@@ -69,13 +69,22 @@ const STRENGTH_LEVELS: Record<1 | 2 | 3 | 4, Omit<PasswordStrength, "score">> = 
 /**
  * Advisory only — never gates submission.
  *
- * It scores only what goes *beyond* the mandatory rules. Awarding points for the upper/lower/digit
- * mix would mean every password that passes `passwordRules` already scores "Надёжный", and a meter
- * that reads full the moment the form is valid tells the user nothing. Length is what is left, and
- * it is also what actually buys entropy — far more than swapping an `a` for an `@`.
+ * Beyond the mandatory rules it scores length and a symbol, not the upper/lower/digit mix: awarding
+ * points for those would mean every password passing `passwordRules` already reads "Надёжный", and
+ * a meter that fills the moment the form is valid tells the user nothing. Length is what is left,
+ * and it is what actually buys entropy — far more than swapping an `a` for an `@`.
+ *
+ * **The bar agrees with the checklist above it, in both directions.** It used to disagree in both:
+ * the shortest valid password showed a red "Слабый" beside three green ticks — "you satisfied
+ * everything and it is bad" — while a long all-lowercase password showed a green "Надёжный" the
+ * form would refuse to accept. So red now means exactly one thing, "this will not be accepted",
+ * and a password that clears the rules starts at "Простой" and climbs from there.
  */
 export function passwordStrength(password: string): PasswordStrength {
   if (!password) return { score: 0, label: "", barClass: "w-0 bg-transparent" };
+
+  // Nothing else matters while a rule is unmet — length cannot make an invalid password good.
+  if (!passwordRules(password).every((rule) => rule.ok)) return { score: 1, ...STRENGTH_LEVELS[1] };
 
   let points = 0;
   if (password.length >= 10) points++;
@@ -83,7 +92,8 @@ export function passwordStrength(password: string): PasswordStrength {
   if (password.length >= 18) points++;
   if (/[^a-zA-Z0-9]/.test(password)) points++;
 
-  const score = Math.min(4, points + 1) as 1 | 2 | 3 | 4;
+  // +2, so the floor for a valid password is "Простой" rather than the red "Слабый".
+  const score = Math.min(4, points + 2) as 1 | 2 | 3 | 4;
   return { score, ...STRENGTH_LEVELS[score] };
 }
 
