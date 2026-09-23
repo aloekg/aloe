@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useIsClient } from "@/hooks/useIsClient";
 
 /**
  * Mirrors the `duration-300` below. A caller usually unmounts this component from `onClose` (the
@@ -36,6 +38,13 @@ type Props = {
  * The panel transitions `translate`/`scale`, not `transform`: Tailwind 4 compiles `translate-y-*`
  * and `scale-*` to those standalone CSS properties, so `transition-[transform,…]` would name a
  * property nothing here animates and the sheet would appear with no movement at all.
+ *
+ * It renders through a **portal into `document.body`**, and that is load-bearing rather than tidy.
+ * `z-50` only ranks the sheet against its siblings inside the nearest stacking context, and a
+ * `position: sticky` ancestor carrying a `z-index` makes one — so a sheet opened from the category
+ * page's sticky subcategory bar (`z-10`) was trapped beneath `MobileBottomNav` at `z-40`, which
+ * drew its icons straight across the open panel. The portal takes the whole dialog out of any
+ * ancestor's context, which is the only fix that keeps working wherever a caller mounts it.
  */
 export default function Sheet({
   children,
@@ -92,7 +101,13 @@ export default function Sheet({
     return () => document.removeEventListener("keydown", onKey);
   }, [close]);
 
-  return (
+  // Rendered only on the client: `document` does not exist on the server, and a sheet is always
+  // opened by an interaction anyway. `useIsClient` flips during hydration, well before the two
+  // frames below reveal the panel, so nothing appears un-animated.
+  const isClient = useIsClient();
+  if (!isClient) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" onClick={close}>
       <div
         aria-hidden
@@ -127,8 +142,13 @@ export default function Sheet({
             <X className="size-5" />
           </button>
         </div>
-        <div className="flex flex-col flex-1 min-h-0 w-full overflow-y-auto scrollbar-none pt-12">{children}</div>
+        {/* safe-area-pb: the panel is flush with the bottom edge on a phone, so on a notched
+            device its last row would otherwise sit under the home indicator. */}
+        <div className="flex flex-col flex-1 min-h-0 w-full overflow-y-auto scrollbar-none pt-12 safe-area-pb md:pb-0">
+          {children}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
