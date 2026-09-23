@@ -99,18 +99,33 @@ export default function CategoryBrowser({
 
   return (
     <>
-      <Container className="py-2">
+      {/* The phone gets no row of its own: its two triggers ride at the head of the sticky pill row
+          below, which is already permanent. This one is `hidden md:block` from the inside. */}
+      <Container className="md:py-2">
         <ProductFilterBar
+          variant="inline"
           sort={sort}
           range={range}
           bounds={bounds}
           onChange={apply}
-          countFor={countFor}
           note="Сортировка по цене — в каждом разделе"
         />
       </Container>
 
-      <SubcategoryFilter subcategories={visibleSubcategories} />
+      <SubcategoryFilter
+        subcategories={visibleSubcategories}
+        leading={
+          <ProductFilterBar
+            variant="icons"
+            sort={sort}
+            range={range}
+            bounds={bounds}
+            onChange={apply}
+            countFor={countFor}
+            note="Сортировка по цене — в каждом разделе"
+          />
+        }
+      />
 
       <MainContainer>
         {visible.length === 0 ? (

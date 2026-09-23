@@ -4,7 +4,8 @@ import { useCallback } from "react";
 import { useFilterNav } from "@/hooks/useFilterNav";
 import type { SortValue } from "@/lib/page-params";
 
-const OPTIONS: { value: SortValue; label: string }[] = [
+/** Shared with the phone's sort sheet, so the two cannot offer different orders. */
+export const SORT_OPTIONS: { value: SortValue; label: string }[] = [
   { value: "name", label: "По названию" },
   { value: "price_asc", label: "Сначала дешевле" },
   { value: "price_desc", label: "Сначала дороже" },
@@ -50,7 +51,7 @@ export default function SortSelect({
         onChange={(e) => handle(e.target.value as SortValue)}
         className="text-sm border border-gray-500 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-700 focus:border-green-700 hover:cursor-pointer"
       >
-        {OPTIONS.map((o) => (
+        {SORT_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>

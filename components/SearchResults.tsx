@@ -86,7 +86,8 @@ export default async function SearchResults({
         <p className="text-sm text-gray-500 mt-1">Найдено: {total} товаров</p>
       </div>
 
-      <ProductFilterBar sort={sort} range={priceRange} className={className} />
+      <ProductFilterBar variant="icons" sort={sort} range={priceRange} className={className} />
+      <ProductFilterBar variant="inline" sort={sort} range={priceRange} className={className} />
 
       <ManufacturerFilter manufacturers={brands} className={className} />
 
