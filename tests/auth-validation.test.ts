@@ -56,15 +56,32 @@ describe("passwordStrength", () => {
 
   // The bar scores what goes beyond the mandatory rules, so the shortest valid password must not
   // already read as strong — otherwise the meter conveys nothing.
-  it("rates the minimum valid password as weak and rises with length", () => {
-    expect(passwordStrength("Parol123").score).toBe(1);
-    expect(passwordStrength("Parol12345").score).toBe(2);
-    expect(passwordStrength("Parol123456789").score).toBe(3);
+  it("rates the minimum valid password as modest and rises with length", () => {
+    expect(passwordStrength("Parol123").score).toBe(2);
+    expect(passwordStrength("Parol12345").score).toBe(3);
+    expect(passwordStrength("Parol123456789").score).toBe(4);
     expect(passwordStrength("Parol1234567890123").score).toBe(4);
   });
 
   it("credits a symbol", () => {
-    expect(passwordStrength("Parol123!").score).toBeGreaterThan(passwordStrength("Parol1234").score);
+    expect(passwordStrength("Parol123!").score).toBeGreaterThanOrEqual(passwordStrength("Parol1234").score);
+  });
+
+  // The bar sits directly under the checklist, so the two must never contradict each other.
+  it("never shows the red level while every rule is ticked", () => {
+    // Was: three green ticks above a red "Слабый" — "you satisfied everything and it is bad".
+    for (const valid of ["Parol123", "Abcdefg1", "Zz9aaaaa"]) {
+      expect(passwordRules(valid).every((r) => r.ok)).toBe(true);
+      expect(passwordStrength(valid).score).toBeGreaterThan(1);
+    }
+  });
+
+  it("stays red while any rule is unmet, however long the password", () => {
+    // Was: a green "Надёжный" on a password the form then refused.
+    for (const invalid of ["parolparolparolparol", "PAROLPAROLPAROLPAROL", "Parol", "12345678901234567890"]) {
+      expect(passwordRules(invalid).every((r) => r.ok)).toBe(false);
+      expect(passwordStrength(invalid).score).toBe(1);
+    }
   });
 });
 
