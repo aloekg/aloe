@@ -1,6 +1,5 @@
 "use server";
 
-import { updateTag } from "next/cache";
 import { after } from "next/server";
 import { DELIVERY_OPTIONS, MIN_ORDER_TOTAL } from "@/lib/constants";
 import { generateInvoicePdf } from "@/lib/invoice";
@@ -148,16 +147,10 @@ export async function createOrder({
     await admin.from("cart_items").delete().eq("user_id", user.id);
   }
 
-  const { error: rpcError } = await admin.rpc("increment_product_purchase_counts", {
-    items: orderItems.map((i) => ({ id: i.id, qty: i.quantity })),
-  });
-  if (rpcError) console.error("[checkout] purchase count RPC failed:", rpcError.message);
-
-  // Only purchase_count changed, and that is a sort key for exactly two cached queries. Expiring
-  // the shared "products" tag invalidated all nine — homepage, categories, brands, /new, /sale,
-  // /popular, every product page — and updateTag has no stale-while-revalidate, so the next
-  // visitor waited for a full re-fetch. Those entries carry CATALOGUE_TTL (10 min) anyway.
-  updateTag("products-popular");
+  // purchase_count is deliberately NOT touched here any more. Checkout records an intent — there is
+  // no payment gate, and a fifth of production orders end up cancelled — so the counter that ranks
+  // "Популярные" follows the order's status instead, from app/admin/actions.ts. See
+  // `purchaseCountDelta` in lib/constants.ts and the 20260923120000 migration.
 
   const orderId = String(data.id);
   // The invoice used `new Date()`, evaluated inside after(), so the emailed document carried a

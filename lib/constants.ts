@@ -117,6 +117,43 @@ export const ORDER_STATUS: Record<string, { label: string; cls: string }> = {
 };
 
 /**
+ * The statuses in which an order counts towards `products.purchase_count`, which ranks /popular,
+ * the home page carousel and the "По популярности" sort.
+ *
+ * `new` is deliberately outside the set. There is no online payment here, so placing an order is an
+ * intent that someone then verifies by phone — and one production order in five is cancelled. While
+ * the count was applied at checkout and never taken back, 10.6% of every counted unit came from a
+ * cancelled order, eleven products held a place in "Популярные" on cancelled orders alone, and the
+ * second product on the home page had all 23 of its "purchases" cancelled.
+ *
+ * The cost of the rule is the other side of the same coin: an order left sitting at `new` counts for
+ * nothing, so the shelf now depends on the admin moving statuses. On production 88.6% of orders are
+ * moved off `new`, which is what makes that affordable.
+ */
+const PURCHASED_STATUSES = new Set(["confirmed", "processing", "delivered"]);
+
+export function countsAsPurchase(status: string | null | undefined): boolean {
+  return PURCHASED_STATUSES.has(status ?? "");
+}
+
+/**
+ * The multiplier to apply to an order's line quantities when its status moves from `prev` to
+ * `next`: +1 to count it, -1 to take it back, 0 to leave the counters alone.
+ *
+ * Stated as one symmetric rule rather than "increment on confirm, decrement on cancel", because a
+ * confirmed order can still be cancelled and a cancelled one can be revived — the reverse
+ * transition has to exist either way, and two one-way rules would have to agree with each other.
+ * It also makes the operation idempotent for free: pressing "Подтверждён" on an already confirmed
+ * order compares equal and does nothing.
+ */
+export function purchaseCountDelta(prev: string | null | undefined, next: string | null | undefined): 1 | 0 | -1 {
+  const was = countsAsPurchase(prev);
+  const is = countsAsPurchase(next);
+  if (was === is) return 0;
+  return is ? 1 : -1;
+}
+
+/**
  * What a zero `delivery_cost` means depends on which option was chosen: the two city zones can be
  * free over the threshold, but "regions" is quoted by phone and "urgent" is settled with the
  * courier — printing "бесплатно" for those would promise something the shop never agreed to.

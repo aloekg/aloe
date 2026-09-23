@@ -14,7 +14,8 @@
 //   - orders spread over the last --days, some placed by those accounts and some by guests, with
 //     repeat buyers, a guest who later signs up under the same phone, every delivery zone and
 //     every status;
-//   - purchase_count on the products sold, exactly as checkout increments it, so /popular and the
+//   - purchase_count on the products sold, for the confirmed orders only, exactly as a status
+//     change increments it, so /popular and the
 //     homepage carousel have something to rank on staging too.
 //
 // Usage:
@@ -202,7 +203,9 @@ async function listMockOrders() {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db
       .from("orders")
-      .select("id, items")
+      // `status` too: only the confirmed ones ever raised purchase_count, so only those may give
+      // it back on --reset. Without it soldQuantities sees undefined and takes back nothing.
+      .select("id, items, status")
       .like("comment", `${MOCK_COMMENT}%`)
       .order("id")
       .range(from, from + 999);
@@ -394,11 +397,22 @@ if (!target.execute) {
 // ---------------------------------------------------------------------------
 // Remove the previous mock data
 
-/** purchase_count per product, summed over a set of orders — what checkout added for them. */
+/**
+ * purchase_count per product, over the orders that count as a purchase.
+ *
+ * Only confirmed / processing / delivered, because that is the rule the shop now follows: the
+ * counter moves when an admin confirms an order, not when a customer places it (`purchaseCountDelta`
+ * in lib/constants.ts). Counting every mock order here would give staging a "Популярные" shelf
+ * production could not produce — which is exactly the kind of divergence this seed exists to avoid.
+ */
+const COUNTED_STATUSES = new Set(["confirmed", "processing", "delivered"]);
+
 function soldQuantities(rows) {
   const sold = new Map();
-  for (const row of rows)
+  for (const row of rows) {
+    if (!COUNTED_STATUSES.has(row.status)) continue;
     for (const item of row.items ?? []) sold.set(item.id, (sold.get(item.id) ?? 0) + item.quantity);
+  }
   return sold;
 }
 
@@ -481,7 +495,7 @@ for (let i = 0; i < rows.length; i += 200) {
 }
 if (rows.length) console.log(`created ${rows.length} mock orders`);
 
-// The same RPC checkout calls, so the counts move the way a real sale moves them.
+// The same RPC the admin calls on a status change, so the counts land where a real sale puts them.
 const sold = soldQuantities(rows);
 if (sold.size) {
   const { error } = await db.rpc("increment_product_purchase_counts", {

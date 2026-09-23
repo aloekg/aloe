@@ -19,6 +19,7 @@ migrations/
   20260916090100_grants_and_definer_hardening.sql # дефолтные привилегии, TRUNCATE/TRIGGER, search_path, mime
   20260921100000_indexes_followup.sql       # FK cart_items/favorites, orders по дате, trgm на product_url
   20260921100100_schema_integrity.sql       # FK categories.parent_id, CHECK статуса заказа, UNIQUE external_id, три мёртвые политики
+  20260923120000_purchase_count_on_confirmation.sql  # purchase_count считает подтверждённые заказы: симметричный qty, кламп на нуле, бэкфилл
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```
