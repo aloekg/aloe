@@ -1,4 +1,4 @@
-import { Check, MessageCircle, Package, Phone } from "lucide-react";
+import { Check, MessageCircle, Package, Phone, Wallet } from "lucide-react";
 import Link from "next/link";
 import { InstallAppIos, MainContainer } from "@/components";
 import { WHATSAPP_LINK } from "@/lib/constants";
@@ -13,7 +13,9 @@ export const metadata = {
 const STEPS = [
   { icon: Phone, title: "Позвоним и подтвердим", text: "Уточним состав заказа, адрес и время доставки." },
   { icon: Package, title: "Привезём", text: "В день заказа, если вы оформили его до 15:00." },
-  { icon: Check, title: "Оплатите при получении", text: "Наличными курьеру или переводом на кошелёк." },
+  // Wallet, not another Check: the tick already means "order placed" at the top of this page, and
+  // one symbol carrying two meanings on one screen devalues both.
+  { icon: Wallet, title: "Оплатите при получении", text: "Наличными курьеру или переводом на кошелёк." },
 ];
 
 export default async function CheckoutSuccessPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
@@ -46,19 +48,27 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
         )}
       </div>
 
-      <ol className="mt-8 flex flex-col gap-4">
+      {/* Numbered, and with no connector line between the circles. A `flex-1` rule there only grows
+          by the difference between the text height and the 36px circle, which is a few pixels — it
+          rendered as a stub under each icon and read as a glitch rather than as a sequence. The
+          numbers carry the order on their own. */}
+      <ol className="mt-8 flex flex-col gap-5">
         {STEPS.map(({ icon: Icon, title, text }, i) => (
-          <li key={title} className="flex gap-3">
-            <span className="relative flex flex-col items-center shrink-0">
-              <span className="flex items-center justify-center size-9 rounded-full bg-gray-100 text-gray-500">
-                <Icon className="size-4.5" aria-hidden />
+          <li key={title} className="flex items-start gap-3">
+            <span className="relative shrink-0">
+              <span className="flex items-center justify-center size-10 rounded-full bg-gray-100 text-gray-500">
+                <Icon className="size-5" aria-hidden />
               </span>
-              {/* Connects the steps into one line so they read as a sequence, not three cards. */}
-              {i < STEPS.length - 1 && <span className="flex-1 w-px bg-gray-200 mt-1" aria-hidden />}
+              <span
+                aria-hidden
+                className="absolute -top-1 -left-1 flex items-center justify-center size-5 rounded-full bg-green-700 text-white text-[11px] font-bold"
+              >
+                {i + 1}
+              </span>
             </span>
-            <span className="pb-1">
+            <span className="pt-0.5">
               <span className="block text-sm font-medium">{title}</span>
-              <span className="block text-sm text-gray-500">{text}</span>
+              <span className="block text-sm text-gray-500 mt-0.5">{text}</span>
             </span>
           </li>
         ))}
