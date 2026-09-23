@@ -8,7 +8,13 @@ import {
   sortProducts,
 } from "@/lib/price-filter";
 
-const p = (id: number, price: number) => ({ id, price });
+/** A list row, reduced to what filtering and sorting read. */
+const p = (id: number, price: number, purchase_count = 0, created_at = "2020-01-01T00:00:00+00:00") => ({
+  id,
+  price,
+  purchase_count,
+  created_at,
+});
 
 const range = (min: number | null, max: number | null): PriceRange => ({ min, max });
 
@@ -102,10 +108,58 @@ describe("sortProducts", () => {
   });
 });
 
+describe("sortProducts — популярные и новые", () => {
+  it("ставит самые покупаемые вперёд", () => {
+    const products = [p(1, 100, 3), p(2, 100, 17), p(3, 100, 0), p(4, 100, 9)];
+    expect(sortProducts(products, "popular").map((x) => x.id)).toEqual([2, 4, 1, 3]);
+  });
+
+  it("разводит нули по id — это четыре товара из пяти в каталоге", () => {
+    const products = [p(9, 100, 0), p(2, 100, 0), p(5, 100, 2), p(7, 100, 0)];
+    expect(sortProducts(products, "popular").map((x) => x.id)).toEqual([5, 2, 7, 9]);
+  });
+
+  it("ставит недавно добавленные вперёд", () => {
+    const products = [
+      p(1, 100, 0, "2017-10-04T10:00:00+00:00"),
+      p(2, 100, 0, "2026-09-20T14:40:51+00:00"),
+      p(3, 100, 0, "2021-04-15T08:30:00+00:00"),
+    ];
+    expect(sortProducts(products, "newest").map((x) => x.id)).toEqual([2, 3, 1]);
+  });
+
+  it("сравнивает моменты времени, а не строки — смещение зоны не должно решать", () => {
+    // 2020-01-01T01:00+02:00 раньше, чем 2020-01-01T00:00+00:00, хотя как строка — позже.
+    const products = [p(1, 100, 0, "2020-01-01T00:00:00+00:00"), p(2, 100, 0, "2020-01-01T01:00:00+02:00")];
+    expect(sortProducts(products, "newest").map((x) => x.id)).toEqual([1, 2]);
+  });
+
+  it("разводит одинаковые даты по id", () => {
+    const products = [p(8, 100), p(3, 100), p(5, 100)];
+    expect(sortProducts(products, "newest").map((x) => x.id)).toEqual([3, 5, 8]);
+  });
+
+  it("не роняет порядок на нечитаемой дате", () => {
+    const products = [p(2, 100, 0, "не дата"), p(1, 100, 0, "2020-01-01T00:00:00+00:00")];
+    expect(sortProducts(products, "newest").map((x) => x.id)).toHaveLength(2);
+  });
+
+  it("не мутирует вход", () => {
+    const products = [p(1, 100, 3), p(2, 100, 17)];
+    sortProducts(products, "popular");
+    expect(products.map((x) => x.id)).toEqual([1, 2]);
+  });
+});
+
 describe("applyProductFilters", () => {
   it("narrows first, then orders", () => {
     const products = [p(1, 100), p(2, 500), p(3, 300), p(4, 50)];
     expect(applyProductFilters(products, range(100, 400), "price_desc").map((x) => x.id)).toEqual([3, 1]);
+  });
+
+  it("сужает по цене и для новых сортировок тоже", () => {
+    const products = [p(1, 100, 5), p(2, 900, 99), p(3, 300, 1)];
+    expect(applyProductFilters(products, range(null, 400), "popular").map((x) => x.id)).toEqual([1, 3]);
   });
 });
 

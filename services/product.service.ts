@@ -9,7 +9,8 @@ import type { Database } from "@/types/database";
  * The only columns a product card needs. Selecting `*` here pulls `description` and `seo_text`
  * — long free text — into every grid, carousel and RSC payload on the site.
  */
-const LIST_COLUMNS = "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, brands(name)";
+const LIST_COLUMNS =
+  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, purchase_count, created_at, brands(name)";
 
 /**
  * Stays "exact": these totals are user-visible ("Смотреть все N") and on the homepage
@@ -232,6 +233,8 @@ export async function searchProducts(
   // `id` last in every order: it breaks ties deterministically, so a product on a page boundary
   // cannot appear on both pages or on neither as the customer walks through them.
   if (sort === "price_asc" || sort === "price_desc") q = q.order("price", { ascending: sort === "price_asc" });
+  else if (sort === "popular") q = q.order("purchase_count", { ascending: false });
+  else if (sort === "newest") q = q.order("created_at", { ascending: false });
   else q = q.order("name");
 
   const res = await q.order("id").range(from, from + pageSize - 1);

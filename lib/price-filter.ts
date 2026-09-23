@@ -20,6 +20,9 @@ import type { ProductListItem } from "@/types";
 
 type Priced = Pick<ProductListItem, "id" | "price">;
 
+/** What ordering needs on top of a price: the two columns the extra sort orders read. */
+type Sortable = Priced & Pick<ProductListItem, "purchase_count" | "created_at">;
+
 /** Inclusive on both bounds, and a range that names neither returns the input untouched. */
 export function filterByPrice<T extends Priced>(products: readonly T[], range: PriceRange): readonly T[] {
   if (!hasPriceRange(range)) return products;
@@ -33,17 +36,35 @@ export function filterByPrice<T extends Priced>(products: readonly T[], range: P
  * would apply JS string collation to rows Postgres ordered by its own, quietly producing a
  * different order for the Cyrillic names that are most of this catalogue.
  *
- * The price orders break ties by `id`. Without that, `Array.prototype.sort` is free to order equal
- * prices differently on the server and in the browser — and this array is sorted on both sides.
+ * Every other order **breaks ties by `id`**. Without that, `Array.prototype.sort` is free to order
+ * equal keys differently on the server and in the browser, and this array is sorted on both sides —
+ * a hydration mismatch. The tie matters most for "Популярные": four products in five have a
+ * `purchase_count` of 0, so almost the whole catalogue is one tie.
+ *
+ * "Новые" compares parsed timestamps rather than the ISO strings. PostgREST returns them all with
+ * the same `+00:00` offset today, which would make a string compare work by coincidence; parsing
+ * costs nothing at these sizes and does not depend on that.
  */
-export function sortProducts<T extends Priced>(products: readonly T[], sort: SortValue): readonly T[] {
+export function sortProducts<T extends Sortable>(products: readonly T[], sort: SortValue): readonly T[] {
   if (sort === "name") return products;
-  const direction = sort === "price_desc" ? -1 : 1;
-  return [...products].sort((a, b) => (a.price === b.price ? a.id - b.id : (a.price - b.price) * direction));
+
+  const key: (p: T) => number =
+    sort === "popular"
+      ? (p) => -p.purchase_count
+      : sort === "newest"
+        ? (p) => -Date.parse(p.created_at)
+        : sort === "price_desc"
+          ? (p) => -p.price
+          : (p) => p.price;
+
+  return [...products].sort((a, b) => {
+    const diff = key(a) - key(b);
+    return diff === 0 || Number.isNaN(diff) ? a.id - b.id : diff;
+  });
 }
 
 /** Both in one pass, in the order the storefront wants them: narrow first, then order. */
-export function applyProductFilters<T extends Priced>(
+export function applyProductFilters<T extends Sortable>(
   products: readonly T[],
   range: PriceRange,
   sort: SortValue,
@@ -90,7 +111,7 @@ export type FilterableSection<T> = {
  * Emptied groups and emptied sections are dropped, which is what keeps a pill from scrolling to
  * nothing — the same rule the page already applies to a subcategory with no products at all.
  */
-export function filterCategorySections<T extends Priced, S extends FilterableSection<T>>(
+export function filterCategorySections<T extends Sortable, S extends FilterableSection<T>>(
   sections: readonly S[],
   range: PriceRange,
   sort: SortValue,

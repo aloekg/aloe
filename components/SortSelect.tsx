@@ -7,6 +7,8 @@ import type { SortValue } from "@/lib/page-params";
 /** Shared with the phone's sort sheet, so the two cannot offer different orders. */
 export const SORT_OPTIONS: { value: SortValue; label: string }[] = [
   { value: "name", label: "По названию" },
+  { value: "popular", label: "Популярные" },
+  { value: "newest", label: "Новые" },
   { value: "price_asc", label: "Сначала дешевле" },
   { value: "price_desc", label: "Сначала дороже" },
 ];

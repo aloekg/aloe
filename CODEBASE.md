@@ -307,6 +307,8 @@ type ProductListItem = {
   label?: "new" | "sale" | null;
   brand_id?: number | null;
   brand_name?: string | null;
+  purchase_count: number; // for "Популярные"
+  created_at: string; // for "Новые"
 };
 
 type ProductListRow = Omit<ProductListItem, "brand_name"> & { brands: { name: string } | null };
@@ -412,7 +414,14 @@ the chosen subset into the key and mint a ~90 KB entry per combination, so filte
 cached result rather than in the query. `sort` was in this key until the storefront gained a control
 for it — up to three entries per category for a feature no page exposed — and now lives in
 `lib/price-filter.ts`, applied by `app/catalog/[slug]/page.tsx` and again by `CategoryBrowser` on the
-client. Callers also sort the ids — `[1,2]` and `[2,1]` are otherwise two
+client. The storefront offers five orders — name, «Популярные» (`purchase_count`), «Новые»
+(`created_at`), and the two price directions — and the last two are why `ProductListItem` carries
+those columns at all: sorting a cached result needs them on every row, which costs ~45 bytes a row,
+about 21 KB on the largest category page. That is the price of not minting a cache entry per sort
+order, and it is the cheaper side by a wide margin. All four non-name orders break ties by `id`,
+which matters most for «Популярные»: four published products in five have a `purchase_count` of 0,
+so almost the whole catalogue is a single tie and an unstable sort would reshuffle it between the
+server render and hydration. Callers also sort the ids — `[1,2]` and `[2,1]` are otherwise two
 entries for one payload, and the natural `sort_order` walk is re-permuted by an admin drag-reorder.
 
 `getCachedRelatedProducts` is keyed by **category alone**. Its `excludeId` used to be in the key,

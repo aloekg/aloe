@@ -4,7 +4,7 @@
  * SortSelect that this server module imported from, one in product.service.ts — which is three
  * places for a three-member union to drift.
  */
-export type SortValue = "name" | "price_asc" | "price_desc";
+export type SortValue = "name" | "popular" | "newest" | "price_asc" | "price_desc";
 
 /**
  * Guards against `?page=abc` — `Math.max(1, parseInt("abc"))` is NaN, which reaches `.range()`.
@@ -35,9 +35,11 @@ export function parseQuery(q?: string): string {
   return typeof q === "string" ? q.trim().slice(0, MAX_QUERY_LENGTH) : "";
 }
 
+const SORT_VALUES: SortValue[] = ["name", "popular", "newest", "price_asc", "price_desc"];
+
 export function parseSortParam(sort?: string): SortValue {
   const s = (sort ?? "name") as SortValue;
-  return (["name", "price_asc", "price_desc"] as SortValue[]).includes(s) ? s : "name";
+  return SORT_VALUES.includes(s) ? s : "name";
 }
 
 export function parseBrandIds(brand?: string | string[]): number[] {
