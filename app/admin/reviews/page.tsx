@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { parsePage } from "@/lib/page-params";
+import { reviewTabFilter, reviewTabFromParam } from "@/lib/reviews";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { getAdminReviews, getReviewStatusCounts } from "@/services/review.service";
 import AdminReviews from "../AdminReviews";
@@ -14,7 +15,11 @@ export default async function AdminReviewsPage({
   await requireAdmin();
   const sp = await searchParams;
   const page = parsePage(sp.page);
-  const status = sp.status && sp.status !== "all" ? sp.status : undefined;
+
+  // Both the highlight and the filter come from the same function — see reviewTabFromParam for the
+  // bug that is.
+  const tab = reviewTabFromParam(sp.status);
+  const status = reviewTabFilter(tab);
 
   const admin = createAdminClient();
   const [{ reviews, total }, counts] = await Promise.all([
@@ -22,5 +27,5 @@ export default async function AdminReviewsPage({
     getReviewStatusCounts(admin),
   ]);
 
-  return <AdminReviews reviews={reviews} total={total} page={page} status={sp.status ?? "pending"} counts={counts} />;
+  return <AdminReviews reviews={reviews} total={total} page={page} status={tab} counts={counts} />;
 }

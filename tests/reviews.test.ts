@@ -10,6 +10,8 @@ import {
   normalizeReviewBody,
   orderCanBeReviewed,
   reviewableItems,
+  reviewTabFilter,
+  reviewTabFromParam,
   starFill,
   validateReview,
 } from "@/lib/reviews";
@@ -180,5 +182,37 @@ describe("avatarTone", () => {
 
   it("returns a tone even for nothing", () => {
     expect(avatarTone(null)).toMatch(/^bg-/);
+  });
+});
+
+describe("reviewTabFromParam / reviewTabFilter", () => {
+  it("defaults to the moderation queue when the URL says nothing", () => {
+    // The normal case, not an edge one: useAdminListNav drops a value equal to its default, so
+    // choosing "На модерации" removes ?status= from the URL entirely.
+    for (const absent of [undefined, null, ""]) {
+      expect(reviewTabFromParam(absent)).toBe("pending");
+      expect(reviewTabFilter(reviewTabFromParam(absent))).toBe("pending");
+    }
+  });
+
+  it("filters by the tab it highlights — the two used to disagree", () => {
+    // The bug: tabs highlighted `pending` while the query filtered by nothing, so "На модерации"
+    // listed all 57 reviews.
+    for (const status of ["pending", "approved", "rejected"] as const) {
+      expect(reviewTabFromParam(status)).toBe(status);
+      expect(reviewTabFilter(reviewTabFromParam(status))).toBe(status);
+    }
+  });
+
+  it("drops the filter only for «Все»", () => {
+    expect(reviewTabFromParam("all")).toBe("all");
+    expect(reviewTabFilter("all")).toBeUndefined();
+  });
+
+  it("falls back on nonsense instead of filtering on it", () => {
+    // Filtering on an unknown value would show an empty list with no tab lit.
+    for (const junk of ["bogus", "ALL", "Pending", "1", "'; --"]) {
+      expect(reviewTabFromParam(junk)).toBe("pending");
+    }
   });
 });

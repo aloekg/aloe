@@ -14,6 +14,32 @@ export const REVIEW_STATUS = {
 
 export type ReviewStatus = keyof typeof REVIEW_STATUS;
 
+/** The moderation queue's default tab: the only one that ever has work in it. */
+export const DEFAULT_REVIEW_TAB = "pending";
+
+export type ReviewTab = ReviewStatus | "all";
+
+/**
+ * Which tab `?status=` selects, for both the highlight and the query — **one** source of truth.
+ *
+ * Two of them disagreed: the tabs defaulted to `pending` while the query defaulted to no filter at
+ * all, so "На модерации" listed every review. An absent parameter is the normal case rather than an
+ * edge one, because `useAdminListNav` drops a value equal to its default — choosing that very tab
+ * removes it from the URL.
+ *
+ * An unrecognised value falls back rather than being passed through, which would have filtered on
+ * nonsense and shown an empty list with no tab lit.
+ */
+export function reviewTabFromParam(value: string | null | undefined): ReviewTab {
+  if (value === "all") return "all";
+  return value && value in REVIEW_STATUS ? (value as ReviewStatus) : DEFAULT_REVIEW_TAB;
+}
+
+/** The status to filter the query by, or undefined for "all". */
+export function reviewTabFilter(tab: ReviewTab): ReviewStatus | undefined {
+  return tab === "all" ? undefined : tab;
+}
+
 export const MIN_RATING = 1;
 export const MAX_RATING = 5;
 export const MAX_REVIEW_BODY = 2000;
