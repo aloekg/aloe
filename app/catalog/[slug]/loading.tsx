@@ -10,12 +10,12 @@ export default function Loading() {
         <Skeleton className="h-9 w-56 rounded-lg" />
       </div>
       <div className="sticky top-15 md:top-41.5 z-10 bg-white">
-        <div className="container mx-auto px-4 flex items-center gap-2 py-2">
-          <Skeleton className="size-9 rounded-full shrink-0 md:hidden" />
-          <Skeleton className="size-9 rounded-full shrink-0 md:hidden" />
+        <div className="container mx-auto px-4 py-2">
           {/* One row on a phone, wrapping from md — the same rule SubcategoryFilter follows, so the
               skeleton does not reserve a height the real bar will not use. */}
-          <div className="flex min-w-0 flex-1 gap-2 flex-nowrap overflow-hidden md:flex-wrap">
+          <div className="flex items-center gap-2 flex-nowrap overflow-hidden md:flex-wrap">
+            <Skeleton className="size-9 rounded-full shrink-0 md:hidden" />
+            <Skeleton className="size-9 rounded-full shrink-0 md:hidden" />
             {Array.from({ length: 6 }, (_, i) => (
               <Skeleton key={i} className="h-8 w-24 rounded-full shrink-0" />
             ))}

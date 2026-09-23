@@ -92,11 +92,13 @@ and it carries every active filter so page 2 shows the same result set.
 
 `ProductFilterBar` has two variants and each carries its own breakpoint visibility, so the two can
 sit in different places: `inline` is the `md`-and-up row above the pills, `icons` the phone's two
-triggers, which the category page passes into `SubcategoryFilter`'s `leading` slot so they ride at
-the **head of the sticky pill row**. That is the mobile first rule applied — the phone gets no
-filter row of its own, because a permanent one above the pills would spend vertical space on every
-visit to serve the few visitors who filter, and at the head of a row that is already sticky the
-triggers stay reachable at any scroll depth. Sort and price are **two icons, not one "Фильтры"
+triggers, which the category page passes into `SubcategoryFilter`'s `leading` slot so they ride as
+the **first items of the sticky pill row** and scroll sideways with it. That is the mobile first
+rule applied — the phone gets no filter row of its own, because a permanent one above the pills
+would spend vertical space on every visit to serve the few visitors who filter. The row itself is
+sticky, so they stay reachable at any scroll depth down the page. (The scroller carries `relative`
+so it is the pills' `offsetParent`: `useActiveSectionSync` compares `offsetLeft` against
+`scrollLeft`, and the two have to be measured in the same coordinate space.) Sort and price are **two icons, not one "Фильтры"
 button**: they are different questions, one a single tap and the other typing, and folding them into
 one sheet made the common case pay for the rare one. Each icon lights up on its own when its
 control is off default.
