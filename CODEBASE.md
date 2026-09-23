@@ -48,6 +48,7 @@
 /profile                    # User profile, orders, favorites (auth required)
 /favorites                  # Saved items
 /review/[token]             # Оставить отзыв по ссылке из WhatsApp — см. «Product reviews» ниже
+/order/[token]              # Привязать гостевой заказ к аккаунту (и посмотреть статус без входа)
 /delivery                   # Delivery info
 /about                      # About page (static)
 /contacts                   # Contacts page (static)
@@ -652,6 +653,16 @@ Posting requires signing in, which is the point: a valid token also lets `app/re
 proves ownership, so this is safe without an OTP — and the order history it unlocks is the real
 reason to register, rather than the review itself. `/checkout/success` therefore offers an account,
 not a review: nothing has arrived yet.
+
+The same token is the order's **access token**, and `/order/[token]` is its other door. `createOrder`
+returns it so the success page can send a guest through `/auth?next=/order/<token>`, which attaches
+the order to whatever account signs in there and then lands on `/profile`. Without it the card on
+that page promised something the code could not do — checkout stores `user_id = null` for a guest,
+registering afterwards matched nothing, and the customer arrived at an empty profile. The claim is
+conditional on `user_id is null` in the query itself, so an order that already belongs to someone
+never changes hands however the link travelled afterwards; a signed-out visitor sees the order's
+status and an invitation instead, which is guest order tracking by the same door. `/order/:path*`
+gets `no-referrer` and a robots `disallow` for the same reason `/review/:path*` does.
 
 Every check lives in the server action rather than in RLS, because the last of them cannot be
 written as a policy — "was this product in that order" reads `orders.items`, a jsonb document.
