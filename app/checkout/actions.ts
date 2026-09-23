@@ -17,7 +17,11 @@ const LIMITS = { ...CONTACT_LIMITS, comment: 1000 } as const;
 
 type Failure = { ok: false; error: string };
 
-type CreateOrderResult = { ok: true; orderId: string } | (Failure & { rejected?: RejectedLine[]; quote?: Quote });
+type CreateOrderResult =
+  // `token` is `orders.review_token` — the order's access token. It goes back to the browser so the
+  // success page can offer a guest a way to attach this order to a new account; the same token later
+  // travels to them over WhatsApp as the review link.
+  { ok: true; orderId: string; token: string } | (Failure & { rejected?: RejectedLine[]; quote?: Quote });
 
 function fail(error: string): Failure {
   return { ok: false, error };
@@ -200,5 +204,5 @@ export async function createOrder({
     }
   });
 
-  return { ok: true as const, orderId };
+  return { ok: true as const, orderId, token: data.review_token };
 }

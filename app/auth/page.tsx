@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import MainContainer from "@/components/MainContainer";
+import { safeNextPath } from "@/lib/safe-redirect";
 import AuthForm from "./AuthForm";
 
 export default function AuthPage() {
@@ -17,10 +18,16 @@ function AuthPageContent() {
   const searchParams = useSearchParams();
   const confirmed = searchParams.get("confirmed") === "true";
   const confirmError = searchParams.get("error") === "confirmation_failed";
+  // The page never read this, so `?next=` was silently dropped and everyone who signed in from a
+  // review link or from the checkout-success card landed on the home page instead of where they
+  // were going. Validated rather than passed through: it reaches router.push, and an unchecked
+  // value makes the shop's own sign-in page the bait for an open redirect.
+  const next = safeNextPath(searchParams.get("next"));
 
   return (
     <MainContainer className="max-w-sm pt-20">
       <AuthForm
+        next={next}
         installHint
         banner={
           <>

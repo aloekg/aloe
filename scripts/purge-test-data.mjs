@@ -28,7 +28,11 @@
 //      supabase/migrations/20260911120600_orders_user_fk_set_null.sql — after it an account can be
 //      deleted without erasing the sale.
 //
-//   3. backups/backup-db.mjs is the only copy of an order that exists anywhere; the old site has
+//   3. an order that carries a review cannot be deleted at all: reviews.order_id is ON DELETE
+//      RESTRICT, because deleting an order must not silently erase what a customer wrote about the
+//      product. Such an order is reported and skipped rather than forced.
+//
+//   4. backups/backup-db.mjs is the only copy of an order that exists anywhere; the old site has
 //      the catalogue, but not this. The script refuses to run without a dump containing orders.
 //
 // An account with role=admin is never deleted — losing the last admin locks everyone out of

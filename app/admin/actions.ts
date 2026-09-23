@@ -15,11 +15,13 @@ import {
   validateOrderItems,
   type OrderItemInput,
 } from "@/lib/order-pricing";
+import { REVIEW_STATUS } from "@/lib/reviews";
 import { adminRole } from "@/lib/roles";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { getAdminBrands } from "@/services/brand.service";
 import { getOrderForNotification, markOrderNotified } from "@/services/order.service";
+import { deleteReview, setReviewStatus } from "@/services/review.service";
 import type { OrderItem } from "@/types";
 
 async function assertAdmin() {
@@ -779,4 +781,38 @@ export async function setUserRole(
 
   revalidatePath("/admin/users");
   return { ok: true };
+}
+
+/* -------------------------------------------------------------------------------------------- */
+/* Reviews                                                                                        */
+
+/**
+ * Moderation. A review is invisible until it passes through here, which is the whole anti-spam
+ * story for a shop with one owner — and the reason `submitReview` expires no cache tag: nothing it
+ * writes is public yet. Approving (or un-approving) changes the product's denormalised rating via
+ * the trigger in 20260923140000, and that rating is on every card, so the catalogue tag goes here.
+ */
+export async function setReviewModeration(reviewId: number, status: "pending" | "approved" | "rejected") {
+  await assertAdmin();
+  if (!(status in REVIEW_STATUS)) throw new Error(`Unknown review status: ${status}`);
+
+  const { error } = await setReviewStatus(adminDb(), reviewId, status);
+  if (error) throw new Error(error.message);
+
+  updateTag("products");
+  revalidatePath("/admin/reviews");
+}
+
+/**
+ * Deletes a review outright, for the case moderation cannot cover: content that must not sit in the
+ * database at all. Rejecting is the ordinary action — it keeps the row, so the same person cannot
+ * simply post again through the unique constraint on (order_id, product_id).
+ */
+export async function removeReview(reviewId: number) {
+  await assertAdmin();
+  const { error } = await deleteReview(adminDb(), reviewId);
+  if (error) throw new Error(error.message);
+
+  updateTag("products");
+  revalidatePath("/admin/reviews");
 }

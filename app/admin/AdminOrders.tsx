@@ -170,7 +170,12 @@ export default function AdminOrders({
           // changed rather than the one the page was rendered with.
           const chatHref = whatsAppLink(
             order.customer_phone,
-            orderStatusMessage({ orderId: order.id, status: order.status, total: order.total }),
+            orderStatusMessage({
+              orderId: order.id,
+              status: order.status,
+              total: order.total,
+              reviewToken: order.review_token,
+            }),
           );
 
           // Everything the invoice prints from the order, so an edit in either editor throws away

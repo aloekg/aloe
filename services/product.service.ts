@@ -10,7 +10,7 @@ import type { Database } from "@/types/database";
  * — long free text — into every grid, carousel and RSC payload on the site.
  */
 const LIST_COLUMNS =
-  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, purchase_count, created_at, brands(name)";
+  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, purchase_count, created_at, rating_sum, rating_count, brands(name)";
 
 /**
  * Stays "exact": these totals are user-visible ("Смотреть все N") and on the homepage
