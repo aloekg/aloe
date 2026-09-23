@@ -61,6 +61,15 @@ export type ProductListItem = {
   label?: "new" | "sale" | null;
   brand_id?: number | null;
   brand_name?: string | null;
+  /**
+   * Carried by every list row for the sake of two sort orders — "Популярные" and "Новые" — which
+   * the storefront applies to an already-cached result rather than in the query (lib/price-filter.ts).
+   * They cost roughly 45 bytes a row, about 15 KB on the largest category's ~90 KB cache entry:
+   * the price of not minting a separate entry per sort order. `created_at` is real history, not
+   * import noise — the JoomShopping migration preserved dates spanning 2017 to 2026.
+   */
+  purchase_count: number;
+  created_at: string;
 };
 
 /**

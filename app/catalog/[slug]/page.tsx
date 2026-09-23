@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { MainContainer, MobileHeader, NextCategoryLink, SubcategoryFilter, VirtualCategoryContent } from "@/components";
+import { CategoryBrowser, MobileHeader, NextCategoryLink } from "@/components";
 import { getCachedCategoriesWithSlug, getCachedCategoryProducts } from "@/lib/cached-queries";
-import { parseSortParam } from "@/lib/page-params";
+import { parsePriceRange, parseSortParam } from "@/lib/page-params";
 import { pageMetadata } from "@/lib/seo";
 import { buildCategorySection } from "@/lib/subcategory-sections";
 
@@ -23,10 +23,11 @@ export default async function CategoryPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ sort?: string; sub?: string }>;
+  searchParams: Promise<{ sort?: string; sub?: string; price_min?: string; price_max?: string }>;
 }) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
-  const validSort = parseSortParam(sp.sort);
+  const sort = parseSortParam(sp.sort);
+  const priceRange = parsePriceRange(sp.price_min, sp.price_max);
 
   const allCategories = await getCachedCategoriesWithSlug();
 
@@ -49,7 +50,10 @@ export default async function CategoryPage({
   const allCategoryIds = subcategories
     .flatMap((s) => [s.id, ...(subSubsBySub.get(s.id) ?? []).map((c) => c.id)])
     .sort((a, b) => a - b);
-  const byCategory = new Map(await getCachedCategoryProducts(allCategoryIds, validSort));
+  // No sort and no price range in that call — they are not part of what the category holds, and
+  // folding them into the cache key would mint a fresh ~90 KB entry per combination. The filter is
+  // applied to the result instead, below and again in CategoryBrowser.
+  const byCategory = new Map(await getCachedCategoryProducts(allCategoryIds));
 
   const sections = subcategories.map((s) => {
     const subSubcategories = subSubsBySub.get(s.id) ?? [];
@@ -57,6 +61,11 @@ export default async function CategoryPage({
     return { sub: s, subSubcategories, products, total: products.length };
   });
 
+  // Decided on the *unfiltered* set, and it has to stay that way. A category exists or it does
+  // not; a price range that matches nothing in it is an empty result, not a missing page. Moving
+  // this below the filter would answer `?price_min=99999999` with a 404 on a real category — a
+  // soft-404 in Search Console, and a contradiction of what app/sitemap.ts promises. Nobody would
+  // find it by hand; a crawler would.
   const nonEmpty = sections.filter((s) => s.total > 0);
   if (!nonEmpty.length) notFound();
 
@@ -65,7 +74,8 @@ export default async function CategoryPage({
   );
 
   // Only subcategories that actually rendered a section — a pill for an empty one would
-  // scroll nowhere, since VirtualCategoryContent never received a matching section.
+  // scroll nowhere, since VirtualCategoryContent never received a matching section. Narrowing this
+  // further to what the filter left is CategoryBrowser's job, since the filter moves with it.
   const visibleSubcategories = nonEmpty.map((s) => s.sub);
 
   const initialSectionId = visibleSubcategories.find((s) => s.slug === sp.sub)?.id;
@@ -83,13 +93,17 @@ export default async function CategoryPage({
         {category.name}
       </h1>
 
-      <SubcategoryFilter subcategories={visibleSubcategories} />
-      <MainContainer>
-        <VirtualCategoryContent sections={allSections} initialSectionId={initialSectionId} />
+      <CategoryBrowser
+        sections={allSections}
+        subcategories={visibleSubcategories}
+        initialSort={sort}
+        initialRange={priceRange}
+        initialSectionId={initialSectionId}
+      >
         {nextCategory && nextCategory.id !== category.id && (
           <NextCategoryLink name={nextCategory.name} slug={nextCategory.slug} />
         )}
-      </MainContainer>
+      </CategoryBrowser>
     </>
   );
 }

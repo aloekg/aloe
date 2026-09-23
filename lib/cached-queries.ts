@@ -14,7 +14,6 @@ import {
   getProductsByLabel,
   getProductsByLabelPaginated,
   getRelatedProducts,
-  type SortValue,
 } from "@/services/product.service";
 
 /**
@@ -25,7 +24,7 @@ import {
  *
  * It used to be 60s, which on Vercel's Hobby plan is the single largest consumer of the 200K/month
  * ISR-write budget: an entry expiring every minute is an entry rewritten every minute, and this file
- * mints one per product, per brand page, per category-and-sort combination. Ten minutes costs a
+ * mints one per product, per brand page, per category. Ten minutes costs a
  * dashboard edit nine extra minutes of staleness and buys back roughly a tenth of the writes.
  *
  * Categories, brands and banners keep the longer window — they change a few times a year, and every
@@ -93,8 +92,15 @@ export const getCachedProductsByBrand = unstable_cache(
 export const getCachedCategoryProducts = unstable_cache(
   // Args form the cache key, so [1,2] and [2,1] used to mint separate ~90 KB entries for an
   // identical payload. Callers sort before calling; this is the guarantee.
-  async (categoryIds: number[], sort: SortValue) => {
-    const byCategory = await getCategoryProducts(supabase, categoryIds, sort);
+  //
+  // Nothing else may join them. A brand subset, a sort order and a price range are all forbidden
+  // arguments here: each multiplies the number of ~90 KB entries this query mints for one payload,
+  // and none of them changes which rows the category holds. `sort` was in this key before the
+  // storefront had a control for it, costing up to three entries per category for a feature no
+  // page exposed. The storefront filters and sorts the cached result instead — lib/price-filter.ts,
+  // applied in app/catalog/[slug]/page.tsx and again on the client.
+  async (categoryIds: number[]) => {
+    const byCategory = await getCategoryProducts(supabase, categoryIds);
     return [...byCategory.entries()];
   },
   ["category-products"],
