@@ -18,8 +18,6 @@ type Props = {
   children: React.ReactNode;
   /** Runs once the exit animation has finished — unmount or navigate from here, not before. */
   onClose: () => void;
-  /** Names the dialog for screen readers; rendered as its visually hidden heading. */
-  label: string;
   /** Pin the panel to its maximum height instead of sizing it to the content. */
   fullHeight?: boolean;
   /** Width of the panel, as a Tailwind `max-w-*`. */
@@ -29,7 +27,24 @@ type Props = {
    * backdrop and then calls `onClose`. Unmounting the sheet directly would skip the animation.
    */
   requestClose?: boolean;
-};
+} & (
+  | {
+      /**
+       * A heading shown on the same line as the close button. It names the dialog too, so there is
+       * no second hidden copy — pass this OR `label`, never the same string as both.
+       */
+      heading: string;
+      label?: never;
+    }
+  | {
+      /**
+       * Names the dialog for screen readers, as a visually hidden heading. For a panel that carries
+       * its own title inside — the quick view, the sign-in sheet — which a `heading` would double.
+       */
+      label: string;
+      heading?: never;
+    }
+);
 
 /**
  * A bottom sheet on a phone, a centred dialog from `md` up. Mounted means open: the panel animates
@@ -50,6 +65,7 @@ export default function Sheet({
   children,
   onClose,
   label,
+  heading,
   fullHeight = false,
   width = "max-w-3xl",
   requestClose = false,
@@ -129,13 +145,24 @@ export default function Sheet({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id={titleId} className="sr-only">
-          {label}
-        </h2>
-        <div className="w-full absolute top-0 left-0 z-10 flex bg-white p-2">
+        {/* The header overlays the scrolling content rather than sitting above it, which is what
+            keeps the close button in place as the panel scrolls. A heading therefore belongs on
+            this line: put below it, it scrolls away and leaves the close button captioning
+            nothing. `pt-12` on the content clears this row either way — a text-base heading is
+            shorter than the 48px the icon button already reserves. */}
+        <div className="w-full absolute top-0 left-0 z-10 flex items-center gap-3 bg-white py-2 pl-4 pr-2">
+          {heading ? (
+            <h2 id={titleId} className="text-base font-semibold truncate">
+              {heading}
+            </h2>
+          ) : (
+            <h2 id={titleId} className="sr-only">
+              {label}
+            </h2>
+          )}
           <button
             onClick={close}
-            className="ml-auto p-1.5 text-gray-500 hover:text-gray-600 transition-colors cursor-pointer"
+            className="ml-auto shrink-0 p-1.5 text-gray-500 hover:text-gray-600 transition-colors cursor-pointer"
             aria-label="Закрыть"
             title="Закрыть"
           >

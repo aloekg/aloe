@@ -147,7 +147,7 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
 
       {sheet && (
         <Sheet
-          label={sheet === "sort" ? "Сортировка" : "Фильтры"}
+          heading={sheet === "sort" ? "Сортировка" : "Фильтры"}
           requestClose={closing}
           onClose={() => {
             setSheet(null);
@@ -157,7 +157,6 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
         >
           {sheet === "sort" ? (
             <div className="flex flex-col gap-1 px-4 pb-6">
-              <h3 className="text-base font-semibold mb-2">Сортировка</h3>
               {SORT_OPTIONS.map((o) => (
                 <button
                   key={o.value}
@@ -179,7 +178,6 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
             </div>
           ) : (
             <div className="flex flex-col gap-5 px-4 pb-6">
-              <h3 className="text-base font-semibold">Фильтры</h3>
               <PriceFilter value={staged} onChange={setStaged} bounds={bounds} className="flex-wrap" />
               <div className="flex items-center gap-3 pt-1">
                 <Button
