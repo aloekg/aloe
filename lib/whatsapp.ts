@@ -8,7 +8,7 @@
  * payments and the regions delivery quote all happen in that same chat by hand.
  */
 
-import { ORDER_STATUS } from "@/lib/constants";
+import { ORDER_STATUS, SITE_URL } from "@/lib/constants";
 
 /**
  * `customer_phone` is free text: checkout only requires nine digits somewhere in it
@@ -53,7 +53,13 @@ export function whatsAppLink(phone: string | null | undefined, message?: string)
   return `https://wa.me/${number}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
 }
 
-type OrderMessage = { orderId: number; status: string; total: number };
+type OrderMessage = {
+  orderId: number;
+  status: string;
+  total: number;
+  /** `orders.review_token`, appended to the delivered message. Omitted → no invitation is offered. */
+  reviewToken?: string | null;
+};
 
 /**
  * A first line the admin can send as-is, not a finished script — it is prefilled into the chat and
@@ -63,7 +69,14 @@ const STATUS_MESSAGE: Record<string, (o: OrderMessage) => string> = {
   new: (o) => `Мы получили ваш заказ №${o.orderId} на сумму ${o.total} сом.`,
   confirmed: (o) => `Ваш заказ №${o.orderId} подтверждён, сумма к оплате — ${o.total} сом. Передаём его в доставку.`,
   processing: (o) => `Ваш заказ №${o.orderId} передан курьеру — он свяжется с вами перед доставкой.`,
-  delivered: (o) => `Ваш заказ №${o.orderId} доставлен. Спасибо за покупку!`,
+  // The one automated-feeling touch in a hand-sent message, and the only channel this shop has for
+  // reaching a customer after delivery: 24 of 25 buyers ordered as guests, so there is no account
+  // to notify and no email on file. The token is the proof of purchase the review page checks —
+  // delivering it to the customer's own number is what makes it trustworthy without verifying a
+  // phone. See the 20260923140000 migration.
+  delivered: (o) =>
+    `Ваш заказ №${o.orderId} доставлен. Спасибо за покупку!` +
+    (o.reviewToken ? `\n\nБудем рады отзыву — это займёт минуту: ${SITE_URL}/review/${o.reviewToken}` : ""),
   cancelled: (o) => `Ваш заказ №${o.orderId} отменён. Если это ошибка — напишите нам, оформим заново.`,
 };
 

@@ -10,6 +10,7 @@ const TABS = [
   { label: "Товары", href: "/admin/products" },
   { label: "Категории", href: "/admin/categories" },
   { label: "Бренды", href: "/admin/brands" },
+  { label: "Отзывы", href: "/admin/reviews" },
   { label: "Баннеры", href: "/admin/banners" },
 ];
 

@@ -133,7 +133,10 @@ export default function CheckoutForm({ initial }: Props) {
         return;
       }
       clear();
-      router.push(`/checkout/success?id=${result.orderId}`);
+      // The token rides along so the success page can offer a guest the account that owns this
+      // order. Same page is noindex and the token is the customer's own; it reaches them over
+      // WhatsApp anyway.
+      router.push(`/checkout/success?id=${result.orderId}&t=${result.token}`);
     } catch {
       // The order may well have been created — never invite a blind retry.
       // Guests have no order history to check, so don't send them to an auth-gated page.

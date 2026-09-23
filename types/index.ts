@@ -26,6 +26,9 @@ export type Product = {
   seo_text?: string | null;
   purchase_count: number;
   published: boolean;
+  /** Denormalised rating — see the note on `ProductListItem`. */
+  rating_sum: number;
+  rating_count: number;
 };
 
 export type CartItem = {
@@ -62,14 +65,22 @@ export type ProductListItem = {
   brand_id?: number | null;
   brand_name?: string | null;
   /**
-   * Carried by every list row for the sake of two sort orders — "Популярные" and "Новые" — which
-   * the storefront applies to an already-cached result rather than in the query (lib/price-filter.ts).
-   * They cost roughly 45 bytes a row, about 15 KB on the largest category's ~90 KB cache entry:
-   * the price of not minting a separate entry per sort order. `created_at` is real history, not
-   * import noise — the JoomShopping migration preserved dates spanning 2017 to 2026.
+   * Denormalised columns every list row carries because the storefront sorts and rates an
+   * already-cached result rather than querying for it: a card cannot join an aggregate when list
+   * queries are cached whole (see "Cache budget" in CODEBASE.md). Together they cost roughly 70
+   * bytes a row — the price of not minting a cache entry per sort order, which is the cheaper side
+   * by a wide margin.
+   *
+   * `purchase_count` and `created_at` back "По популярности" and "По новизне"; `created_at` is real
+   * history, not import noise — the JoomShopping migration preserved dates spanning 2017 to 2026.
+   * `rating_sum`/`rating_count` are kept by the trigger in 20260923140000, as a sum rather than an
+   * average because an average cannot be updated incrementally without drift; `averageRating()` in
+   * lib/reviews.ts divides once, at render.
    */
   purchase_count: number;
   created_at: string;
+  rating_sum: number;
+  rating_count: number;
 };
 
 /**
@@ -111,3 +122,11 @@ export type Profile = Tables["profiles"]["Row"];
 /** What profile.service selects and ProfileForm edits. */
 export type ProfileFields = Pick<Profile, "name" | "phone" | "address">;
 export type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
+
+/** A review row, as the schema stores it. */
+export type Review = Tables["reviews"]["Row"];
+
+/** A published review with the product it is about — what the admin queue and the profile render. */
+export type ReviewWithProduct = Review & {
+  products: { id: number; name: string; thumbnail_url: string | null } | null;
+};

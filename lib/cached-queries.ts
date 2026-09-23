@@ -15,6 +15,7 @@ import {
   getProductsByLabelPaginated,
   getRelatedProducts,
 } from "@/services/product.service";
+import { getProductReviews } from "@/services/review.service";
 
 /**
  * Every write path already invalidates by tag — `updateTag("products")` in app/admin/actions.ts on
@@ -104,6 +105,22 @@ export const getCachedCategoryProducts = unstable_cache(
     return [...byCategory.entries()];
   },
   ["category-products"],
+  { revalidate: CATALOGUE_TTL, tags: ["products"] },
+);
+
+/**
+ * Approved reviews of one product.
+ *
+ * Tagged `products` rather than a tag of its own: approving a review changes the product's rating,
+ * which is denormalised onto the row and rendered by every card, so the catalogue has to be
+ * expired anyway. A separate tag would mean two invalidations for one edit.
+ *
+ * Keyed by product id alone — no page, no sort. The page shows the most recent handful and there is
+ * no pagination to mint an entry per page of.
+ */
+export const getCachedProductReviews = unstable_cache(
+  async (productId: number) => getProductReviews(supabase, productId),
+  ["product-reviews"],
   { revalidate: CATALOGUE_TTL, tags: ["products"] },
 );
 

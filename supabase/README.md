@@ -20,6 +20,10 @@ migrations/
   20260921100000_indexes_followup.sql       # FK cart_items/favorites, orders по дате, trgm на product_url
   20260921100100_schema_integrity.sql       # FK categories.parent_id, CHECK статуса заказа, UNIQUE external_id, три мёртвые политики
   20260923120000_purchase_count_on_confirmation.sql  # purchase_count считает подтверждённые заказы: симметричный qty, кламп на нуле, бэкфилл
+  20260923140000_product_reviews.sql        # отзывы: таблица + модерация, orders.review_token, денормализованный рейтинг с триггером
+  20260923160000_review_author_name.sql     # reviews.author_name — уже сокращённое «Имя Ф.», хранится публично
+  20260923180000_reviews_own_read.sql       # автор видит свои отзывы в любом статусе (одна select-политика)
+  20260923200000_reviews_unique_per_customer.sql  # один отзыв на товар от покупателя, а не от заказа
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```

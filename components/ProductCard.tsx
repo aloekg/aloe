@@ -4,11 +4,13 @@ import { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LABEL_MAP } from "@/lib/constants";
+import { averageRating } from "@/lib/reviews";
 import type { ProductListItem } from "@/types";
 import AddToCart from "./AddToCart";
 import Currency from "./Currency";
 import FavoriteButton from "./FavoriteButton";
 import OldPrice from "./OldPrice";
+import StarRating from "./StarRating";
 
 type Props = {
   // Deliberately narrower than `Product`: the card renders seven fields, and typing it this way
@@ -31,6 +33,7 @@ function ProductBadge({ label }: { label: ProductListItem["label"] }) {
 }
 
 function ProductCard({ product: p, className = "", href, preload = false }: Props) {
+  const rating = averageRating(p.rating_sum, p.rating_count);
   const productHref = href ?? `/product/${p.id}`;
   // The card never renders above ~300px, so it takes the small variant; the detail page and the
   // quick-view modal load `image_url`. Rows predating the thumbnail backfill fall back to it.
@@ -65,6 +68,14 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
             {p.name}
           </p>
           {p.brand_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.brand_name}</p>}
+          {/* Nothing at all when unrated: only 5% of the catalogue has ever been delivered, and an
+              empty row of grey stars on the rest would read as "rated badly" rather than "new". */}
+          {rating != null && (
+            <span className="flex items-center gap-1 mt-1">
+              <StarRating average={rating} />
+              <span className="text-xs text-gray-500">{p.rating_count}</span>
+            </span>
+          )}
           <div className="flex items-baseline gap-1.5 mt-1">
             <p className="text-base font-bold">
               {p.price} <Currency />

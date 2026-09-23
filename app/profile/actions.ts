@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { rateLimit } from "@/lib/rate-limit";
+import { normalizeReviewBody, validateReview } from "@/lib/reviews";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { CONTACT_LIMITS, normalizeText } from "@/lib/text";
 import { saveProfile as saveProfileService } from "@/services/profile.service";
+import { updateOwnReview } from "@/services/review.service";
 
 /**
  * Saves the customer's own contact details.
@@ -43,4 +46,56 @@ export async function saveProfile({ name, phone, address }: { name: string; phon
   }
 
   revalidatePath("/profile");
+}
+
+/**
+ * Rewrites one of the signed-in customer's own reviews.
+ *
+ * **Only while it is unpublished.** A published review is final: editing one used to send it back
+ * to moderation, which worked but meant a live review could vanish from a product page at any
+ * moment, and left the bypass open in principle — post something bland, wait for approval, rewrite
+ * the page. `updateOwnReview` filters on the status in the same statement as the write, so a second
+ * tab cannot slip an edit through between the approval and the save.
+ */
+export async function editReview({
+  reviewId,
+  rating,
+  body,
+}: {
+  reviewId: number;
+  rating: number;
+  body: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { allowed } = await rateLimit("edit-review", { limit: 20, windowSeconds: 60 });
+  if (!allowed) return { ok: false, error: "Слишком много правок подряд. Попробуйте через минуту." };
+
+  const invalid = validateReview(rating, body);
+  if (invalid) return { ok: false, error: invalid };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Войдите в аккаунт." };
+
+  const { data, error } = await updateOwnReview(createAdminClient(), {
+    reviewId,
+    userId: user.id,
+    rating,
+    body: normalizeReviewBody(body),
+  });
+  if (error) {
+    console.error("[profile] review update failed:", error.message);
+    return { ok: false, error: "Не удалось сохранить отзыв. Попробуйте ещё раз." };
+  }
+  // No row means the review is not this customer's, or it has already been published. The second
+  // case is the likely one and deserves saying — a stale tab whose "Редактировать" button predates
+  // the approval would otherwise report "не найден" about a review sitting right there on screen.
+  if (!data) return { ok: false, error: "Опубликованный отзыв изменить нельзя." };
+
+  // Only unpublished reviews reach here, so nothing that is currently on a product page changed and
+  // no catalogue tag needs expiring. Said out loud so the omission does not read as an oversight.
+  revalidatePath("/profile");
+
+  return { ok: true };
 }

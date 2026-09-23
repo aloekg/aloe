@@ -38,7 +38,7 @@
 // guessing which row is a test is not acceptable; this one only ever deletes what it wrote itself,
 // on a database that holds no real customers.
 
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { resolveTarget } from "./lib/target.mjs";
 
@@ -359,6 +359,10 @@ for (let i = 0; i < ORDER_COUNT; i += 1) {
       created_at: new Date(at).toISOString(),
       // Marked as notified: a mock order is not one anybody should be chasing a missing email for.
       notified_at: new Date(at + 5000).toISOString(),
+      // Written rather than left to the column default, so a planned order can be matched to the
+      // row the database actually inserted — reviews reference an order by its id, and ids only
+      // exist after the insert.
+      review_token: randomUUID(),
     },
   });
 }
@@ -432,13 +436,23 @@ if (existingOrders.length) {
 
   const ids = existingOrders.map((o) => o.id);
   for (let i = 0; i < ids.length; i += 200) {
+    // Reviews first: reviews.order_id is ON DELETE RESTRICT, so an order that was reviewed cannot
+    // be deleted while the review stands. That is the right rule for production — deleting an order
+    // must not silently erase what a customer wrote — and it means this script has to clean up
+    // after itself explicitly, since the reviews above are its own.
+    const { error: reviewError } = await db
+      .from("reviews")
+      .delete()
+      .in("order_id", ids.slice(i, i + 200));
+    if (reviewError) fail(`could not delete mock reviews: ${reviewError.message}`);
+
     const { error } = await db
       .from("orders")
       .delete()
       .in("id", ids.slice(i, i + 200));
     if (error) fail(`could not delete mock orders: ${error.message}`);
   }
-  console.log(`\nremoved ${ids.length} mock orders`);
+  console.log(`\nremoved ${ids.length} mock orders (with their reviews)`);
 }
 
 for (const user of existingUsers) {
@@ -489,11 +503,92 @@ for (const account of accounts) {
 if (accounts.length) console.log(`created ${accounts.length} mock accounts`);
 
 const rows = orders.map((o) => ({ ...o.row, user_id: o.email ? idByEmail.get(o.email) : null }));
+// Reviews reference an order by id, and ids are assigned by the database. The token each row
+// carries is unique, so it is what links a planned order back to the row that was actually written.
+const insertedIdByToken = new Map();
 for (let i = 0; i < rows.length; i += 200) {
-  const { error } = await db.from("orders").insert(rows.slice(i, i + 200));
+  const { data, error } = await db
+    .from("orders")
+    .insert(rows.slice(i, i + 200))
+    .select("id, review_token");
   if (error) fail(`could not insert orders [${i}..${i + 200}): ${error.message}`);
+  for (const row of data ?? []) insertedIdByToken.set(row.review_token, row.id);
 }
 if (rows.length) console.log(`created ${rows.length} mock orders`);
+
+// Reviews on the delivered orders that belong to an account -------------------------------------
+//
+// Without these, staging shows the feature switched off: no stars on a card, no block on a product
+// page, nothing in the moderation queue. Only delivered orders placed by a mock account qualify,
+// which is the same rule app/review/actions.ts enforces — a review needs a user_id, and a guest
+// order has none until its buyer signs in through the review link.
+//
+// A third are left `pending` so the admin's queue is not empty, and a few are `rejected`, so the
+// tabs have something in them. No cleanup on --reset: reviews.user_id cascades with the account.
+const REVIEW_BODIES = [
+  "Пользуемся давно, берём уже не первый раз. Всё отлично.",
+  "Пришло быстро, упаковано аккуратно. Рекомендую.",
+  "Товар хороший, но цена кусается.",
+  "Ожидала большего, запах слишком резкий.",
+  "Нормально за свои деньги.",
+  "Прекрасное средство, расходуется экономно.",
+  null,
+  null,
+];
+
+// The published form of a name: "Айгерим Садыкова" → "Айгерим С.". Duplicated from
+// lib/reviews.ts `displayAuthorName` for the same reason the delivery tariff is — scripts are plain
+// ESM with no TS step. A stale copy only makes the mock data slightly off.
+const shortName = (full) => {
+  const parts = String(full ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return null;
+  const [first, ...rest] = parts;
+  const surname = rest.at(-1);
+  return surname ? `${first} ${[...surname][0].toUpperCase()}.` : first;
+};
+
+const reviewRows = [];
+const reviewedPairs = new Set();
+for (const o of orders) {
+  if (o.row.status !== "delivered" || !o.email) continue;
+  const userId = idByEmail.get(o.email);
+  if (!userId) continue;
+  const orderId = insertedIdByToken.get(o.row.review_token);
+  if (!orderId) continue;
+  // Not every delivered order gets one — a 100% review rate would be the least realistic thing on
+  // the whole of staging.
+  if (rand() > 0.45) continue;
+  for (const item of o.row.items) {
+    // One review per customer per product, the same rule the unique constraint enforces — a repeat
+    // buyer of the same powder gets one opinion, not one per order. Keyed across all of this
+    // customer's orders, not just this one.
+    const key = `${userId}:${item.id}`;
+    if (reviewedPairs.has(key)) continue;
+    reviewedPairs.add(key);
+    const roll = rand();
+    reviewRows.push({
+      product_id: item.id,
+      order_id: orderId,
+      user_id: userId,
+      // Skewed high, the way real ratings are: someone who disliked it usually just does not write.
+      rating: roll < 0.55 ? 5 : roll < 0.8 ? 4 : roll < 0.92 ? 3 : between(1, 2),
+      body: pick(REVIEW_BODIES),
+      author_name: shortName(o.row.customer_name),
+      status: roll < 0.66 ? "approved" : roll < 0.9 ? "pending" : "rejected",
+    });
+  }
+}
+
+if (reviewRows.length) {
+  for (let i = 0; i < reviewRows.length; i += 200) {
+    const { error } = await db.from("reviews").insert(reviewRows.slice(i, i + 200));
+    if (error) fail(`could not insert reviews [${i}..${i + 200}): ${error.message}`);
+  }
+  console.log(`created ${reviewRows.length} mock reviews (the trigger rates the products)`);
+}
 
 // The same RPC the admin calls on a status change, so the counts land where a real sale puts them.
 const sold = soldQuantities(rows);

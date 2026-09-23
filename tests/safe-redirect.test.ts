@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveOrigin, safeRedirect } from "@/lib/safe-redirect";
+import { resolveOrigin, safeNextPath, safeRedirect } from "@/lib/safe-redirect";
 
 const BASE = "https://aloe.kg";
 
@@ -79,5 +79,30 @@ describe("resolveOrigin in development", () => {
     vi.stubEnv("NODE_ENV", "development");
     expect(resolveOrigin("localhost.evil.com", "http://localhost:3000")).toBe("https://aloe.kg");
     expect(resolveOrigin("evil.com", "http://localhost:3000")).toBe("https://aloe.kg");
+  });
+});
+
+describe("safeNextPath", () => {
+  it("keeps an ordinary relative path", () => {
+    expect(safeNextPath("/review/abc")).toBe("/review/abc");
+    expect(safeNextPath("/profile?order=301")).toBe("/profile?order=301");
+  });
+
+  it("refuses anything a browser would read as another host", () => {
+    // `//evil.com` is protocol-relative and `/\evil.com` is normalised the same way — both would
+    // leave the site while looking like a path.
+    for (const hostile of ["//evil.com", "/\\evil.com", "https://evil.com", "//evil.com/review/abc"]) {
+      expect(safeNextPath(hostile)).toBe("/");
+    }
+  });
+
+  it("refuses anything that is not a path at all", () => {
+    for (const junk of ["", "review/abc", "javascript:alert(1)", null, undefined]) {
+      expect(safeNextPath(junk)).toBe("/");
+    }
+  });
+
+  it("takes the fallback it is given", () => {
+    expect(safeNextPath(null, "/profile")).toBe("/profile");
   });
 });

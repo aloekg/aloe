@@ -12,10 +12,18 @@ import {
   OldPrice,
   ProductCard,
   ProductDescription,
+  ProductReviews,
+  RatingSummary,
   Title,
 } from "@/components";
-import { getCachedCategoriesWithSlug, getCachedProduct, getCachedRelatedProducts } from "@/lib/cached-queries";
+import {
+  getCachedCategoriesWithSlug,
+  getCachedProduct,
+  getCachedProductReviews,
+  getCachedRelatedProducts,
+} from "@/lib/cached-queries";
 import { LABEL_MAP, SITE_URL } from "@/lib/constants";
+import { averageRating } from "@/lib/reviews";
 import { MERCHANT_RETURN_POLICY, OFFER_SHIPPING_DETAILS } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
 import { RELATED_PRODUCTS_LIMIT } from "@/services/product.service";
@@ -69,10 +77,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const brandInfo = (rawProduct as unknown as { brands?: { name: string; slug: string } | null }).brands;
   const product = withBrandName([rawProduct as unknown as ProductRow])[0];
 
-  const [relatedPool, allCategories] = await Promise.all([
+  const [relatedPool, allCategories, reviews] = await Promise.all([
     getCachedRelatedProducts(product.category_id),
     getCachedCategoriesWithSlug(),
+    getCachedProductReviews(product.id),
   ]);
+
+  const average = averageRating(product.rating_sum, product.rating_count);
 
   // The pool is cached per category and still contains this product — see getRelatedProducts.
   const related = relatedPool.filter((p) => p.id !== product.id).slice(0, RELATED_PRODUCTS_LIMIT);
@@ -128,6 +139,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     description: product.description || product.seo_text || product.name,
     ...(brandInfo && { brand: { "@type": "Brand", name: brandInfo.name } }),
     sku: String(product.id),
+    // Only when there is something to aggregate. Google's policy forbids inventing ratings, and an
+    // aggregateRating of 0 reviews is exactly that — so the property is absent rather than empty,
+    // which is also what keeps the merchant-listing report honest (see lib/seo.ts).
+    ...(average != null && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: average,
+        reviewCount: product.rating_count,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
     offers: {
       "@type": "Offer",
       url: `${SITE_URL}/product/${product.id}`,
@@ -191,13 +214,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <Title className="mb-2">{product.name}</Title>
 
           {brandInfo && (
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-2">
               Производитель:{" "}
               <Link href={`/brands/${brandInfo.slug}`} className="text-green-700 hover:underline">
                 {brandInfo.name}
               </Link>
             </p>
           )}
+
+          {/* Above the price, where a shopper looks for it while deciding — and a shortcut to the
+              reviews themselves, which sit below the fold under the whole product block. */}
+          <RatingSummary ratingSum={product.rating_sum} ratingCount={product.rating_count} className="mb-4" />
 
           <div className="flex items-baseline gap-3 mb-6">
             <span className="text-2xl md:text-3xl font-bold">
@@ -245,6 +272,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Full width and below the product block rather than inside its right-hand column: reviews are
+          about the product as a whole, and squeezed under the description they shared a column with
+          the sticky image and ran out of room long before they ran out of content. */}
+      <ProductReviews reviews={reviews} ratingSum={product.rating_sum} ratingCount={product.rating_count} />
 
       {related && related.length > 0 && (
         <section>

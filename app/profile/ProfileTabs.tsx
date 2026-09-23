@@ -1,16 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import Pagination from "@/components/Pagination";
 import { deliveryFreeNote, ORDER_STATUS } from "@/lib/constants";
+import { orderCanBeReviewed } from "@/lib/reviews";
 import { useCart } from "@/store/cart";
 import { useToast } from "@/store/toast";
-import type { Order, ProfileFields } from "@/types";
+import type { Order, ProfileFields, ReviewWithProduct } from "@/types";
 import PasswordChangeForm from "./PasswordChangeForm";
 import ProfileForm from "./ProfileForm";
+import ReviewsTab from "./ReviewsTab";
+
+type TabKey = "orders" | "reviews" | "profile";
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "orders", label: "История заказов" },
+  { key: "reviews", label: "Отзывы" },
+  { key: "profile", label: "Личные данные" },
+];
 
 export default function ProfileTabs({
   initial,
@@ -19,6 +30,7 @@ export default function ProfileTabs({
   page,
   totalPages,
   totalOrders,
+  reviews,
 }: {
   initial: ProfileFields | null;
   /** The account's address, or null when it signs in through Google and has no password. */
@@ -27,8 +39,9 @@ export default function ProfileTabs({
   page: number;
   totalPages: number;
   totalOrders: number;
+  reviews: ReviewWithProduct[];
 }) {
-  const [tab, setTab] = useState<"profile" | "orders">("orders");
+  const [tab, setTab] = useState<TabKey>("orders");
   const addMany = useCart((s) => s.addMany);
   const show = useToast((s) => s.show);
   const router = useRouter();
@@ -50,19 +63,26 @@ export default function ProfileTabs({
   return (
     <>
       {/* Tabs */}
-      <div className="flex justify-center mb-6">
-        {(["orders", "profile"] as const).map((t) => (
+      {/* Scrollable below md rather than wrapped: a third tab pushed the row onto two lines on a
+          phone, and two rows of tab chrome above the content is a lot of the screen to spend. */}
+      <div className="flex justify-start md:justify-center mb-6 gap-1 overflow-x-auto scrollbar-none">
+        {TABS.map(({ key, label }) => (
           <Button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t ? "border-green-600 text-green-700" : "border-transparent text-gray-500 hover:text-gray-700"
+            key={key}
+            onClick={() => setTab(key)}
+            aria-current={tab === key ? "page" : undefined}
+            className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+              tab === key ? "border-green-600 text-green-700" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {t === "profile" ? "Личные данные" : `История заказов${totalOrders > 0 ? ` (${totalOrders})` : ""}`}
+            {label}
+            {key === "orders" && totalOrders > 0 && ` (${totalOrders})`}
+            {key === "reviews" && reviews.length > 0 && ` (${reviews.length})`}
           </Button>
         ))}
       </div>
+
+      {tab === "reviews" && <ReviewsTab reviews={reviews} />}
 
       {tab === "profile" && (
         <>
@@ -131,9 +151,26 @@ export default function ProfileTabs({
                         <span className="font-semibold text-sm">
                           Итого: {order.total.toLocaleString("ru-RU")} <Currency />
                         </span>
-                        <Button variant="secondary" onClick={() => repeatOrder(order)} className="text-xs px-3 py-1.5">
-                          Повторить заказ
-                        </Button>
+                        <span className="flex items-center gap-2">
+                          {/* Only on a delivered order, and only while something in it is still
+                              unreviewed — the page behind the link says so itself, but offering a
+                              link that leads to "вы уже всё оценили" is a wasted tap. */}
+                          {orderCanBeReviewed(order.status) && order.review_token && (
+                            <Link
+                              href={`/review/${order.review_token}`}
+                              className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg text-green-700 hover:bg-gray-50"
+                            >
+                              Оставить отзыв
+                            </Link>
+                          )}
+                          <Button
+                            variant="secondary"
+                            onClick={() => repeatOrder(order)}
+                            className="text-xs px-3 py-1.5"
+                          >
+                            Повторить заказ
+                          </Button>
+                        </span>
                       </div>
                     </div>
                   );

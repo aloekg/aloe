@@ -10,6 +10,8 @@ const product = (id: number, category_id: number): ProductListItem => ({
   category_id,
   purchase_count: 0,
   created_at: "2020-01-01T00:00:00+00:00",
+  rating_sum: 0,
+  rating_count: 0,
 });
 
 describe("buildCategorySection", () => {

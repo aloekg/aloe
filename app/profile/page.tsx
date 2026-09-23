@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { parsePage } from "@/lib/page-params";
 import { getUserOrders } from "@/services/order.service";
 import { getProfile } from "@/services/profile.service";
+import { getUserReviews } from "@/services/review.service";
 import LogoutButton from "./LogoutButton";
 import ProfileTabs from "./ProfileTabs";
 
@@ -21,9 +22,12 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     (user.app_metadata?.providers as string[] | undefined)?.includes("email") ??
     false;
 
-  const [{ orders, total }, profile] = await Promise.all([
+  const [{ orders, total }, profile, reviews] = await Promise.all([
     getUserOrders(supabase, user.id, { page, pageSize: ORDERS_PAGE_SIZE }),
     getProfile(supabase, user.id),
+    // The user's own client, so the RLS policy is what decides they may see their pending and
+    // rejected ones — not this call site.
+    getUserReviews(supabase, user.id),
   ]);
 
   const registeredAt = new Date(user.created_at).toLocaleDateString("ru-RU", {
@@ -73,6 +77,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           page={page}
           totalPages={Math.ceil(total / ORDERS_PAGE_SIZE)}
           totalOrders={total}
+          reviews={reviews}
           passwordEmail={hasPassword ? (user.email ?? null) : null}
         />
       </MainContainer>
