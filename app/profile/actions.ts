@@ -1,10 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { rateLimit } from "@/lib/rate-limit";
+import { normalizeReviewBody, validateReview } from "@/lib/reviews";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { CONTACT_LIMITS, normalizeText } from "@/lib/text";
 import { saveProfile as saveProfileService } from "@/services/profile.service";
+import { updateOwnReview } from "@/services/review.service";
 
 /**
  * Saves the customer's own contact details.
@@ -43,4 +46,56 @@ export async function saveProfile({ name, phone, address }: { name: string; phon
   }
 
   revalidatePath("/profile");
+}
+
+/**
+ * Rewrites one of the signed-in customer's own reviews.
+ *
+ * **An edit always returns the review to moderation**, even when it was already published. Without
+ * that, anyone could post something bland, wait for approval and then rewrite the live page — which
+ * is the standard way a moderated system gets bypassed, and the reason the status reset lives in the
+ * same statement as the edit rather than in a branch above it.
+ */
+export async function editReview({
+  reviewId,
+  rating,
+  body,
+}: {
+  reviewId: number;
+  rating: number;
+  body: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { allowed } = await rateLimit("edit-review", { limit: 20, windowSeconds: 60 });
+  if (!allowed) return { ok: false, error: "Слишком много правок подряд. Попробуйте через минуту." };
+
+  const invalid = validateReview(rating, body);
+  if (invalid) return { ok: false, error: invalid };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Войдите в аккаунт." };
+
+  const { data, error } = await updateOwnReview(createAdminClient(), {
+    reviewId,
+    userId: user.id,
+    rating,
+    body: normalizeReviewBody(body),
+  });
+  if (error) {
+    console.error("[profile] review update failed:", error.message);
+    return { ok: false, error: "Не удалось сохранить отзыв. Попробуйте ещё раз." };
+  }
+  // No row means the id is not this customer's. Same message either way — whose review it is, is
+  // not something a probe should be able to learn.
+  if (!data) return { ok: false, error: "Отзыв не найден." };
+
+  // The rating on the product changes whenever an approved review leaves that state, and the rating
+  // is on every card. Expiring unconditionally: working out whether it *was* approved would take
+  // another read to save an invalidation that costs one cached entry.
+  updateTag("products");
+  revalidatePath("/profile");
+
+  return { ok: true };
 }

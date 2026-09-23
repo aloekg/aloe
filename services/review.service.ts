@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { soft, strict } from "@/lib/db";
+import { soft } from "@/lib/db";
 import { isReviewToken } from "@/lib/reviews";
-import type { Review, ReviewWithProduct } from "@/types";
+import type { ReviewWithProduct } from "@/types";
 import type { Database } from "@/types/database";
 
 const PUBLIC_COLUMNS = "id, product_id, rating, body, author_name, created_at";
@@ -121,10 +121,41 @@ export async function deleteReview(admin: SupabaseClient<Database>, id: number) 
   return admin.from("reviews").delete().eq("id", id);
 }
 
-/** A customer's own reviews, including the ones still awaiting moderation — only they see those. */
-export async function getUserReviews(supabase: SupabaseClient<Database>, userId: string): Promise<Review[]> {
-  return strict(
-    "user-reviews",
-    await supabase.from("reviews").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-  ) as Review[];
+/**
+ * A customer's own reviews, pending and rejected included — the 20260923180000 policy is what lets
+ * them through, and only to their author.
+ *
+ * Read with the *user's* client, not the service role: the policy is the check, so a mistake in the
+ * caller cannot hand someone another person's drafts.
+ */
+export async function getUserReviews(supabase: SupabaseClient<Database>, userId: string): Promise<ReviewWithProduct[]> {
+  const res = await supabase
+    .from("reviews")
+    .select("*, products(id, name, thumbnail_url)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  // soft: the profile page has orders and personal details to show regardless, and a failed review
+  // query must not take the whole page down.
+  return soft("user-reviews", res, []) as ReviewWithProduct[];
+}
+
+/**
+ * Rewrites a review the customer owns and sends it back to moderation.
+ *
+ * `eq("user_id", userId)` is not decoration: without it the id alone would be enough to rewrite
+ * anyone's review. The status reset is the other half — an approved review that could be edited in
+ * place is a published page anyone could change after the fact, which is exactly how a moderated
+ * system gets bypassed.
+ */
+export async function updateOwnReview(
+  admin: SupabaseClient<Database>,
+  { reviewId, userId, rating, body }: { reviewId: number; userId: string; rating: number; body: string | null },
+) {
+  return admin
+    .from("reviews")
+    .update({ rating, body, status: "pending" })
+    .eq("id", reviewId)
+    .eq("user_id", userId)
+    .select("id, status")
+    .maybeSingle();
 }

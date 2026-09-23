@@ -22,6 +22,7 @@ migrations/
   20260923120000_purchase_count_on_confirmation.sql  # purchase_count считает подтверждённые заказы: симметричный qty, кламп на нуле, бэкфилл
   20260923140000_product_reviews.sql        # отзывы: таблица + модерация, orders.review_token, денормализованный рейтинг с триггером
   20260923160000_review_author_name.sql     # reviews.author_name — уже сокращённое «Имя Ф.», хранится публично
+  20260923180000_reviews_own_read.sql       # автор видит свои отзывы в любом статусе (одна select-политика)
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```

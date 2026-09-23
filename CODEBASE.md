@@ -394,7 +394,7 @@ still has four neighbours to show. The rendered result is identical to the old q
 | file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                            |
-| `app/profile/actions.ts`        | `saveProfile()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client |
 
@@ -679,6 +679,20 @@ email and have none, and the one Google avatar lives on `googleusercontent.com`,
 does not allow — widening the CSP and calling Google from every product page, for one user in
 fourteen, buys less than a coloured circle. A review written before the column existed, or by
 someone whose profile has no name, renders as "Покупатель".
+
+The profile has an **"Отзывы" tab**: everything the customer has written, moderation state included,
+each one editable. Seeing their own pending and rejected rows is what the single select policy
+allows (`status = 'approved' or user_id = auth.uid()`, widened rather than paired with a second
+policy so that "what may anon see" has one answer); the list is read with the _user's_ client, so
+the policy is the check rather than the call site.
+
+**An edit always returns the review to moderation, published or not.** Without that, anyone could
+post something bland, wait for approval and rewrite the live page — the standard way around a
+moderated system — which is why the status reset sits in the same statement as the edit rather than
+in a branch above it, and why `updateOwnReview` matches on `user_id` as well as `id`. The UI says so
+before the customer presses save, not after. There is no update policy at all: the edit goes through
+a server action on the service role, and a direct `PATCH` from a signed-in customer is refused with
+a 403.
 
 `reviews.order_id` is `on delete restrict`: deleting an order must not silently erase what a
 customer wrote. `scripts/purge-test-data.mjs` therefore cannot force such an order away, and
