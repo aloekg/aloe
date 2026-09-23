@@ -94,6 +94,14 @@ const nextConfig: NextConfig = {
         source: "/auth/:path*",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      // Same reasoning, different secret: /review/<token> carries the proof that someone received a
+      // particular order. A leaked token lets a stranger read that order's contents and write
+      // reviews in the buyer's stead, so it must not ride along in a Referer header — and the page
+      // links out to /auth and /profile, which would otherwise carry it.
+      {
+        source: "/review/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
 };

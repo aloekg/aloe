@@ -47,6 +47,7 @@
 /checkout/success           # Order confirmation
 /profile                    # User profile, orders, favorites (auth required)
 /favorites                  # Saved items
+/review/[token]             # Оставить отзыв по ссылке из WhatsApp — см. «Product reviews» ниже
 /delivery                   # Delivery info
 /about                      # About page (static)
 /contacts                   # Contacts page (static)
@@ -59,6 +60,7 @@
 /admin/products             # Product CRUD
 /admin/categories           # Category management (drag-to-reorder)
 /admin/brands               # Brand management
+/admin/reviews              # Модерация отзывов (pending / approved / rejected)
 /admin/banners              # Banner carousel management (desktop/mobile tabs)
 /admin/users                # Accounts list; grant/revoke the admin role (role: superadmin only)
 
@@ -292,18 +294,19 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 
 ## Services (`/services/`)
 
-| file                   | purpose                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------ |
-| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing      |
-| `brand.service.ts`     | Brand queries (public + admin)                                                       |
-| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                      |
-| `order.service.ts`     | Order creation & listing, admin listing + status counts                              |
-| `profile.service.ts`   | User profile read/write                                                              |
-| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                        |
-| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list              |
-| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                                 |
-| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only          |
-| `analytics.service.ts` | Rows the admin dashboard aggregates — orders, customer history, catalogue, favorites |
+| file                   | purpose                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing          |
+| `brand.service.ts`     | Brand queries (public + admin)                                                           |
+| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                          |
+| `order.service.ts`     | Order creation & listing, admin listing + status counts                                  |
+| `profile.service.ts`   | User profile read/write                                                                  |
+| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                            |
+| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list                  |
+| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                                     |
+| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only              |
+| `analytics.service.ts` | Rows the admin dashboard aggregates — orders, customer history, catalogue, favorites     |
+| `review.service.ts`    | Отзывы: публичные по товару, очередь модерации, разбор токена, привязка гостевого заказа |
 
 ## Lib Utilities (`/lib/`)
 
@@ -330,6 +333,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `minOrderShortfall()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below)                                                            |
 | `analytics.ts`            | Pure aggregation behind `/admin/analytics`: shop-day/period helpers and `buildReport()` — kept free of the database so `tests/analytics.test.ts` can exercise the arithmetic                                                                                                                                                                                                                                                                                                     |
 | `analytics-insights.ts`   | `buildInsights()` — the dashboard's catalogue- and history-dependent sections (categories, brands, heatmap, promo, free-delivery threshold, cancellations, repeat purchases, favorites vs sales, unsold products); pure, tested in `tests/analytics-insights.test.ts`                                                                                                                                                                                                            |
+| `reviews.ts`              | `validateReview()`, `orderCanBeReviewed()`, `reviewableItems()`, `averageRating()`, `starFill()`, `isReviewToken()` — правила отзывов без базы (`tests/reviews.test.ts`)                                                                                                                                                                                                                                                                                                         |
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                                                                                       |
 | `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                                                                              |
 | `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                                                                                                             |
@@ -627,6 +631,48 @@ until it lands, because `loading.tsx` only covers entering the route, not a sear
 **The sign-in form is shared, not duplicated.** `app/auth/AuthForm.tsx` holds the login/register/reset form with no page chrome; `/auth` wraps it in `MainContainer` and supplies the confirmation banners (it owns the `useSearchParams` read, so the form can be used where there is no Suspense boundary), and `AuthModal` wraps it in a sheet, passes `onAuthenticated` so a successful sign-in closes the sheet instead of pushing to `/`, and loads it with `next/dynamic` — it is mounted in the root layout on every page but only ever opened by a guest.
 
 **Product quick-view modal:** `ProductCard` links to `/product/[id]` normally; the `@modal` parallel route (`app/@modal/(.)product/[id]/page.tsx`) intercepts that soft navigation and renders it inside `ProductModal` instead, so browsing stays on the originating grid/carousel while the URL still updates. See "Quick-view modal" note under App Routes.
+
+**Product reviews.** Rated 1..5, moderated before anything is shown, and the whole design turns on
+one question: **who may write one.** The only anti-spam that costs nothing is "you may review what
+you received", and that is hard to ask here — 24 of 25 delivered orders on production were placed by
+a guest, so `orders.user_id` is null and a later sign-up has nothing to match against. Matching on
+the phone instead would let anyone who knows a number claim that person's orders, and their
+addresses with them, since checkout never verifies a phone.
+
+So the proof of purchase is `orders.review_token`, and it travels over the one channel the shop
+already has: the WhatsApp message the admin sends by hand when an order is delivered
+(`lib/whatsapp.ts` appends `SITE_URL/review/<token>` to the `delivered` template). Delivery to the
+customer's own number _is_ the verification. `/review/[token]` 404s for an unknown token and for an
+order that is not `delivered` — the same answer for both, since confirming a token exists is already
+more than a guessed link should reveal — and `isReviewToken()` rejects a malformed uuid before the
+query, because Postgres answers a bad cast with an error and that surfaced as a 500.
+
+Posting requires signing in, which is the point: a valid token also lets `app/review/actions.ts`
+**claim the guest order for the account** (`orders.user_id`, only where it is still null). The token
+proves ownership, so this is safe without an OTP — and the order history it unlocks is the real
+reason to register, rather than the review itself. `/checkout/success` therefore offers an account,
+not a review: nothing has arrived yet.
+
+Every check lives in the server action rather than in RLS, because the last of them cannot be
+written as a policy — "was this product in that order" reads `orders.items`, a jsonb document.
+RLS on `reviews` is one public `select` of approved rows only; writes are revoked and go through the
+service role. Moderation is in `/admin/reviews`; rejecting keeps the row, so the unique
+`(order_id, product_id)` stops a repost, while deleting gives that back and is for content that must
+not stay stored.
+
+The rating is **denormalised onto `products` as `rating_sum` + `rating_count`**, maintained by a
+trigger and counting approved reviews only — a card cannot join an aggregate when list queries are
+cached whole (see "Cache budget"). Sum rather than an average, since an average cannot be updated
+incrementally without drift; `averageRating()` divides once, at render. Approving is what expires
+`updateTag("products")`; `submitReview` expires nothing, because nothing it writes is public yet.
+
+Two deliberate silences: `aggregateRating` appears in the product JSON-LD **only when there is
+something to aggregate** (Google's policy forbids inventing ratings, and this closes one of the
+merchant-listing gaps in `lib/seo.ts` honestly), and neither the card nor the product page renders
+anything at all for an unrated product — 5% of the catalogue has ever been delivered, and a row of
+grey stars on the other 95% reads as "rated badly" rather than "new". Reviews are shown
+anonymously: the schema keeps `user_id`, nothing renders it, because publishing a customer's name
+against a purchase is not something this shop ever asked permission to do.
 
 **Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
 both for regenerating an ISR page and for filling a Data Cache entry — `unstable_cache` included.

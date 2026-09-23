@@ -26,6 +26,9 @@ export type Product = {
   seo_text?: string | null;
   purchase_count: number;
   published: boolean;
+  /** Denormalised rating — see the note on `ProductListItem`. */
+  rating_sum: number;
+  rating_count: number;
 };
 
 export type CartItem = {
@@ -61,6 +64,14 @@ export type ProductListItem = {
   label?: "new" | "sale" | null;
   brand_id?: number | null;
   brand_name?: string | null;
+  /**
+   * The rating, denormalised. A card cannot join an aggregate — list queries are cached whole (see
+   * "Cache budget" in CODEBASE.md) — so the trigger in 20260923140000 keeps sum and count on the
+   * row. Sum rather than an average because an average cannot be updated incrementally without
+   * drift; `averageRating()` in lib/reviews.ts divides once, at render.
+   */
+  rating_sum: number;
+  rating_count: number;
 };
 
 /**
@@ -102,3 +113,11 @@ export type Profile = Tables["profiles"]["Row"];
 /** What profile.service selects and ProfileForm edits. */
 export type ProfileFields = Pick<Profile, "name" | "phone" | "address">;
 export type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
+
+/** A review row, as the schema stores it. */
+export type Review = Tables["reviews"]["Row"];
+
+/** A published review with the product it is about — what the admin queue and the profile render. */
+export type ReviewWithProduct = Review & {
+  products: { id: number; name: string; thumbnail_url: string | null } | null;
+};

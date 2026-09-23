@@ -8,6 +8,8 @@ const product = (id: number, category_id: number): ProductListItem => ({
   price: 100,
   image_url: "https://example.test/a.jpg",
   category_id,
+  rating_sum: 0,
+  rating_count: 0,
 });
 
 describe("buildCategorySection", () => {

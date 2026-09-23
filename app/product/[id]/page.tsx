@@ -12,10 +12,17 @@ import {
   OldPrice,
   ProductCard,
   ProductDescription,
+  ProductReviews,
   Title,
 } from "@/components";
-import { getCachedCategoriesWithSlug, getCachedProduct, getCachedRelatedProducts } from "@/lib/cached-queries";
+import {
+  getCachedCategoriesWithSlug,
+  getCachedProduct,
+  getCachedProductReviews,
+  getCachedRelatedProducts,
+} from "@/lib/cached-queries";
 import { LABEL_MAP, SITE_URL } from "@/lib/constants";
+import { averageRating } from "@/lib/reviews";
 import { MERCHANT_RETURN_POLICY, OFFER_SHIPPING_DETAILS } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
 import { RELATED_PRODUCTS_LIMIT } from "@/services/product.service";
@@ -69,10 +76,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const brandInfo = (rawProduct as unknown as { brands?: { name: string; slug: string } | null }).brands;
   const product = withBrandName([rawProduct as unknown as ProductRow])[0];
 
-  const [relatedPool, allCategories] = await Promise.all([
+  const [relatedPool, allCategories, reviews] = await Promise.all([
     getCachedRelatedProducts(product.category_id),
     getCachedCategoriesWithSlug(),
+    getCachedProductReviews(product.id),
   ]);
+
+  const average = averageRating(product.rating_sum, product.rating_count);
 
   // The pool is cached per category and still contains this product — see getRelatedProducts.
   const related = relatedPool.filter((p) => p.id !== product.id).slice(0, RELATED_PRODUCTS_LIMIT);
@@ -128,6 +138,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     description: product.description || product.seo_text || product.name,
     ...(brandInfo && { brand: { "@type": "Brand", name: brandInfo.name } }),
     sku: String(product.id),
+    // Only when there is something to aggregate. Google's policy forbids inventing ratings, and an
+    // aggregateRating of 0 reviews is exactly that — so the property is absent rather than empty,
+    // which is also what keeps the merchant-listing report honest (see lib/seo.ts).
+    ...(average != null && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: average,
+        reviewCount: product.rating_count,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
     offers: {
       "@type": "Offer",
       url: `${SITE_URL}/product/${product.id}`,
@@ -219,6 +241,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
 
           {product.description && <ProductDescription text={product.description} />}
+
+          <ProductReviews reviews={reviews} ratingSum={product.rating_sum} ratingCount={product.rating_count} />
         </div>
       </div>
 

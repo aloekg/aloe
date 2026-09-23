@@ -8,7 +8,8 @@ import type { Database } from "@/types/database";
  * The only columns a product card needs. Selecting `*` here pulls `description` and `seo_text`
  * — long free text — into every grid, carousel and RSC payload on the site.
  */
-const LIST_COLUMNS = "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, brands(name)";
+const LIST_COLUMNS =
+  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, rating_sum, rating_count, brands(name)";
 
 /**
  * Stays "exact": these totals are user-visible ("Смотреть все N") and on the homepage

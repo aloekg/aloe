@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import Pagination from "@/components/Pagination";
 import { deliveryFreeNote, ORDER_STATUS } from "@/lib/constants";
+import { orderCanBeReviewed } from "@/lib/reviews";
 import { useCart } from "@/store/cart";
 import { useToast } from "@/store/toast";
 import type { Order, ProfileFields } from "@/types";
@@ -131,9 +133,26 @@ export default function ProfileTabs({
                         <span className="font-semibold text-sm">
                           Итого: {order.total.toLocaleString("ru-RU")} <Currency />
                         </span>
-                        <Button variant="secondary" onClick={() => repeatOrder(order)} className="text-xs px-3 py-1.5">
-                          Повторить заказ
-                        </Button>
+                        <span className="flex items-center gap-2">
+                          {/* Only on a delivered order, and only while something in it is still
+                              unreviewed — the page behind the link says so itself, but offering a
+                              link that leads to "вы уже всё оценили" is a wasted tap. */}
+                          {orderCanBeReviewed(order.status) && order.review_token && (
+                            <Link
+                              href={`/review/${order.review_token}`}
+                              className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg text-green-700 hover:bg-gray-50"
+                            >
+                              Оставить отзыв
+                            </Link>
+                          )}
+                          <Button
+                            variant="secondary"
+                            onClick={() => repeatOrder(order)}
+                            className="text-xs px-3 py-1.5"
+                          >
+                            Повторить заказ
+                          </Button>
+                        </span>
                       </div>
                     </div>
                   );

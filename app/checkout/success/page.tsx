@@ -30,6 +30,17 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
           </Link>
         </div>
 
+        {/* Not a review prompt: nothing has arrived yet, so there is nothing to review. The
+            invitation goes out with the delivery message (lib/whatsapp.ts). What this moment is
+            good for is the account — 24 of 25 buyers order as a guest and then have no way to see
+            their own order again. */}
+        <p className="mt-10 text-sm text-gray-500">
+          Заведите аккаунт, чтобы видеть статус заказа и историю покупок.{" "}
+          <Link href="/auth?next=/profile" className="text-green-700 hover:underline">
+            Регистрация за минуту
+          </Link>
+        </p>
+
         <InstallAppIos className="mt-10 text-left" />
       </MainContainer>
     </>
