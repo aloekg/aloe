@@ -2,7 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import sharp from "sharp";
-import { DELIVERY_OPTIONS, ORDER_STATUS } from "@/lib/constants";
+import { DELIVERY_OPTIONS, ORDER_STATUS, purchaseCountDelta } from "@/lib/constants";
 import { generateInvoicePdf, type InvoiceItem } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
 import {
@@ -108,11 +108,57 @@ async function uploadImage(
   return { ok: true, url: data.publicUrl };
 }
 
+/**
+ * The status change, and with it `products.purchase_count` — the counter that ranks /popular, the
+ * home page carousel and the "По популярности" sort.
+ *
+ * Checkout used to apply that counter and nothing ever took it back, which on production meant a
+ * fifth of the units it ranked by came from orders that were cancelled. It now follows the status:
+ * `purchaseCountDelta` decides whether this particular transition crosses into or out of the
+ * counted set, and only then is the RPC called. See lib/constants.ts for the rule and the
+ * 20260923120000 migration for the backfill.
+ */
 export async function updateOrderStatus(orderId: number, status: string) {
   await assertAdmin();
   if (!(status in ORDER_STATUS)) throw new Error(`Unknown order status: ${status}`);
-  const { error } = await adminDb().from("orders").update({ status }).eq("id", orderId);
+  const db = adminDb();
+
+  const { data: order, error: fetchError } = await db
+    .from("orders")
+    .select("status, items")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!order) throw new Error("Заказ не найден");
+
+  const delta = purchaseCountDelta(order.status, status);
+
+  // Conditional on the status we just read, so two admins pressing at once cannot both see the old
+  // value and apply the delta twice. No row back means someone else moved it first — their write
+  // carried its own delta, and ours would be counting a transition that never happened.
+  const { data: updated, error } = await db
+    .from("orders")
+    .update({ status })
+    .eq("id", orderId)
+    .eq("status", order.status)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!updated?.length) return;
+
+  if (delta === 0) return;
+
+  const { error: rpcError } = await db.rpc("increment_product_purchase_counts", {
+    items: (order.items as OrderItem[]).map((i) => ({ id: i.id, qty: delta * i.quantity })),
+  });
+  // Logged, not thrown: the status is already persisted, and failing the action here would invite a
+  // retry that moves nothing and counts nothing — the guard above would refuse the second write.
+  if (rpcError) console.error("[admin] purchase count RPC failed:", rpcError.message);
+
+  // Only purchase_count changed, and that is a sort key for exactly two cached queries. Expiring
+  // the shared "products" tag invalidates all nine — homepage, categories, brands, /new, /sale,
+  // /popular, every product page — and updateTag has no stale-while-revalidate, so the next visitor
+  // waits for a full re-fetch. Those entries carry CATALOGUE_TTL (10 min) anyway.
+  updateTag("products-popular");
 }
 
 export async function updateOrderItems(
