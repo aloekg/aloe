@@ -102,6 +102,11 @@ const nextConfig: NextConfig = {
         source: "/review/:path*",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      // Same secret, other door: /order/<token> claims the order for whoever signs in there.
+      {
+        source: "/order/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
 };

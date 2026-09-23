@@ -18,8 +18,12 @@ const STEPS = [
   { icon: Wallet, title: "Оплатите при получении", text: "Наличными курьеру или переводом на кошелёк." },
 ];
 
-export default async function CheckoutSuccessPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
-  const { id } = await searchParams;
+export default async function CheckoutSuccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string; t?: string }>;
+}) {
+  const { id, t: token } = await searchParams;
 
   // Decides which call to action this page leads with. A guest has nothing behind "Мои заказы" —
   // /profile bounces them to /auth — and 24 of 25 orders here are placed by one, so leading with
@@ -98,7 +102,11 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
             С аккаунтом вы увидите статус этого заказа и всю историю покупок — и сможете повторить их в одно касание.
           </p>
           <Link
-            href={`/auth?next=${encodeURIComponent(id ? `/profile?order=${id}` : "/profile")}`}
+            // Through /order/<token>, which is what actually attaches this order to the new
+            // account. Sending them straight to /profile was the broken half of the promise below:
+            // a guest order carries no user_id, so registering afterwards matched nothing and the
+            // profile came up empty.
+            href={`/auth?next=${encodeURIComponent(token ? `/order/${token}` : "/profile")}`}
             className="mt-3 block w-full px-4 py-3 bg-green-700 text-white rounded-lg text-sm font-medium text-center hover:bg-green-800"
           >
             Создать аккаунт

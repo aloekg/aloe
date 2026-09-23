@@ -25,6 +25,7 @@ export default function robots(): MetadataRoute.Robots {
         "/favorites",
         "/auth",
         "/review",
+        "/order",
         "/search",
         "/*?q=",
         "/*?brand=",

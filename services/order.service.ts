@@ -114,7 +114,7 @@ export async function insertOrder(
       delivery_type: data.deliveryType,
       delivery_cost: data.deliveryCost,
     })
-    .select("id, created_at")
+    .select("id, created_at, review_token")
     .single();
 }
 
