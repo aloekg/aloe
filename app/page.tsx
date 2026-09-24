@@ -87,7 +87,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Header className="block md:hidden" />
+      <Header className="block md:hidden" logoOnly />
       <MainContainer className="flex flex-col gap-4 md:gap-8">
         {/* The carousels below are h2s; without this the site's most important page had no h1. */}
         <Title className="sr-only">Бытовая химия и косметика с доставкой по Бишкеку</Title>

@@ -13,6 +13,10 @@ const getUser = cache(async () => {
   return { supabase, user };
 });
 
+/**
+ * A route that calls this (or `requireAdmin`, or `createClient()` from lib/supabase-server directly)
+ * must also be listed in proxy.ts's matcher, which is what refreshes the session cookie for it.
+ */
 export async function requireAuth() {
   const { supabase, user } = await getUser();
   if (!user) redirect("/auth");

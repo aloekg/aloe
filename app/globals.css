@@ -9,8 +9,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* Set by next/font in app/layout.tsx. No --font-mono: nothing here loads a monospace face, and
+     an alias to an undeclared variable made `font-mono` resolve to nothing at all. */
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @layer base {

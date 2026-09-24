@@ -31,6 +31,17 @@ const SECTION_GAP = 40;
 const SUBHEADER_HEIGHT = 36;
 const GROUP_GAP = 24;
 
+/**
+ * How many products of each section the non-virtualized fallback renders. That fallback is what
+ * the server sends and what the first client render hydrates, and it used to be the whole
+ * category — up to ~470 cards, each with its own store subscriptions, all hydrated and then thrown
+ * away the moment `useIsClient` flipped and the virtualizer took over with three rows. Twelve is
+ * two desktop rows or six phone rows: more than the first screen shows, so nothing visible is
+ * missing before hydration, and a fraction of the hydration work. The crawler sees the same twelve;
+ * every product also has its own page, and the sitemap lists them all.
+ */
+const SSR_PRODUCTS_PER_SECTION = 12;
+
 function sectionRowCount(section: Section, cols: number): number {
   if (!section.groups?.length) return 1 + Math.ceil(section.products.length / cols);
   const restRows = section.products.length > 0 ? Math.ceil(section.products.length / cols) : 0;
@@ -296,7 +307,7 @@ export default function VirtualCategoryContent({
       .at(0)?.id;
     const renderGrid = (products: ProductListItem[]) => (
       <ProductGrid>
-        {products.map((product) => (
+        {products.slice(0, SSR_PRODUCTS_PER_SECTION).map((product) => (
           <ProductCard key={product.id} product={product} preload={product.id === firstProductId} />
         ))}
       </ProductGrid>

@@ -1,5 +1,5 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import { strict } from "@/lib/db";
+import { loadAllPages } from "@/lib/db";
 import type { SortValue } from "@/lib/page-params";
 import type { ProductListItem, ProductListRow } from "@/types";
 import { withBrandName } from "@/types";
@@ -168,8 +168,11 @@ export async function getRelatedProducts(
  * round trip per subcategory, fifteen for a large category. Since every section is rendered on
  * the same page anyway, a single `in` over the union costs one query and lets the caller bucket
  * the rows. Still deliberately unbounded: the page renders all sections in one virtualized
- * scroll, so a cap would silently hide products. With the narrow column list the payload for the
- * largest category measures ~90 KB, well inside the 2 MB data-cache entry limit.
+ * scroll, so a cap would silently hide products — which is also why it reads through
+ * `loadAllPages`: PostgREST returns at most 1000 rows per request whatever the query says, and the
+ * largest category (~470 today) would one day cross that line with no error, just missing goods.
+ * With the narrow column list the payload for the largest category measures ~90 KB, well inside
+ * the 2 MB data-cache entry limit.
  */
 export async function getCategoryProducts(
   supabase: SupabaseClient<Database>,
@@ -185,11 +188,19 @@ export async function getCategoryProducts(
   // belonged to this signature until the storefront gained a control for it, and cost up to three
   // entries per category for a feature no UI exposed. All three belong on the cached result, not
   // in the query — see lib/price-filter.ts and "Cache budget" in CODEBASE.md.
-  const query = supabase.from("products").select(LIST_COLUMNS).eq("published", true).in("category_id", categoryIds);
-
-  // strict: the category page calls notFound() when no section has products, so swallowing an
-  // error here would turn an outage into a 404 that then gets cached for 60 seconds.
-  const data = strict("category-products", await query.order("name").order("id"));
+  // Throws on a failed page rather than returning what it has: the category page calls notFound()
+  // when no section has products, so swallowing an error here would turn an outage into a 404 that
+  // then gets cached for the whole TTL.
+  const data = await loadAllPages("category-products", (from, to) =>
+    supabase
+      .from("products")
+      .select(LIST_COLUMNS)
+      .eq("published", true)
+      .in("category_id", categoryIds)
+      .order("name")
+      .order("id")
+      .range(from, to),
+  );
 
   for (const row of withBrandName(data as ProductListRow[])) {
     const bucket = byCategory.get(row.category_id);

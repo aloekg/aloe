@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { maybe } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
@@ -34,15 +35,26 @@ import { getProductReviews } from "@/services/review.service";
 const CATALOGUE_TTL = 600;
 const REFERENCE_TTL = 3600;
 
-export const getCachedCategories = unstable_cache(() => getCategories(supabase), ["categories"], {
-  revalidate: REFERENCE_TTL,
-  tags: ["categories"],
-});
+/**
+ * `unstable_cache` does not dedupe within a request: generateMetadata and the page both ask for the
+ * product, the layout and the category page both ask for the categories, and each call was its own
+ * Data Cache read — a network hop on Vercel. React's `cache()` collapses them per request; the
+ * wrappers below use it where a route is known to read the same thing twice.
+ */
+const perRequest = cache;
 
-export const getCachedCategoriesWithSlug = unstable_cache(
-  () => getCategoriesWithSlug(supabase),
-  ["categories-with-slug"],
-  { revalidate: REFERENCE_TTL, tags: ["categories"] },
+export const getCachedCategories = perRequest(
+  unstable_cache(() => getCategories(supabase), ["categories"], {
+    revalidate: REFERENCE_TTL,
+    tags: ["categories"],
+  }),
+);
+
+export const getCachedCategoriesWithSlug = perRequest(
+  unstable_cache(() => getCategoriesWithSlug(supabase), ["categories-with-slug"], {
+    revalidate: REFERENCE_TTL,
+    tags: ["categories"],
+  }),
 );
 
 export const getCachedActiveBanners = unstable_cache(
@@ -130,13 +142,15 @@ export const getCachedProductReviews = unstable_cache(
  * the most frequent interaction in the app, was a fresh Supabase round trip. Returns the row or
  * null rather than the PostgrestResponse, which is neither useful nor cheap to cache.
  */
-export const getCachedProduct = unstable_cache(
-  // `maybe`, not a bare `{ data }`: .single() reports an RLS denial or a network failure as
-  // `{ data: null, error }`, and returning null here made both consumers call notFound() — which
-  // then got written into the data cache for a whole TTL and into the ISR cache of /product/[id].
-  async (id: number) => maybe("product", await getProduct(supabase, id)),
-  ["product"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
+export const getCachedProduct = perRequest(
+  unstable_cache(
+    // `maybe`, not a bare `{ data }`: .single() reports an RLS denial or a network failure as
+    // `{ data: null, error }`, and returning null here made both consumers call notFound() — which
+    // then got written into the data cache for a whole TTL and into the ISR cache of /product/[id].
+    async (id: number) => maybe("product", await getProduct(supabase, id)),
+    ["product"],
+    { revalidate: CATALOGUE_TTL, tags: ["products"] },
+  ),
 );
 
 /** Keyed by category alone — see getRelatedProducts; the caller filters itself out of the pool. */
