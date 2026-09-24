@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import Link from "next/link";
 import Button from "./Button";
 
-type Banner = Pick<import("@/types").Banner, "id" | "image_url" | "link">;
+type Banner = Pick<import("@/types").Banner, "id" | "image_url" | "link" | "alt">;
 
 /**
  * The homepage renders the desktop set and the mobile set and hides one with CSS — and a hidden
@@ -83,9 +83,12 @@ function BannerImage({ banner, index, media }: { banner: Banner; index: number; 
     <picture>
       <source media={BANNER_MEDIA[media]} srcSet={banner.image_url} />
       {/* Plain <img>: next/image cannot emit a <source media> sibling — see the note above. */}
+      {/* `alt` is what the admin wrote on /admin/banners: the offer, and where the link goes. The
+          numbered fallback is for a banner nobody has described yet — see the 20260924100300
+          migration. */}
       <img
         src={TRANSPARENT_PIXEL}
-        alt={`Баннер ${index + 1}`}
+        alt={banner.alt?.trim() || `Баннер ${index + 1}`}
         className="absolute inset-0 size-full object-cover"
         loading={first ? "eager" : "lazy"}
         fetchPriority={first ? "high" : undefined}

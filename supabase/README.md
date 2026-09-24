@@ -27,6 +27,7 @@ migrations/
   20260924100000_reviews_column_grants.sql  # anon/authenticated не читают reviews.user_id и order_id (колоночный grant)
   20260924100100_default_table_privileges.sql  # новые таблицы/sequences рождаются без грантов anon/authenticated
   20260924100200_rate_limits_gc.sql         # rate_limit_hit подметает строки старше суток (1 % вызовов)
+  20260924100300_banners_alt.sql            # banners.alt — текст баннера для скринридера, поле в /admin/banners
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```

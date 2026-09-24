@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import Currency from "@/components/Currency";
 import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
 import QuantityStepper from "@/components/QuantityStepper";
+import Sheet from "@/components/Sheet";
 import Title from "@/components/Title";
 import { useIsClient } from "@/hooks/useIsClient";
 import { MIN_ORDER_TOTAL } from "@/lib/constants";
@@ -20,6 +22,10 @@ export default function CartPage() {
   const decrement = useCart((s) => s.decrement);
   const total = useCart((s) => s.total);
   const clear = useCart((s) => s.clear);
+  // "Очистить" used to act on the tap. Emptying a basket someone spent minutes filling — and, for
+  // a signed-in customer, the copy of it in the database — is exactly the kind of irreversible step
+  // WCAG 3.3.4 asks be confirmed, so the two buttons below open this sheet instead.
+  const [confirming, setConfirming] = useState(false);
   const isClient = useIsClient();
   // The cart store rehydrates from localStorage synchronously, so the server's empty-cart
   // markup never matches the first client render. Hold a placeholder until we're on the client.
@@ -51,7 +57,7 @@ export default function CartPage() {
   return (
     <>
       <MobileHeader title="Корзина">
-        <Button variant="ghost" size="md" onClick={clear} className="absolute right-4">
+        <Button variant="ghost" size="md" onClick={() => setConfirming(true)} className="absolute right-4">
           Очистить
         </Button>
       </MobileHeader>
@@ -111,7 +117,7 @@ export default function CartPage() {
             </p>
           </div>
           <div className="hidden md:flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={clear} className="min-w-40 flex-1 shrink-0">
+            <Button variant="secondary" onClick={() => setConfirming(true)} className="min-w-40 flex-1 shrink-0">
               Очистить
             </Button>
             <Button
@@ -136,6 +142,31 @@ export default function CartPage() {
           </div>
         </div>
       </MainContainer>
+      {confirming && (
+        <Sheet heading="Очистить корзину?" onClose={() => setConfirming(false)} width="max-w-md">
+          <div className="px-4 pb-6 flex flex-col gap-4">
+            <p className="text-sm text-gray-600">
+              Из корзины будут убраны все товары — {items.length}{" "}
+              {items.length === 1 ? "позиция" : items.length < 5 ? "позиции" : "позиций"}. Отменить это будет нельзя.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setConfirming(false)} className="flex-1">
+                Оставить
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  clear();
+                  setConfirming(false);
+                }}
+                className="flex-1 bg-red-700 hover:bg-red-800 disabled:hover:bg-red-700"
+              >
+                Очистить
+              </Button>
+            </div>
+          </div>
+        </Sheet>
+      )}
     </>
   );
 }

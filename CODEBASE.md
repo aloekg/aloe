@@ -190,14 +190,15 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### banners
 
-| column     | type    | notes                 |
-| ---------- | ------- | --------------------- |
-| id         | int     | PK                    |
-| image_url  | text    |                       |
-| sort_order | int     |                       |
-| active     | boolean |                       |
-| link       | text    | nullable              |
-| type       | text    | `desktop` \| `mobile` |
+| column     | type    | notes                                                                                                                    |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| id         | int     | PK                                                                                                                       |
+| image_url  | text    |                                                                                                                          |
+| sort_order | int     |                                                                                                                          |
+| active     | boolean |                                                                                                                          |
+| link       | text    | nullable                                                                                                                 |
+| alt        | text    | nullable, ≤ 200 — what the banner says and where it leads, read by screen readers; the carousel falls back to «Баннер N» |
+| type       | text    | `desktop` \| `mobile`                                                                                                    |
 
 ### profiles
 

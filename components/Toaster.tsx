@@ -6,6 +6,8 @@ import { useToast } from "@/store/toast";
 export default function Toaster() {
   const toasts = useToast((s) => s.toasts);
   const remove = useToast((s) => s.remove);
+  const pause = useToast((s) => s.pause);
+  const resume = useToast((s) => s.resume);
 
   // The container is rendered even with nothing in it. It used to return null while empty, which
   // meant the live region entered the DOM at the same moment as its first message — and a region
@@ -24,6 +26,12 @@ export default function Toaster() {
           key={toast.id}
           type="button"
           onClick={() => remove(toast.id)}
+          // A timed message must be holdable (WCAG 2.2.1): it stays while the pointer or focus is
+          // on it, and gets a second back when they leave so it does not vanish under the cursor.
+          onMouseEnter={() => pause(toast.id)}
+          onMouseLeave={() => resume(toast.id)}
+          onFocus={() => pause(toast.id)}
+          onBlur={() => resume(toast.id)}
           aria-label={`${toast.message}. Закрыть`}
           className={`pointer-events-auto
             flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium

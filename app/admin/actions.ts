@@ -618,14 +618,19 @@ export type BannerInput = {
   sort_order: number;
   active: boolean;
   link?: string | null;
+  /** The banner's alt text — the offer and where the link goes. ≤ 200 characters, see the migration. */
+  alt?: string | null;
   type?: "desktop" | "mobile";
 };
+
+const MAX_BANNER_ALT = 200;
 
 const BANNER_FIELDS = [
   "image_url",
   "sort_order",
   "active",
   "link",
+  "alt",
   "type",
 ] as const satisfies readonly (keyof BannerInput)[];
 
@@ -636,6 +641,9 @@ export async function upsertBanner(
   const db = adminDb();
   if (data.type != null && data.type !== "desktop" && data.type !== "mobile") {
     return { ok: false, error: "Неизвестный тип баннера" };
+  }
+  if (data.alt != null && (typeof data.alt !== "string" || data.alt.length > MAX_BANNER_ALT)) {
+    return { ok: false, error: `Описание баннера — не длиннее ${MAX_BANNER_ALT} символов` };
   }
   const fields = pick(data, BANNER_FIELDS);
   if (data.id) {
