@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { categoryTag, productTag } from "@/lib/cache-tags";
 import { maybe } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getActiveBanners } from "@/services/banner.service";
@@ -120,45 +121,61 @@ export const getCachedCategoryProducts = unstable_cache(
   { revalidate: CATALOGUE_TTL, tags: ["products"] },
 );
 
+/*
+ * The three per-entity readers below build their `unstable_cache` wrapper *per call* rather than
+ * once at module level. The tags of a module-level wrapper are fixed when the module loads, so
+ * every product shared the single `products` tag and approving one review, or fixing one typo,
+ * expired all 2400 detail entries and their pages (see lib/cache-tags.ts). Constructed inside the
+ * function, the key and the tags can carry the id, and app/admin/actions.ts expires one product.
+ * The wrapper object is cheap; the cache entry behind it is keyed by the key parts, not by the
+ * wrapper's identity, so rebuilding it per call does not mint anything new.
+ */
+
 /**
  * Approved reviews of one product.
  *
- * Tagged `products` rather than a tag of its own: approving a review changes the product's rating,
- * which is denormalised onto the row and rendered by every card, so the catalogue has to be
- * expired anyway. A separate tag would mean two invalidations for one edit.
+ * Tagged with the product alone, not `products`: approving a review also moves the rating that
+ * every card renders, but the cards catch up within CATALOGUE_TTL, and that lag is the trade —
+ * previously one approval expired the whole catalogue so that the stars on a card were fresh a
+ * few minutes sooner.
  *
  * Keyed by product id alone — no page, no sort. The page shows the most recent handful and there is
  * no pagination to mint an entry per page of.
  */
-export const getCachedProductReviews = unstable_cache(
-  async (productId: number) => getProductReviews(supabase, productId),
-  ["product-reviews"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
-);
+export function getCachedProductReviews(productId: number) {
+  return unstable_cache(() => getProductReviews(supabase, productId), ["product-reviews", String(productId)], {
+    revalidate: CATALOGUE_TTL,
+    tags: [productTag(productId)],
+  })();
+}
 
 /**
  * Product detail, shared by /product/[id] and the quick-view modal. The modal previously wrapped
  * the query in React `cache()`, which only dedupes within a single request — so every card click,
  * the most frequent interaction in the app, was a fresh Supabase round trip. Returns the row or
  * null rather than the PostgrestResponse, which is neither useful nor cheap to cache.
+ *
+ * Tagged both ways: `products` so a category rename or a bulk edit still reaches it, and its own
+ * tag so an edit to this one row need not reach anything else.
  */
-export const getCachedProduct = perRequest(
+export const getCachedProduct = perRequest((id: number) =>
   unstable_cache(
     // `maybe`, not a bare `{ data }`: .single() reports an RLS denial or a network failure as
     // `{ data: null, error }`, and returning null here made both consumers call notFound() — which
     // then got written into the data cache for a whole TTL and into the ISR cache of /product/[id].
-    async (id: number) => maybe("product", await getProduct(supabase, id)),
-    ["product"],
-    { revalidate: CATALOGUE_TTL, tags: ["products"] },
-  ),
+    async () => maybe("product", await getProduct(supabase, id)),
+    ["product", String(id)],
+    { revalidate: CATALOGUE_TTL, tags: ["products", productTag(id)] },
+  )(),
 );
 
 /** Keyed by category alone — see getRelatedProducts; the caller filters itself out of the pool. */
-export const getCachedRelatedProducts = unstable_cache(
-  (categoryId: number) => getRelatedProducts(supabase, categoryId),
-  ["related-products"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
-);
+export function getCachedRelatedProducts(categoryId: number) {
+  return unstable_cache(() => getRelatedProducts(supabase, categoryId), ["related-products", String(categoryId)], {
+    revalidate: CATALOGUE_TTL,
+    tags: ["products", categoryTag(categoryId)],
+  })();
+}
 
 /** /new and /sale queried Supabase directly on every request, unlike the homepage carousels. */
 export const getCachedProductsByLabelPaginated = unstable_cache(

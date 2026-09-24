@@ -2,6 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import sharp from "sharp";
+import { productTag, touchesListings } from "@/lib/cache-tags";
 import { DELIVERY_OPTIONS, LABEL_MAP, ORDER_STATUS, purchaseCountDelta } from "@/lib/constants";
 import { generateInvoicePdf, type InvoiceItem } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
@@ -393,13 +394,27 @@ export async function upsertProduct(
   const fields = pick(data, PRODUCT_FIELDS);
 
   if (data.id) {
+    // The row as it is now, to tell an edit the lists can see from one only the product page can.
+    // A missing row (deleted in another tab) falls through to the update, which then affects
+    // nothing, and to the wide tag, which is the safe side.
+    const { data: before } = await db
+      .from("products")
+      .select("name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, published")
+      .eq("id", data.id)
+      .maybeSingle();
+
     const { error } = await db.from("products").update(fields).eq("id", data.id);
     if (error) return { ok: false, error: error.message };
-    updateTag("products");
+
+    // Its own tag always; the whole catalogue only when a card or a list order would change.
+    // Editing a description — the common edit — used to expire 2400 products and their pages.
+    updateTag(productTag(data.id));
+    if (!before || touchesListings(before, fields)) updateTag("products");
     revalidatePath(`/product/${data.id}`);
     return { ok: true, id: data.id };
   }
 
+  // A new product appears in lists, so the wide tag is the right one here.
   const { data: row, error } = await db.from("products").insert(fields).select("id").single();
   if (error) return { ok: false, error: error.message };
   updateTag("products");
@@ -829,10 +844,15 @@ export async function setReviewModeration(reviewId: number, status: "pending" | 
   await assertAdmin();
   if (!Object.hasOwn(REVIEW_STATUS, status)) throw new Error(`Unknown review status: ${status}`);
 
-  const { error } = await setReviewStatus(adminDb(), reviewId, status);
+  const { data, error } = await setReviewStatus(adminDb(), reviewId, status);
   if (error) throw new Error(error.message);
 
-  updateTag("products");
+  // One product, not the catalogue: its page shows the review now, and the stars on its card in
+  // the lists catch up within the catalogue TTL (see getCachedProductReviews).
+  if (data) {
+    updateTag(productTag(data.product_id));
+    revalidatePath(`/product/${data.product_id}`);
+  }
   revalidatePath("/admin/reviews");
 }
 
@@ -843,9 +863,12 @@ export async function setReviewModeration(reviewId: number, status: "pending" | 
  */
 export async function removeReview(reviewId: number) {
   await assertAdmin();
-  const { error } = await deleteReview(adminDb(), reviewId);
+  const { data, error } = await deleteReview(adminDb(), reviewId);
   if (error) throw new Error(error.message);
 
-  updateTag("products");
+  if (data) {
+    updateTag(productTag(data.product_id));
+    revalidatePath(`/product/${data.product_id}`);
+  }
   revalidatePath("/admin/reviews");
 }

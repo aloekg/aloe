@@ -404,8 +404,19 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
 | `getCachedCategoryProducts(categoryIds)`            | 10 min | `products`                    |
 | `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
-| `getCachedProduct(id)`                              | 10 min | `products`                    |
-| `getCachedRelatedProducts(categoryId)`              | 10 min | `products`                    |
+| `getCachedProduct(id)`                              | 10 min | `products` `product-<id>`     |
+| `getCachedProductReviews(id)`                       | 10 min | `product-<id>`                |
+| `getCachedRelatedProducts(categoryId)`              | 10 min | `products` `category-<id>`    |
+
+The two per-entity tags are built by `lib/cache-tags.ts` (`productTag()`, `categoryTag()`), and
+their readers construct the `unstable_cache` wrapper **per call** rather than once per module —
+that is the only way its tags can carry an argument. Both sides of the bargain are in the admin:
+`setReviewModeration` and `removeReview` expire one product, and `upsertProduct` expires its
+product's tag always but `products` only when `touchesListings()` says a card or a list order
+changed (price, name, photo, label, brand, category, publication). Editing a description, the
+common edit, used to expire 2400 products and their pages. The trade is stated in
+`getCachedProductReviews`: after an approval the stars on that product's **card** catch up within
+`CATALOGUE_TTL`, while its page shows the review at once.
 
 The two TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min) and `REFERENCE_TTL`
 (1 hour). Neither is what keeps the site fresh: every write path invalidates by tag
@@ -742,8 +753,10 @@ proof of purchase and the moderator's context; it is simply not part of what mus
 The rating is **denormalised onto `products` as `rating_sum` + `rating_count`**, maintained by a
 trigger and counting approved reviews only — a card cannot join an aggregate when list queries are
 cached whole (see "Cache budget"). Sum rather than an average, since an average cannot be updated
-incrementally without drift; `averageRating()` divides once, at render. Approving is what expires
-`updateTag("products")`; `submitReview` expires nothing, because nothing it writes is public yet.
+incrementally without drift; `averageRating()` divides once, at render. Approving expires the
+product's own tag (`productTag(id)`, see "Cached Queries"), so its page shows the review at once and
+its card's stars follow within the catalogue TTL; `submitReview` expires nothing, because nothing it
+writes is public yet.
 
 Two deliberate silences: `aggregateRating` appears in the product JSON-LD **only when there is
 something to aggregate** (Google's policy forbids inventing ratings, and this closes one of the
@@ -796,6 +809,10 @@ should be weighed before any of them is changed:
   data it reads expire together — a shorter page TTL just rebuilds a page around unchanged data.
 - **A cache key must not carry anything per-product that the query does not need.** `excludeId` on
   related products was the whole difference between ~90 entries and 2400.
+- **An admin write expires the narrowest tag that is still correct.** `updateTag("products")` marks
+  every list, product and product page stale, and each is rewritten on its next view — three writes
+  per product. Fine for a price change; for one approved review or one corrected description it
+  spends the catalogue to deliver a letter, so those go through `product-<id>` (`lib/cache-tags.ts`).
 - **A public server action's arguments are a cache key an anonymous caller writes.**
   `loadMoreBrandProducts` took `pageSize` and passed it straight into `getCachedProductsByBrand`:
   clamping it to 1..48 bounded each response but not the number of keys, so the 48 × 10 000 grid was
