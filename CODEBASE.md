@@ -2,7 +2,7 @@
 
 ## Tech Stack
 
-- **Framework:** Next.js 16.2.9 (App Router, Server Components, Server Actions, React 19)
+- **Framework:** Next.js 16.3.5 (App Router, Server Components, Server Actions, React 19)
 - **Language:** TypeScript 6.0.3 (strict mode, path alias `@/*` → root)
 - **Database:** Supabase (PostgreSQL + Auth + Storage + RLS)
 - **State:** Zustand 5.0.14 (cart and favorites use `persist`/localStorage; toast doesn't — both cart and favorites also rehydrate from Supabase on auth)
