@@ -54,14 +54,13 @@ async function CategoryCarousels({
       {topCategories.map((cat, i) => {
         const { products, total } = results[i];
         if (total === 0) return null;
+        // One Suspense boundary per carousel, with the content already in the HTML: React then
+        // hydrates each in its own task instead of the whole page in one, yielding to a tap in
+        // between — see the note on the popular/new/sale rows below.
         return (
-          <ProductCarousel
-            key={cat.id}
-            title={cat.name}
-            href={`/catalog/${cat.slug}`}
-            products={products}
-            totalCount={total}
-          />
+          <Suspense key={cat.id}>
+            <ProductCarousel title={cat.name} href={`/catalog/${cat.slug}`} products={products} totalCount={total} />
+          </Suspense>
         );
       })}
     </>
@@ -104,19 +103,33 @@ export default async function HomePage() {
         <div className="hidden md:block">
           <BannerCarousel banners={desktopBanners} media="desktop" />
         </div>
+        {/*
+          Each row in its own Suspense boundary, with no fallback. Nothing suspends here — the data
+          is already in hand — so nothing ever shows a fallback; the boundary is for hydration. A
+          server-rendered Suspense boundary is hydrated by React as a unit of its own, at low
+          priority and interruptible, so the home page's ~170 cards are hydrated row by row rather
+          than in one long task, and a tap on the first row is answered before the last row has
+          been touched. Without the boundaries the whole page is one hydration task.
+        */}
         {popular.total > 0 && (
-          <ProductCarousel
-            title="Популярные товары"
-            href="/popular"
-            products={popular.products}
-            totalCount={popular.total}
-          />
+          <Suspense>
+            <ProductCarousel
+              title="Популярные товары"
+              href="/popular"
+              products={popular.products}
+              totalCount={popular.total}
+            />
+          </Suspense>
         )}
         {newest.total > 0 && (
-          <ProductCarousel title="Новинки" href="/new" products={newest.products} totalCount={newest.total} />
+          <Suspense>
+            <ProductCarousel title="Новинки" href="/new" products={newest.products} totalCount={newest.total} />
+          </Suspense>
         )}
         {onSale.total > 0 && (
-          <ProductCarousel title="Акции" href="/sale" products={onSale.products} totalCount={onSale.total} />
+          <Suspense>
+            <ProductCarousel title="Акции" href="/sale" products={onSale.products} totalCount={onSale.total} />
+          </Suspense>
         )}
         <Suspense
           fallback={Array.from({ length: 3 }, (_, i) => (
