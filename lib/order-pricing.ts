@@ -76,6 +76,8 @@ export type PricedProduct = {
   name: string | null;
   price: number | string | null;
   image_url: string | null;
+  /** The ≤500px card variant; absent on rows that predate the WebP backfill. */
+  thumbnail_url?: string | null;
 };
 
 /** The only database access pricing needs: published rows for these ids, in any order. */
@@ -105,7 +107,11 @@ export async function buildQuote(lookup: ProductLookup, lines: OrderLine[], deli
       name: String(product.name),
       price,
       quantity: line.quantity,
-      image_url: product.image_url ?? "",
+      // The thumbnail, not the ≤1200px original: every place a frozen line is drawn — the checkout
+      // summary, the admin order list, the notification email and, through "Повторить заказ", a
+      // cart row — shows it at 40–64px, and the snapshot used to carry the full-size file into all
+      // of them.
+      image_url: product.thumbnail_url || product.image_url || "",
     });
   }
 
@@ -128,7 +134,7 @@ export function publishedPriceLookup(admin: SupabaseClient<Database>): ProductLo
   return async (ids) => {
     const { data, error } = await admin
       .from("products")
-      .select("id, name, price, image_url")
+      .select("id, name, price, image_url, thumbnail_url")
       .in("id", ids)
       .eq("published", true);
 

@@ -124,6 +124,28 @@ describe("buildQuote", () => {
     expect(quote.items[0].image_url).toBe("");
   });
 
+  it("freezes the thumbnail into the line, and the full image only where there is none", async () => {
+    const rows: PricedProduct[] = [
+      {
+        id: 1,
+        name: "С превью",
+        price: 100,
+        image_url: "https://x.test/1.webp",
+        thumbnail_url: "https://x.test/thumb/1.webp",
+      },
+      { id: 2, name: "Без превью", price: 100, image_url: "https://x.test/2.webp", thumbnail_url: null },
+    ];
+    const quote = await buildQuote(
+      lookup(rows),
+      [
+        { id: 1, quantity: 1 },
+        { id: 2, quantity: 1 },
+      ],
+      "center",
+    );
+    expect(quote.items.map((i) => i.image_url)).toEqual(["https://x.test/thumb/1.webp", "https://x.test/2.webp"]);
+  });
+
   describe("delivery", () => {
     it("charges the city rate below the free threshold", async () => {
       const quote = await buildQuote(lookup([product(1, 9999)]), [{ id: 1, quantity: 1 }], "center");

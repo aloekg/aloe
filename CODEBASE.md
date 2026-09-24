@@ -212,21 +212,21 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### orders
 
-| column           | type        | notes                                                                                                                         |
-| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| id               | int         | PK                                                                                                                            |
-| user_id          | uuid        | nullable FK → auth.users (guest checkout allowed)                                                                             |
-| customer_name    | text        |                                                                                                                               |
-| customer_phone   | text        |                                                                                                                               |
-| customer_address | text        |                                                                                                                               |
-| comment          | text        | nullable                                                                                                                      |
-| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs)                                                                    |
-| total            | numeric     | goods + delivery                                                                                                              |
-| delivery_type    | text        | nullable                                                                                                                      |
-| delivery_cost    | numeric     | not null, default 0                                                                                                           |
-| status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` — CHECK-constrained to those five, matching `ORDER_STATUS` |
-| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never                                                              |
-| created_at       | timestamptz |                                                                                                                               |
+| column           | type        | notes                                                                                                                                        |
+| ---------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| id               | int         | PK                                                                                                                                           |
+| user_id          | uuid        | nullable FK → auth.users (guest checkout allowed)                                                                                            |
+| customer_name    | text        |                                                                                                                                              |
+| customer_phone   | text        |                                                                                                                                              |
+| customer_address | text        |                                                                                                                                              |
+| comment          | text        | nullable                                                                                                                                     |
+| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs — the ≤500px thumbnail where one exists, since every consumer draws it at 40–64px) |
+| total            | numeric     | goods + delivery                                                                                                                             |
+| delivery_type    | text        | nullable                                                                                                                                     |
+| delivery_cost    | numeric     | not null, default 0                                                                                                                          |
+| status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` — CHECK-constrained to those five, matching `ORDER_STATUS`                |
+| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never                                                                             |
+| created_at       | timestamptz |                                                                                                                                              |
 
 ### cart_items
 
@@ -835,10 +835,10 @@ None of it costs freshness, because tag invalidation, not the TTL, is what publi
 
 **Image optimization is intentionally disabled** — `next.config.ts` sets `images.unoptimized: true` (Vercel Hobby plan quota on Image Optimization source images). Do not re-enable without checking the plan/hosting situation first. Because nothing resizes at request time, **the browser downloads exactly the bytes that were uploaded**, so every product photo is stored at two sizes instead:
 
-| column          | size    | rendered by                                                                        |
-| --------------- | ------- | ---------------------------------------------------------------------------------- |
-| `thumbnail_url` | ≤ 500px | `ProductCard` (grids, carousels, brand pages), cart rows, autocomplete, admin list |
-| `image_url`     | ≤1200px | `/product/[id]`, the quick-view modal, OG/JSON-LD metadata, order snapshots        |
+| column          | size    | rendered by                                                                                         |
+| --------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `thumbnail_url` | ≤ 500px | `ProductCard` (grids, carousels, brand pages), cart rows, autocomplete, admin list, order snapshots |
+| `image_url`     | ≤1200px | `/product/[id]`, the quick-view modal, OG/JSON-LD metadata                                          |
 
 Both are WebP (q76 / q82). `uploadProductImage()` produces the pair with `sharp` from a single admin upload — it stores `thumb/<name>.webp` alongside `<name>.webp` and returns both URLs, so the two columns are always written together. Consumers read `thumbnail_url || image_url`; the fallback covers rows predating the backfill. Because uploads are re-encoded server-side, the action accepts originals up to 15 MB, which is also why `experimental.serverActions.bodySizeLimit` is raised — the 1 MB default rejected phone photos before the action ever ran.
 
