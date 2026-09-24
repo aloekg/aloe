@@ -37,9 +37,23 @@ describe("resolveOrigin", () => {
     expect(resolveOrigin(null, "https://localhost:3000")).toBe("https://localhost:3000");
   });
 
-  it("honours our own host and its subdomains", () => {
+  it("honours our own host and its www alias", () => {
     expect(resolveOrigin("aloe.kg", "https://x")).toBe("https://aloe.kg");
     expect(resolveOrigin("www.aloe.kg", "https://x")).toBe("https://www.aloe.kg");
+  });
+
+  it("honours the preview host only when DEPLOY_ORIGIN names it", () => {
+    expect(resolveOrigin("stage.aloe.kg", "https://x")).toBe("https://aloe.kg");
+
+    vi.stubEnv("DEPLOY_ORIGIN", "https://stage.aloe.kg");
+    expect(resolveOrigin("stage.aloe.kg", "https://x")).toBe("https://stage.aloe.kg");
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses sibling subdomains this app does not serve", () => {
+    // `*.aloe.kg` used to pass; old.aloe.kg is the archived Joomla shop, mail.aloe.kg the webmail.
+    expect(resolveOrigin("old.aloe.kg", "https://x")).toBe("https://aloe.kg");
+    expect(resolveOrigin("mail.aloe.kg", "https://x")).toBe("https://aloe.kg");
   });
 
   it("honours the deployment host only when the platform declares it", () => {
@@ -93,6 +107,15 @@ describe("safeNextPath", () => {
     // leave the site while looking like a path.
     for (const hostile of ["//evil.com", "/\\evil.com", "https://evil.com", "//evil.com/review/abc"]) {
       expect(safeNextPath(hostile)).toBe("/");
+    }
+  });
+
+  it("refuses a path the URL parser would rewrite into another host", () => {
+    // Tab, CR and LF are stripped by the WHATWG parser before it looks at the string, so each of
+    // these is `//evil.com` in disguise. `?next=%2F%09%2Fevil.com` arrives decoded as the first one.
+    for (const hostile of ["/\t/evil.com", "/\n/evil.com", "/\r/evil.com", "/\t\\evil.com", "/ /evil.com"]) {
+      expect(safeNextPath(hostile)).toBe("/");
+      expect(new URL(hostile, "https://aloe.kg").host === "aloe.kg" || safeNextPath(hostile) === "/").toBe(true);
     }
   });
 

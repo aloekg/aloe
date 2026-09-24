@@ -9,9 +9,16 @@ import { BRAND_COLOR, SITE_URL, WHATSAPP_LINK, WHATSAPP_NUMBER } from "@/lib/con
 import { IS_CANONICAL_HOST } from "@/lib/deploy-origin";
 import "./globals.css";
 
-const geist = Geist({ subsets: ["latin"] });
+// `cyrillic` listed, not only `latin`: next/font downloads every subset either way, but it only
+// emits a <link rel=preload> for the ones named here — so a Russian-language site was preloading the
+// file that holds its digits and "Aloe.kg" and fetching the one that holds every word after the
+// stylesheet had been parsed. `variable` so that Tailwind's `font-sans` (app/globals.css) resolves
+// to the same face the className sets.
+const geist = Geist({ subsets: ["latin", "cyrillic"], variable: "--font-geist-sans" });
+// The logo is the only thing set in Lobster and it reads "Алоэ" — the latin subset was preloaded
+// for nothing.
 const lobster = Lobster({
-  subsets: ["latin", "cyrillic"],
+  subsets: ["cyrillic"],
   weight: "400",
   variable: "--font-lobster",
 });
@@ -101,7 +108,10 @@ export default async function RootLayout({ children, modal }: { children: React.
 
   return (
     <html lang="ru">
-      <body className={`${geist.className} ${lobster.variable} min-h-screen flex flex-col`} suppressHydrationWarning>
+      <body
+        className={`${geist.className} ${geist.variable} ${lobster.variable} min-h-screen flex flex-col`}
+        suppressHydrationWarning
+      >
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg focus:outline-2 focus:outline-green-600"

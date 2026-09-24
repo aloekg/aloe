@@ -76,6 +76,8 @@ export type PricedProduct = {
   name: string | null;
   price: number | string | null;
   image_url: string | null;
+  /** The ≤500px card variant; absent on rows that predate the WebP backfill. */
+  thumbnail_url?: string | null;
 };
 
 /** The only database access pricing needs: published rows for these ids, in any order. */
@@ -105,7 +107,11 @@ export async function buildQuote(lookup: ProductLookup, lines: OrderLine[], deli
       name: String(product.name),
       price,
       quantity: line.quantity,
-      image_url: product.image_url ?? "",
+      // The thumbnail, not the ≤1200px original: every place a frozen line is drawn — the checkout
+      // summary, the admin order list, the notification email and, through "Повторить заказ", a
+      // cart row — shows it at 40–64px, and the snapshot used to carry the full-size file into all
+      // of them.
+      image_url: product.thumbnail_url || product.image_url || "",
     });
   }
 
@@ -128,7 +134,7 @@ export function publishedPriceLookup(admin: SupabaseClient<Database>): ProductLo
   return async (ids) => {
     const { data, error } = await admin
       .from("products")
-      .select("id, name, price, image_url")
+      .select("id, name, price, image_url, thumbnail_url")
       .in("id", ids)
       .eq("published", true);
 
@@ -160,6 +166,25 @@ export type OrderItemInput = {
 export const MAX_ITEM_NAME = 200;
 export const MAX_ITEM_PRICE = 1_000_000;
 export const MAX_DELIVERY_COST = 100_000;
+/** A storage URL is ~120 characters; this is headroom, not a target. */
+export const MAX_IMAGE_URL = 2048;
+
+/**
+ * The image an edited line will render with — in the admin list and, through "Повторить заказ", in
+ * the customer's own cart. Empty is fine (the row falls back to a placeholder); anything present
+ * must be an absolute http(s) URL, since the admin supplies it and `<img src>` will load whatever
+ * it says.
+ */
+export function isAcceptableImageUrl(value: unknown): value is string | null | undefined {
+  if (value == null || value === "") return true;
+  if (typeof value !== "string" || value.length > MAX_IMAGE_URL) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 export type OrderMoney = { itemsTotal: number; deliveryCost: number; total: number };
 
@@ -191,6 +216,8 @@ export function validateOrderItems(items: OrderItemInput[]): string | null {
     if (!Number.isInteger(item.quantity) || item.quantity <= 0)
       return "Количество должно быть целым положительным числом";
     if (item.quantity > MAX_QUANTITY) return `Количество не может превышать ${MAX_QUANTITY}`;
+
+    if (!isAcceptableImageUrl(item.image_url)) return "Ссылка на изображение должна быть адресом http(s)";
   }
   return null;
 }

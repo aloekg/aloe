@@ -49,7 +49,9 @@ export default function ProductReviews({
       </h2>
 
       <div className="flex items-center gap-3 mb-5">
-        <span className="text-3xl font-bold leading-none">{average.toFixed(1).replace(".", ",")}</span>
+        <span className="text-3xl font-bold leading-none" aria-hidden>
+          {average.toFixed(1).replace(".", ",")}
+        </span>
         <span className="flex flex-col gap-0.5">
           <StarRating average={average} size="md" />
           <span className="text-xs text-gray-500">

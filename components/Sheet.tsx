@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useIsClient } from "@/hooks/useIsClient";
+import { isTopSheet, popSheet, pushSheet, subscribeSheetStack } from "@/lib/sheet-stack";
 
 /**
  * Mirrors the `duration-300` below. A caller usually unmounts this component from `onClose` (the
@@ -76,8 +77,21 @@ export default function Sheet({
   const closing = useRef(false);
   const exitTimer = useRef<number | undefined>(undefined);
 
+  // See lib/sheet-stack.ts: with two sheets open, only the topmost traps focus and takes Escape.
+  // Registered in an effect, read through useSyncExternalStore — so the first client render, before
+  // the effect has run, is briefly "not on top"; the panel is still off screen at that point.
+  const isTop = useSyncExternalStore(
+    subscribeSheetStack,
+    () => isTopSheet(titleId),
+    () => true,
+  );
+  useEffect(() => {
+    pushSheet(titleId);
+    return () => popSheet(titleId);
+  }, [titleId]);
+
   useBodyScrollLock(true);
-  useFocusTrap(panelRef);
+  useFocusTrap(panelRef, isTop);
 
   // Two frames, not one: the first paints the off-screen state, the second transitions away from
   // it. Flipped inside a single rAF the browser folds both into one style pass and the sheet just
@@ -110,12 +124,13 @@ export default function Sheet({
   }, [requestClose, close]);
 
   useEffect(() => {
+    if (!isTop) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [close]);
+  }, [close, isTop]);
 
   // Rendered only on the client: `document` does not exist on the server, and a sheet is always
   // opened by an interaction anyway. `useIsClient` flips during hydration, well before the two
@@ -124,7 +139,21 @@ export default function Sheet({
   if (!isClient) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" onClick={close}>
+    // `inert` while another sheet is on top: nothing in this one can be focused, clicked or read
+    // until that one closes, which is what a modal above a modal means.
+    //
+    // The backdrop closes on click and only on a click that landed on it (not one that bubbled up
+    // from the panel). It has no keyboard handler by design: the keyboard's way out is Escape, wired
+    // above, and the close button in the header — a backdrop that took focus would be a Tab stop
+    // named nothing.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    <div
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+      inert={!isTop || undefined}
+    >
       <div
         aria-hidden
         className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ease-out motion-reduce:transition-none ${
@@ -143,7 +172,6 @@ export default function Sheet({
             ? "translate-y-0 md:opacity-100 md:scale-100"
             : "translate-y-full md:translate-y-0 md:opacity-0 md:scale-95"
         }`}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* The header overlays the scrolling content rather than sitting above it, which is what
             keeps the close button in place as the panel scrolls. A heading therefore belongs on

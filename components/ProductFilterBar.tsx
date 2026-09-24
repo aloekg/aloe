@@ -61,7 +61,9 @@ function IconTrigger({
     <button
       type="button"
       onClick={onClick}
-      aria-label={label}
+      // The green dot is decoration; the state has to be in the name, or a screen reader hears
+      // "Сортировка" whether or not one is applied.
+      aria-label={active ? `${label} — применено` : label}
       title={label}
       aria-haspopup="dialog"
       className={`relative shrink-0 flex items-center justify-center size-9 rounded-full border transition-colors cursor-pointer ${
@@ -156,16 +158,18 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
           width="max-w-md"
         >
           {sheet === "sort" ? (
-            <div className="flex flex-col gap-1 px-4 pb-6">
+            // One choice out of five, like the star picker: a radiogroup, not five toggles.
+            <div role="radiogroup" aria-label="Порядок сортировки" className="flex flex-col gap-1 px-4 pb-6">
               {SORT_OPTIONS.map((o) => (
                 <button
                   key={o.value}
                   type="button"
+                  role="radio"
                   onClick={() => {
                     commit({ sort: o.value, range });
                     setClosing(true);
                   }}
-                  aria-pressed={o.value === sort}
+                  aria-checked={o.value === sort}
                   className={`flex items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-base transition-colors cursor-pointer ${
                     o.value === sort ? "bg-green-50 text-green-700 font-medium" : "text-gray-700 hover:bg-gray-50"
                   }`}

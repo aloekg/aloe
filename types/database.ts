@@ -42,6 +42,7 @@ export type Database = {
       banners: {
         Row: {
           active: boolean
+          alt: string | null
           created_at: string | null
           id: number
           image_url: string
@@ -51,6 +52,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          alt?: string | null
           created_at?: string | null
           id?: number
           image_url: string
@@ -60,6 +62,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          alt?: string | null
           created_at?: string | null
           id?: number
           image_url?: string

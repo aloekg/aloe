@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { MAX_PRICE, parsePriceRange, type PriceRange } from "@/lib/page-params";
 
 /** Long enough that typing "1500" is one update rather than four, short enough to feel immediate. */
@@ -41,6 +41,7 @@ export default function PriceFilter({
   // a change made elsewhere — a "Сбросить" in the filter bar, or a Back that restored another URL.
   const [applied, setApplied] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idBase = useId();
 
   // Adjusting state during render rather than in an effect: React re-runs this component before
   // committing, so the boxes never paint with the stale range.
@@ -78,6 +79,11 @@ export default function PriceFilter({
     [emit],
   );
 
+  // parsePriceRange drops both bounds when "от" exceeds "до", so nothing is applied — but the boxes
+  // kept showing the pair, and nothing said why the list had not changed.
+  const inverted = min !== "" && max !== "" && Number(min) > Number(max);
+  const errorId = `${idBase}-error`;
+
   const common = {
     type: "number" as const,
     inputMode: "numeric" as const,
@@ -88,11 +94,13 @@ export default function PriceFilter({
   };
 
   return (
-    <div className={`flex items-center gap-2 ${className ?? ""}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${className ?? ""}`}>
       <span className="text-sm text-gray-500 whitespace-nowrap">Цена:</span>
       <input
         {...common}
         aria-label="Цена от"
+        aria-invalid={inverted || undefined}
+        aria-describedby={inverted ? errorId : undefined}
         placeholder={bounds ? String(bounds.min) : "от"}
         value={min}
         onChange={(e) => {
@@ -113,6 +121,8 @@ export default function PriceFilter({
       <input
         {...common}
         aria-label="Цена до"
+        aria-invalid={inverted || undefined}
+        aria-describedby={inverted ? errorId : undefined}
         placeholder={bounds ? String(bounds.max) : "до"}
         value={max}
         onChange={(e) => {
@@ -128,6 +138,11 @@ export default function PriceFilter({
         }}
       />
       <span className="text-sm text-gray-500">с</span>
+      {inverted && (
+        <p id={errorId} role="alert" className="basis-full text-xs text-red-600">
+          «От» больше, чем «до» — диапазон не применён
+        </p>
+      )}
     </div>
   );
 }

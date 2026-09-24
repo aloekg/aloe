@@ -22,6 +22,15 @@ jobs:
 
       - run: npm ci
 
+      # Turbopack's persistent cache, so a PR's build reuses the previous run's work. Keyed on the
+      # lockfile and every source file, with a fallback to the last build against the same lockfile.
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+
       - name: Types
         run: npm run typecheck
 

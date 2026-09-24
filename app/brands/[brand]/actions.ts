@@ -1,7 +1,6 @@
 "use server";
 
 import { getCachedProductsByBrand } from "@/lib/cached-queries";
-import { rateLimit } from "@/lib/rate-limit";
 import { BRAND_MAX_PAGE, BRAND_PAGE_SIZE } from "./pagination";
 
 /**
@@ -10,14 +9,15 @@ import { BRAND_MAX_PAGE, BRAND_PAGE_SIZE } from "./pagination";
  * of each response but not the number of distinct keys, so the 1..48 × 1..10 000 grid was up to
  * 480 000 mintable Data Cache entries per brand at 120 requests a minute. The client only ever sent
  * one value, so it is now a constant the caller cannot reach and the key is `(brandId, page)`.
+ *
+ * No rate limiter, since that fix. It was here against the key explosion above, and once the page
+ * size became a constant and the page number a bounded integer, the set of keys a caller can mint
+ * is finite whatever the request rate — while the limiter cost a `rate_limit_hit` round trip to
+ * Postgres on every scroll step, ahead of a result that is usually already in the cache.
  */
 export async function loadMoreBrandProducts(brandId: number, page: number) {
   const id = Math.trunc(Number(brandId));
   if (!Number.isInteger(id) || id <= 0) return { products: [], total: 0 };
-
-  // Infinite scroll fires this legitimately as the visitor scrolls, so the ceiling is generous.
-  const { allowed } = await rateLimit("load-more-brand", { limit: 120, windowSeconds: 60 });
-  if (!allowed) return { products: [], total: 0 };
 
   const safePage = Math.min(Math.max(1, Math.trunc(Number(page)) || 1), BRAND_MAX_PAGE);
 

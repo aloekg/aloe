@@ -2,7 +2,7 @@
 
 ## Tech Stack
 
-- **Framework:** Next.js 16.2.9 (App Router, Server Components, Server Actions, React 19)
+- **Framework:** Next.js 16.3.5 (App Router, Server Components, Server Actions, React 19)
 - **Language:** TypeScript 6.0.3 (strict mode, path alias `@/*` → root)
 - **Database:** Supabase (PostgreSQL + Auth + Storage + RLS)
 - **State:** Zustand 5.0.14 (cart and favorites use `persist`/localStorage; toast doesn't — both cart and favorites also rehydrate from Supabase on auth)
@@ -25,7 +25,7 @@
 ├── supabase/               # migrations/ (source of truth for the schema), sql/audit-rls.sql
 ├── public/                 # Manifest PNG icons (generated, see scripts/generate-app-icons.mjs)
 ├── scripts/                # Maintenance: images, orphan categories, staging seed (see below)
-├── proxy.ts                # Middleware — Supabase auth cookie management
+├── proxy.ts                # Middleware — Supabase auth cookie refresh, only on routes that read the session
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
 └── .env.local              # Supabase keys, SMTP, DEPLOY_ORIGIN (see below)
 ```
@@ -190,14 +190,15 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### banners
 
-| column     | type    | notes                 |
-| ---------- | ------- | --------------------- |
-| id         | int     | PK                    |
-| image_url  | text    |                       |
-| sort_order | int     |                       |
-| active     | boolean |                       |
-| link       | text    | nullable              |
-| type       | text    | `desktop` \| `mobile` |
+| column     | type    | notes                                                                                                                    |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| id         | int     | PK                                                                                                                       |
+| image_url  | text    |                                                                                                                          |
+| sort_order | int     |                                                                                                                          |
+| active     | boolean |                                                                                                                          |
+| link       | text    | nullable                                                                                                                 |
+| alt        | text    | nullable, ≤ 200 — what the banner says and where it leads, read by screen readers; the carousel falls back to «Баннер N» |
+| type       | text    | `desktop` \| `mobile`                                                                                                    |
 
 ### profiles
 
@@ -211,21 +212,21 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### orders
 
-| column           | type        | notes                                                                                                                         |
-| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| id               | int         | PK                                                                                                                            |
-| user_id          | uuid        | nullable FK → auth.users (guest checkout allowed)                                                                             |
-| customer_name    | text        |                                                                                                                               |
-| customer_phone   | text        |                                                                                                                               |
-| customer_address | text        |                                                                                                                               |
-| comment          | text        | nullable                                                                                                                      |
-| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs)                                                                    |
-| total            | numeric     | goods + delivery                                                                                                              |
-| delivery_type    | text        | nullable                                                                                                                      |
-| delivery_cost    | numeric     | not null, default 0                                                                                                           |
-| status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` — CHECK-constrained to those five, matching `ORDER_STATUS` |
-| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never                                                              |
-| created_at       | timestamptz |                                                                                                                               |
+| column           | type        | notes                                                                                                                                        |
+| ---------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| id               | int         | PK                                                                                                                                           |
+| user_id          | uuid        | nullable FK → auth.users (guest checkout allowed)                                                                                            |
+| customer_name    | text        |                                                                                                                                              |
+| customer_phone   | text        |                                                                                                                                              |
+| customer_address | text        |                                                                                                                                              |
+| comment          | text        | nullable                                                                                                                                     |
+| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs — the ≤500px thumbnail where one exists, since every consumer draws it at 40–64px) |
+| total            | numeric     | goods + delivery                                                                                                                             |
+| delivery_type    | text        | nullable                                                                                                                                     |
+| delivery_cost    | numeric     | not null, default 0                                                                                                                          |
+| status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` — CHECK-constrained to those five, matching `ORDER_STATUS`                |
+| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never                                                                             |
+| created_at       | timestamptz |                                                                                                                                              |
 
 ### cart_items
 
@@ -266,10 +267,11 @@ service role touches it, through the `rate_limit_hit(bucket, key, limit, window)
 **Storage buckets:** `product-images` (product photos), `banners` (banner images), `categories`
 (category images) — all three public, created by `supabase/migrations/20260915090000_storage_buckets.sql`.
 Their `file_size_limit` / `allowed_mime_types` are not the same as the checks in
-`app/admin/actions.ts` and are not meant to be: product and banner uploads are re-encoded by `sharp`
-first, so the action accepts a 15 MB phone original while the bucket only ever sees the WebP
-derivative. Category images are the exception — `uploadImage()` stores them as uploaded, so there
-the bucket's 2 MB is the real limit.
+`app/admin/actions.ts` and are not meant to be: every upload is re-encoded by `sharp` first
+(`uploadEncoded()`), so the action accepts a 15 MB phone original while the bucket only ever sees a
+WebP derivative. Category images used to be the exception, stored as uploaded under the MIME type
+the browser _claimed_ — the one path where a non-image could land in a public bucket with an image
+Content-Type — and now go through the same encoder at ≤800px.
 
 ## TypeScript Types (`/types/index.ts`)
 
@@ -381,7 +383,7 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `reviews.ts`              | `validateReview()`, `orderCanBeReviewed()`, `reviewableItems()`, `averageRating()`, `starFill()`, `isReviewToken()` — правила отзывов без базы (`tests/reviews.test.ts`)                                                                                                                                                                                                                                                                                                                              |
 | `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                                                                                                            |
 | `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                                                                                                   |
-| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                                                                                                                                  |
+| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; fed into `redirects()` in `next.config.ts`                                                                                                                                                                                                                                                                                                                                                          |
 | `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                                                                                                                           |
 | `csp.ts`                  | `buildContentSecurityPolicy()` — the CSP `next.config.ts` serves, assembled at **build** time from `NEXT_PUBLIC_SUPABASE_URL` (see the security-headers note below)                                                                                                                                                                                                                                                                                                                                   |
 | `text.ts`                 | `CONTACT_LIMITS`, `normalizeText()` — the caps on the customer contact fields, shared by checkout and the profile form, because a server action's argument types are erased at runtime                                                                                                                                                                                                                                                                                                                |
@@ -403,8 +405,19 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
 | `getCachedCategoryProducts(categoryIds)`            | 10 min | `products`                    |
 | `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
-| `getCachedProduct(id)`                              | 10 min | `products`                    |
-| `getCachedRelatedProducts(categoryId)`              | 10 min | `products`                    |
+| `getCachedProduct(id)`                              | 10 min | `products` `product-<id>`     |
+| `getCachedProductReviews(id)`                       | 10 min | `product-<id>`                |
+| `getCachedRelatedProducts(categoryId)`              | 10 min | `products` `category-<id>`    |
+
+The two per-entity tags are built by `lib/cache-tags.ts` (`productTag()`, `categoryTag()`), and
+their readers construct the `unstable_cache` wrapper **per call** rather than once per module —
+that is the only way its tags can carry an argument. Both sides of the bargain are in the admin:
+`setReviewModeration` and `removeReview` expire one product, and `upsertProduct` expires its
+product's tag always but `products` only when `touchesListings()` says a card or a list order
+changed (price, name, photo, label, brand, category, publication). Editing a description, the
+common edit, used to expire 2400 products and their pages. The trade is stated in
+`getCachedProductReviews`: after an approval the stars on that product's **card** catch up within
+`CATALOGUE_TTL`, while its page shows the review at once.
 
 The two TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min) and `REFERENCE_TTL`
 (1 hour). Neither is what keeps the site fresh: every write path invalidates by tag
@@ -446,12 +459,13 @@ still has four neighbours to show. The rendered result is identical to the old q
 
 ## Server Actions
 
-| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                            |
-| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client |
+| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                                                                                                       |
+| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `app/order/[token]/actions.ts`  | `claimOrder()` — привязать гостевой заказ к аккаунту по кнопке (см. «Product reviews»); GET страницы ничего не меняет                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client. Writes copy an explicit column list (`pick()`), never the client's object |
 
 ## Auth
 
@@ -553,7 +567,7 @@ from `NEXT_PUBLIC_SUPABASE_URL` would leave staging with four broken tiles and g
 The old store stays reachable at `LEGACY_SITE_URL` (`https://old.aloe.kg`), linked from the footer
 with `rel="nofollow"`; old JoomShopping product URLs on the main domain are 301d to `/product/[id]`
 by `app/catalog/product/view/[...path]/route.ts`. Those redirects send a **relative** `Location`
-(`lib/legacy-redirect.ts`, `proxy.ts`), so they land on whichever host was asked — production,
+(`lib/legacy-redirect.ts`, `redirects()` in `next.config.ts`), so they land on whichever host was asked — production,
 staging or localhost. An absolute one would be wrong either way: built from `SITE_URL` it bounces
 staging traffic into the live shop, and built from the request it bakes the first caller's host into
 a response the route caches for a day (`revalidate = 86400`).
@@ -709,14 +723,18 @@ reason to register, rather than the review itself. `/checkout/success` therefore
 not a review: nothing has arrived yet.
 
 The same token is the order's **access token**, and `/order/[token]` is its other door. `createOrder`
-returns it so the success page can send a guest through `/auth?next=/order/<token>`, which attaches
-the order to whatever account signs in there and then lands on `/profile`. Without it the card on
-that page promised something the code could not do — checkout stores `user_id = null` for a guest,
-registering afterwards matched nothing, and the customer arrived at an empty profile. The claim is
+returns it so the success page can send a guest through `/auth?next=/order/<token>`; signed in, the
+page shows the order and a **button** that attaches it to the account (`claimOrder` in
+`app/order/[token]/actions.ts`) and lands on `/profile`. Without it the card on the success page
+promised something the code could not do — checkout stores `user_id = null` for a guest, registering
+afterwards matched nothing, and the customer arrived at an empty profile. The claim used to happen
+on the GET itself, which made the link the action: a guest order's link sent to any signed-in
+stranger landed in their history, and forwarding one's own link gave the order away. It is
 conditional on `user_id is null` in the query itself, so an order that already belongs to someone
 never changes hands however the link travelled afterwards; a signed-out visitor sees the order's
 status and an invitation instead, which is guest order tracking by the same door. `/order/:path*`
-gets `no-referrer` and a robots `disallow` for the same reason `/review/:path*` does.
+and `/checkout/success` (where the token is first shown) get `no-referrer`, and `/order` a robots
+`disallow`, for the same reason `/review/:path*` does.
 
 Every check lives in the server action rather than in RLS, because the last of them cannot be
 written as a policy — "was this product in that order" reads `orders.items`, a jsonb document.
@@ -736,8 +754,10 @@ proof of purchase and the moderator's context; it is simply not part of what mus
 The rating is **denormalised onto `products` as `rating_sum` + `rating_count`**, maintained by a
 trigger and counting approved reviews only — a card cannot join an aggregate when list queries are
 cached whole (see "Cache budget"). Sum rather than an average, since an average cannot be updated
-incrementally without drift; `averageRating()` divides once, at render. Approving is what expires
-`updateTag("products")`; `submitReview` expires nothing, because nothing it writes is public yet.
+incrementally without drift; `averageRating()` divides once, at render. Approving expires the
+product's own tag (`productTag(id)`, see "Cached Queries"), so its page shows the review at once and
+its card's stars follow within the catalogue TTL; `submitReview` expires nothing, because nothing it
+writes is public yet.
 
 Two deliberate silences: `aggregateRating` appears in the product JSON-LD **only when there is
 something to aggregate** (Google's policy forbids inventing ratings, and this closes one of the
@@ -745,8 +765,11 @@ merchant-listing gaps in `lib/seo.ts` honestly), and neither the card nor the pr
 anything at all for an unrated product — 5% of the catalogue has ever been delivered, and a row of
 grey stars on the other 95% reads as "rated badly" rather than "new". Reviews are signed with a
 first name and the initial of a surname — "Айгерим С." — shortened by `displayAuthorName()` **before
-it is stored**, because `anon` may read every column of an approved review; `user_id` is still never
-rendered, and a full name against a purchase is more than this shop asked permission to publish. The
+it is stored**, because `anon` may read every column it is granted of an approved review — and since
+`20260924100000_reviews_column_grants.sql` that grant is column-level: `user_id` and `order_id` are
+not readable by `anon` or `authenticated` at all, so no PostgREST query with the public key can
+string one customer's reviews together or pair a review with an order. A full name against a
+purchase is more than this shop asked permission to publish. The
 avatar is a generated initial in a deterministic colour, not a photo: 13 of 14 accounts signed up by
 email and have none, and the one Google avatar lives on `googleusercontent.com`, which `img-src`
 does not allow — widening the CSP and calling Google from every product page, for one user in
@@ -756,8 +779,10 @@ someone whose profile has no name, renders as "Покупатель".
 The profile has an **"Отзывы" tab**: everything the customer has written, moderation state included,
 each one editable. Seeing their own pending and rejected rows is what the single select policy
 allows (`status = 'approved' or user_id = auth.uid()`, widened rather than paired with a second
-policy so that "what may anon see" has one answer); the list is read with the _user's_ client, so
-the policy is the check rather than the call site.
+policy so that "what may anon see" has one answer). The list itself is read through the **service
+role** with the id `requireAuth()` took from the session — it used to use the user's client so that
+the policy, not the call site, decided whose drafts came back, but filtering on `user_id` needs the
+right to read it, and that right is exactly what leaked every other customer's id (see above).
 
 **A published review is final.** Only `pending` and `rejected` may be edited (`canEditReview`), and
 `updateOwnReview` filters on the status in the same statement as the write, so a second tab cannot
@@ -785,6 +810,10 @@ should be weighed before any of them is changed:
   data it reads expire together — a shorter page TTL just rebuilds a page around unchanged data.
 - **A cache key must not carry anything per-product that the query does not need.** `excludeId` on
   related products was the whole difference between ~90 entries and 2400.
+- **An admin write expires the narrowest tag that is still correct.** `updateTag("products")` marks
+  every list, product and product page stale, and each is rewritten on its next view — three writes
+  per product. Fine for a price change; for one approved review or one corrected description it
+  spends the catalogue to deliver a letter, so those go through `product-<id>` (`lib/cache-tags.ts`).
 - **A public server action's arguments are a cache key an anonymous caller writes.**
   `loadMoreBrandProducts` took `pageSize` and passed it straight into `getCachedProductsByBrand`:
   clamping it to 1..48 bounded each response but not the number of keys, so the 48 × 10 000 grid was
@@ -806,17 +835,17 @@ None of it costs freshness, because tag invalidation, not the TTL, is what publi
 
 **Image optimization is intentionally disabled** — `next.config.ts` sets `images.unoptimized: true` (Vercel Hobby plan quota on Image Optimization source images). Do not re-enable without checking the plan/hosting situation first. Because nothing resizes at request time, **the browser downloads exactly the bytes that were uploaded**, so every product photo is stored at two sizes instead:
 
-| column          | size    | rendered by                                                                        |
-| --------------- | ------- | ---------------------------------------------------------------------------------- |
-| `thumbnail_url` | ≤ 500px | `ProductCard` (grids, carousels, brand pages), cart rows, autocomplete, admin list |
-| `image_url`     | ≤1200px | `/product/[id]`, the quick-view modal, OG/JSON-LD metadata, order snapshots        |
+| column          | size    | rendered by                                                                                         |
+| --------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `thumbnail_url` | ≤ 500px | `ProductCard` (grids, carousels, brand pages), cart rows, autocomplete, admin list, order snapshots |
+| `image_url`     | ≤1200px | `/product/[id]`, the quick-view modal, OG/JSON-LD metadata                                          |
 
 Both are WebP (q76 / q82). `uploadProductImage()` produces the pair with `sharp` from a single admin upload — it stores `thumb/<name>.webp` alongside `<name>.webp` and returns both URLs, so the two columns are always written together. Consumers read `thumbnail_url || image_url`; the fallback covers rows predating the backfill. Because uploads are re-encoded server-side, the action accepts originals up to 15 MB, which is also why `experimental.serverActions.bodySizeLimit` is raised — the 1 MB default rejected phone photos before the action ever ran.
 
 Banners are re-encoded the same way: `uploadBannerImage(formData, type)` takes the `desktop`/`mobile`
 tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop, ≤1000px q80 for mobile —
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
-other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
+other's breakpoint. Category tiles are one WebP at ≤800px q80.
 
 **Which banner the browser actually fetches** is decided by `<picture>`, not by CSS. The homepage
 keeps both carousels in the DOM and hides one with `display:none`, and a hidden `<img>` is still
@@ -832,16 +861,26 @@ of them, and `preload` on the first card of each put fourteen `<link rel=preload
 stylesheet, the JS chunks and the LCP banner. Grids elsewhere still preload their first card —
 there the card is the LCP element. (`preload` is what Next 16 renamed `priority` to.)
 
+**`ProductCarousel` is Embla only from `md` up.** The arrows are `hidden md:flex`, so on a phone
+Embla only reimplemented the swipe the browser does natively — a pointer listener, a resize observer
+and a measurement of every slide, once per carousel, on the device least able to afford it. Below
+`md` the row is a plain `overflow-x: auto` (`useMediaQuery`, false during hydration so the markup
+matches), and the ref that initialises Embla is withheld. The home page also wraps **each carousel
+in its own `<Suspense>`** with no fallback: nothing suspends, but a server-rendered boundary is
+hydrated by React as a separate, interruptible task, so ~170 cards hydrate row by row rather than
+in one long task and a tap on the first row is answered before the last is touched. The cost is
+one `$RC` segment per row in the prerendered HTML.
+
 **Legacy URLs from the old shop** are redirected in two places, split by whether the mapping can be
 computed or has to be looked up. The old sitemap (still submitted to Search Console from 2017)
 listed 2879 addresses, and until this was in place every one of them answered 404 on the new site:
 
-| shape                                                                                 | count | handled by                                |
-| ------------------------------------------------------------------------------------- | ----- | ----------------------------------------- |
-| `/catalog/<slug>/product/view/<cat>/<id>.html`                                        | 2415  | route handler → `redirectLegacyProduct()` |
-| `/brendy/manufacturer/view/<id>.html`                                                 | 384   | `proxy.ts` + `legacy-redirects.ts`        |
-| `/catalog/<slug>/category/view/<id>.html`                                             | 62    | same                                      |
-| `/catalog/<slug>.html`, `/catalog.html`, `/brendy.html`, `/oplata-i-dostavka.html`, … | 18    | same                                      |
+| shape                                                                                 | count | handled by                                                |
+| ------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------- |
+| `/catalog/<slug>/product/view/<cat>/<id>.html`                                        | 2415  | route handler → `redirectLegacyProduct()`                 |
+| `/brendy/manufacturer/view/<id>.html`                                                 | 384   | `next.config.ts` `redirects()` from `legacy-redirects.ts` |
+| `/catalog/<slug>/category/view/<id>.html`                                             | 62    | same                                                      |
+| `/catalog/<slug>.html`, `/catalog.html`, `/brendy.html`, `/oplata-i-dostavka.html`, … | 18    | same                                                      |
 
 Products carry their old address in `products.product_url`, so they resolve per request against the
 database and stay correct as the catalogue changes — but only on the
@@ -849,9 +888,13 @@ database and stay correct as the catalogue changes — but only on the
 a category segment, `product_url` recorded only the shorter form, and the longer one is what the
 sitemap submitted and Google indexed. Everything else has no such column, so
 `scripts/build-legacy-redirects.mjs` reads the old site once, matches its `<h1>` against `brands` /
-`categories`, and writes `lib/legacy-redirects.ts`; `proxy.ts` then answers from that map with no
-database round trip. Old JoomShopping ids never change, so the map is frozen history — regenerate it
-only if the old sitemap itself changes.
+`categories`, and writes `lib/legacy-redirects.ts`; `next.config.ts` spreads that map into
+`redirects()`, so the router answers them before any function runs — on Vercel, at the edge routing
+layer, with no invocation. They used to be answered in `proxy.ts`, which meant the proxy had to run
+on every storefront request to catch them; moving them out is what let its matcher shrink to the
+routes that read a session. `statusCode: 301`/`302` is passed explicitly, because Next's `permanent`
+flag would emit 308/307. Old JoomShopping ids never change, so the map is frozen history —
+regenerate it only if the old sitemap itself changes.
 
 `LEGACY_PERMANENT` is a 301 (an exact counterpart exists); `LEGACY_FALLBACK` is a 302 to the nearest
 listing, for the 193 brands this catalogue no longer carries and the three top-level categories the
@@ -860,11 +903,18 @@ keeps a URL from being permanently tied to a page it never had, so a brand that 
 reclaim its own address. The same reasoning applies to an unpublished product in
 `redirectLegacyProduct()`.
 
+**The proxy runs only where a session is read.** `proxy.ts` refreshes the Supabase cookie, and its
+matcher lists exactly the routes whose server code calls `createClient()` from
+`lib/supabase-server.ts` — `/admin`, `/auth`, `/checkout`, `/favorites`, `/order`, `/profile`,
+`/review`. Everything else is either prerendered or reads nothing from the session, and the browser
+client refreshes its own token; on Vercel the proxy runs _before_ the CDN cache is consulted, so
+matching the whole storefront made every ISR hit and every RSC prefetch a function invocation for
+nothing. A new route that reads the session has to be added to that list (`lib/auth.ts` says so).
+
 **Security headers live in `next.config.ts` `headers()`, not in `proxy.ts`.** Headers are matched
 before the filesystem and before the proxy, so one `/:path*` rule also covers `/_next/static`,
-`/public` and the metadata routes — every one of which the proxy's matcher deliberately excludes —
-and it costs no function invocation. The proxy would have needed the same block on each of its three
-early returns, including the anonymous-visitor fast path that is most of the storefront's traffic.
+`/public` and the metadata routes — none of which the proxy sees — and it costs no function
+invocation. The proxy would have needed the same block on each of its early returns.
 A second rule sets `Referrer-Policy: no-referrer` on `/auth/:path*`, because `/auth/confirm` reads
 `token_hash` and `code` out of the query string; where two rules set the same key, the last wins.
 

@@ -43,7 +43,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           )}
           {discount && (
             <div className="absolute top-3 right-12">
-              <span className="bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded">−{discount}%</span>
+              <span className="bg-red-700 text-white text-xs font-semibold px-2 py-1 rounded">−{discount}%</span>
             </div>
           )}
           <FavoriteButton productId={product.id} />

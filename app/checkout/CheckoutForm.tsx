@@ -205,9 +205,11 @@ export default function CheckoutForm({ initial }: Props) {
         </div>
       </div>
 
-      {/* Delivery type */}
-      <div className="space-y-3">
-        <h2 className="font-semibold">Способ доставки</h2>
+      {/* Delivery type. A fieldset: the heading is the group's programmatic name, so each radio is
+          announced as "Способ доставки, Центр, …" rather than as a bare option. `min-w-0` because
+          a fieldset's default min-inline-size lets it overflow a narrow column. */}
+      <fieldset className="space-y-3 min-w-0">
+        <legend className="font-semibold">Способ доставки</legend>
         <div className="space-y-2">
           {DELIVERY_OPTIONS.map((option) => {
             const free = option.freeOverThreshold && itemsTotal >= FREE_DELIVERY_THRESHOLD;
@@ -246,7 +248,7 @@ export default function CheckoutForm({ initial }: Props) {
             );
           })}
         </div>
-      </div>
+      </fieldset>
 
       {/* Delivery info */}
       <div className="space-y-4">

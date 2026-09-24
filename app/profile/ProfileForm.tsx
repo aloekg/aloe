@@ -20,8 +20,18 @@ export default function ProfileForm({ initial }: Props) {
   const nameId = useId();
   const phoneId = useId();
   const addressId = useId();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const touched = useRef(false);
 
   useEffect(() => () => clearTimeout(savedTimerRef.current), []);
+
+  // "Изменить" unmounts when pressed, and "Сохранить"/"Отмена" when the edit ends; focus went to
+  // <body> both times. Into the first field on the way in, back onto the button on the way out.
+  useEffect(() => {
+    if (editing) nameRef.current?.focus();
+    else if (touched.current) editButtonRef.current?.focus();
+  }, [editing]);
 
   function handleCancel() {
     setName(initial.name);
@@ -59,7 +69,16 @@ export default function ProfileForm({ initial }: Props) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Личные данные</h2>
         {!editing && (
-          <Button type="button" variant="ghost" onClick={() => setEditing(true)} className="text-sm font-medium">
+          <Button
+            ref={editButtonRef}
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              touched.current = true;
+              setEditing(true);
+            }}
+            className="text-sm font-medium"
+          >
             Изменить
           </Button>
         )}
@@ -81,6 +100,7 @@ export default function ProfileForm({ initial }: Props) {
           Имя
         </label>
         <input
+          ref={nameRef}
           id={nameId}
           type="text"
           value={name}

@@ -28,9 +28,13 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active = true) 
         (el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement,
       );
 
-    // Move focus in so the first Tab lands inside rather than at the top of the document.
-    const initial = focusable()[0] ?? container;
-    initial.focus({ preventScroll: true });
+    // Move focus in so the first Tab lands inside rather than at the top of the document — unless
+    // it is already inside, as it is when a sheet regains the top after the one above it closed and
+    // handed focus back to the heart that opened it.
+    if (!container.contains(document.activeElement)) {
+      const initial = focusable()[0] ?? container;
+      initial.focus({ preventScroll: true });
+    }
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;

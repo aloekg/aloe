@@ -1,6 +1,7 @@
 import { InstallAppIos, MainContainer, MobileHeader, Title } from "@/components";
 import { requireAuth } from "@/lib/auth";
 import { parsePage } from "@/lib/page-params";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { getUserOrders } from "@/services/order.service";
 import { getProfile } from "@/services/profile.service";
 import { getUserReviews } from "@/services/review.service";
@@ -25,9 +26,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const [{ orders, total }, profile, reviews] = await Promise.all([
     getUserOrders(supabase, user.id, { page, pageSize: ORDERS_PAGE_SIZE }),
     getProfile(supabase, user.id),
-    // The user's own client, so the RLS policy is what decides they may see their pending and
-    // rejected ones — not this call site.
-    getUserReviews(supabase, user.id),
+    // Service role with the session's own id: anon and authenticated may no longer read
+    // `user_id` at all (20260924100000_reviews_column_grants.sql), so the user's client cannot
+    // filter on it. `user.id` comes from requireAuth(), not from the request.
+    getUserReviews(createAdminClient(), user.id),
   ]);
 
   const registeredAt = new Date(user.created_at).toLocaleDateString("ru-RU", {

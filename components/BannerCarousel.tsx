@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import Link from "next/link";
 import Button from "./Button";
 
-type Banner = Pick<import("@/types").Banner, "id" | "image_url" | "link">;
+type Banner = Pick<import("@/types").Banner, "id" | "image_url" | "link" | "alt">;
 
 /**
  * The homepage renders the desktop set and the mobile set and hides one with CSS — and a hidden
@@ -83,9 +83,12 @@ function BannerImage({ banner, index, media }: { banner: Banner; index: number; 
     <picture>
       <source media={BANNER_MEDIA[media]} srcSet={banner.image_url} />
       {/* Plain <img>: next/image cannot emit a <source media> sibling — see the note above. */}
+      {/* `alt` is what the admin wrote on /admin/banners: the offer, and where the link goes. The
+          numbered fallback is for a banner nobody has described yet — see the 20260924100300
+          migration. */}
       <img
         src={TRANSPARENT_PIXEL}
-        alt={`Баннер ${index + 1}`}
+        alt={banner.alt?.trim() || `Баннер ${index + 1}`}
         className="absolute inset-0 size-full object-cover"
         loading={first ? "eager" : "lazy"}
         fetchPriority={first ? "high" : undefined}
@@ -264,15 +267,21 @@ export default function BannerCarousel({
             >
               <ChevronRight className="size-4" />
             </Button>
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex">
+              {/* The dot is 8px; the button around it is 24px, the WCAG 2.5.8 minimum. */}
               {banners.map((_, i) => (
                 <Button
                   key={i}
                   onClick={() => scrollTo(i)}
                   aria-label={`Баннер ${i + 1} из ${banners.length}`}
                   aria-current={i === selected ? "true" : undefined}
-                  className={`h-2 rounded-full transition-all ${i === selected ? "bg-white w-4" : "bg-white/50 w-2"}`}
-                />
+                  className="flex h-6 min-w-6 items-center justify-center px-1"
+                >
+                  <span
+                    aria-hidden
+                    className={`block h-2 rounded-full transition-all ${i === selected ? "bg-white w-4" : "bg-white/50 w-2"}`}
+                  />
+                </Button>
               ))}
             </div>
             <AutoplayToggle playing={playing} onToggle={toggleAutoplay} className="bottom-2.5 right-3 size-7" />

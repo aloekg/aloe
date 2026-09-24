@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { buildContentSecurityPolicy } from "@/lib/csp";
+import { LEGACY_FALLBACK, LEGACY_PERMANENT } from "@/lib/legacy-redirects";
 
 const csp = buildContentSecurityPolicy({
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -49,6 +50,23 @@ const nextConfig: NextConfig = {
     "/admin/orders": ["./lib/fonts/**"],
   },
   poweredByHeader: false,
+
+  // The old shop's non-product URLs, and /catalog?q=. Static redirects live here rather than in
+  // proxy.ts because the router applies them before any function runs: on Vercel that is the edge
+  // routing layer, no invocation at all, and it is what let the proxy's matcher shrink to the
+  // handful of routes that read a session (see proxy.ts). `statusCode` instead of `permanent`
+  // keeps the 301/302 split the map encodes — Next's default 308/307 preserves the request method,
+  // which nothing following a link from a 2017 sitemap needs. Product URLs are not here: they need
+  // a database lookup and keep their route handlers (lib/legacy-redirect.ts).
+  async redirects() {
+    return [
+      // /catalog?q= used to be a second copy of the search results. The destination carries no
+      // query of its own, so Next passes the request's through — q, page and brand all arrive.
+      { source: "/catalog", has: [{ type: "query", key: "q" }], destination: "/search", permanent: false },
+      ...Object.entries(LEGACY_PERMANENT).map(([source, destination]) => ({ source, destination, statusCode: 301 })),
+      ...Object.entries(LEGACY_FALLBACK).map(([source, destination]) => ({ source, destination, statusCode: 302 })),
+    ];
+  },
 
   // Headers are matched before the filesystem and before proxy.ts, so this also covers
   // /_next/static, /public and the metadata routes — every one of which proxy.ts's matcher
@@ -105,6 +123,12 @@ const nextConfig: NextConfig = {
       // Same secret, other door: /order/<token> claims the order for whoever signs in there.
       {
         source: "/order/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+      // And where that token is first shown: checkout lands a guest on /checkout/success?t=<token>
+      // so the page can offer the account that will own the order. Same secret, same header.
+      {
+        source: "/checkout/success",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
     ];

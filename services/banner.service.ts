@@ -8,7 +8,7 @@ export async function getActiveBanners(supabase: SupabaseClient<Database>, type:
     `banners-${type}`,
     await supabase
       .from("banners")
-      .select("id, image_url, link")
+      .select("id, image_url, link, alt")
       .eq("active", true)
       .eq("type", type)
       .order("sort_order"),

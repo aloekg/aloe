@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import HeaderSearchInput from "@/components/header/HeaderSearchInput";
 import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
@@ -23,26 +22,12 @@ export const metadata: Metadata = pageMetadata({
   path: "/catalog",
 });
 
-export default async function CatalogPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; page?: string; brand?: string | string[] }>;
-}) {
-  const sp = await searchParams;
-  const q = sp.q?.trim() ?? "";
-
-  // /catalog?q= used to be a second copy of the search results, reachable only from the field that
-  // lived in this page's mobile header. That field now suggests products in a dropdown and submits
-  // to /search, like the one on the home page, so nothing produces these URLs any more — old links
-  // and history entries are sent to the one results page rather than rendering a duplicate of it.
-  if (q) {
-    const params = new URLSearchParams({ q });
-    if (sp.page) params.set("page", sp.page);
-    const brands = Array.isArray(sp.brand) ? sp.brand : sp.brand ? [sp.brand] : [];
-    for (const brand of brands) params.append("brand", brand);
-    redirect(`/search?${params}`);
-  }
-
+/**
+ * Reads no searchParams, so it prerenders. `/catalog?q=` — once a second copy of the search results
+ * — is sent to /search by a redirect in next.config.ts; doing that here made the whole page dynamic
+ * for the sake of URLs nothing produces any more, a serverless render of the tile grid per visit.
+ */
+export default async function CatalogPage() {
   const allCategories = await getCachedCategories();
   const topCategories = (
     allCategories as Array<{
@@ -62,6 +47,8 @@ export default async function CatalogPage({
       <MainContainer>
         <Title className="sr-only md:not-sr-only md:mb-4">Каталог товаров</Title>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
+          {/* `preload` on these four: they are the first row on the phone's "Каталог" tab and the
+              page's LCP candidate. `fill` images are lazy by default, which deferred exactly them. */}
           {specials.map((s) => (
             <Link key={s.href} href={s.href} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
               {s.image_url && (
@@ -69,6 +56,7 @@ export default async function CatalogPage({
                   src={s.image_url}
                   alt={s.label}
                   fill
+                  preload
                   className="object-cover"
                   sizes="(max-width: 1024px) 50vw, 300px"
                 />

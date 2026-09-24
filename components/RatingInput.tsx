@@ -16,18 +16,30 @@ export default function RatingInput({
   onChange,
   name,
   disabled,
+  required = false,
 }: {
   value: number;
   onChange: (value: number) => void;
   name: string;
   disabled?: boolean;
+  /** Marks the group required for assistive tech; the form still validates on submit. */
+  required?: boolean;
 }) {
   const [hovered, setHovered] = useState(0);
   const shown = hovered || value;
 
   return (
     <div className="flex items-center gap-3">
-      <div role="radiogroup" aria-label="Оценка" className="flex items-center gap-1" onMouseLeave={() => setHovered(0)}>
+      {/* The rule wants the group itself focusable; here the native <input type="radio"> children
+          are the focusable, arrow-navigable parts, which is what a radiogroup wrapper is for. */}
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
+      <div
+        role="radiogroup"
+        aria-label="Оценка"
+        aria-required={required || undefined}
+        className="flex items-center gap-1"
+        onMouseLeave={() => setHovered(0)}
+      >
         {Array.from({ length: MAX_RATING - MIN_RATING + 1 }, (_, i) => i + MIN_RATING).map((star) => (
           <label
             key={star}

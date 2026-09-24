@@ -52,10 +52,16 @@ export default function AutocompleteDropdown({
 
   return (
     // Pressing an option must not blur the input first: focus belongs to the combobox, and a blur
-    // would also let the outside-click handler close the popup before the click landed.
+    // would also let the outside-click handler close the popup before the click landed. That is the
+    // whole of this handler — it is not an interaction, so the static-element rule does not apply.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div className={`${shell} overflow-hidden`} onMouseDown={(e) => e.preventDefault()}>
       <ul id={listboxId} role="listbox" aria-label="Предложения по запросу">
         {results.map((p, i) => (
+          // The keyboard never reaches an option directly: in the combobox pattern focus stays on
+          // the input, which handles ArrowUp/ArrowDown/Enter and points here with
+          // aria-activedescendant. A key handler on the option would have nothing to receive.
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events
           <li
             key={p.id}
             id={optionId(i)}
