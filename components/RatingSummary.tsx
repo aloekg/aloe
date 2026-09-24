@@ -31,7 +31,7 @@ export default function RatingSummary({
       className={`inline-flex items-center gap-2 w-fit group ${className ?? ""}`}
       aria-label={`Оценка ${average} из 5, ${ratingCount} ${reviewPlural(ratingCount)}. Перейти к отзывам`}
     >
-      <StarRating average={average} />
+      <StarRating average={average} label={false} />
       <span className="text-sm font-medium">{average.toFixed(1).replace(".", ",")}</span>
       <span className="text-sm text-gray-500 group-hover:text-green-700 group-hover:underline">
         {ratingCount} {reviewPlural(ratingCount)}

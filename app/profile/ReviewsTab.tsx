@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -28,6 +28,16 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const show = useToast((s) => s.show);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const touched = useRef(false);
+
+  // "Редактировать" is replaced by the form, and "Сохранить"/"Отмена" by the button again — each
+  // taking the focused element with it. Move focus to what replaced it; never on first render.
+  useEffect(() => {
+    if (editing) formRef.current?.focus();
+    else if (touched.current) editButtonRef.current?.focus();
+  }, [editing]);
 
   const badge = REVIEW_STATUS[review.status as ReviewStatus];
   const problem = validateReview(rating, body);
@@ -84,7 +94,7 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
       </div>
 
       {editing ? (
-        <div className="mt-4">
+        <div ref={formRef} tabIndex={-1} className="mt-4 outline-none">
           <RatingInput value={rating} onChange={setRating} name={`rating-${review.id}`} disabled={pending} />
           <label htmlFor={`body-${review.id}`} className="sr-only">
             Текст отзыва
@@ -124,8 +134,12 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
           <p className="text-xs text-gray-500 mt-2">{STATUS_NOTE[review.status as ReviewStatus]}</p>
           {canEditReview(review.status) && (
             <Button
+              ref={editButtonRef}
               variant="secondary"
-              onClick={() => setEditing(true)}
+              onClick={() => {
+                touched.current = true;
+                setEditing(true);
+              }}
               className="mt-3 flex items-center gap-1.5 text-xs px-3 py-1.5"
             >
               <Pencil className="size-3.5" aria-hidden /> Редактировать

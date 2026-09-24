@@ -94,6 +94,7 @@ function AuthSheet() {
       <div className="w-full max-w-sm mx-auto px-4 pb-6 md:px-6">
         <AuthForm
           next={next}
+          titleAs="h2"
           installHint
           onAuthenticated={() => setSignedIn(true)}
           banner={

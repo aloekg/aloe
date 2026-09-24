@@ -264,15 +264,21 @@ export default function BannerCarousel({
             >
               <ChevronRight className="size-4" />
             </Button>
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex">
+              {/* The dot is 8px; the button around it is 24px, the WCAG 2.5.8 minimum. */}
               {banners.map((_, i) => (
                 <Button
                   key={i}
                   onClick={() => scrollTo(i)}
                   aria-label={`Баннер ${i + 1} из ${banners.length}`}
                   aria-current={i === selected ? "true" : undefined}
-                  className={`h-2 rounded-full transition-all ${i === selected ? "bg-white w-4" : "bg-white/50 w-2"}`}
-                />
+                  className="flex h-6 min-w-6 items-center justify-center px-1"
+                >
+                  <span
+                    aria-hidden
+                    className={`block h-2 rounded-full transition-all ${i === selected ? "bg-white w-4" : "bg-white/50 w-2"}`}
+                  />
+                </Button>
               ))}
             </div>
             <AutoplayToggle playing={playing} onToggle={toggleAutoplay} className="bottom-2.5 right-3 size-7" />

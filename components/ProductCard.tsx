@@ -4,13 +4,13 @@ import { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LABEL_MAP } from "@/lib/constants";
-import { averageRating } from "@/lib/reviews";
+import { averageRating, reviewPlural } from "@/lib/reviews";
 import type { ProductListItem } from "@/types";
 import AddToCart from "./AddToCart";
 import Currency from "./Currency";
 import FavoriteButton from "./FavoriteButton";
 import OldPrice from "./OldPrice";
-import StarRating from "./StarRating";
+import StarRating, { formatRating } from "./StarRating";
 
 type Props = {
   // Deliberately narrower than `Product`: the card renders seven fields, and typing it this way
@@ -53,9 +53,11 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
           subcategory bar out of its scrolled layout. */}
       <Link className="flex-1 flex flex-col" href={productHref} scroll={false}>
         <div className="relative p-2 aspect-square shadow-xs rounded-lg">
+          {/* alt="": the same link carries the name as text, and an alt repeating it made every
+              card announce its name twice. The photo adds nothing the name does not say. */}
           <Image
             src={cardImage}
-            alt={p.name}
+            alt=""
             fill
             className="object-contain p-2"
             preload={preload}
@@ -72,8 +74,13 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
               empty row of grey stars on the rest would read as "rated badly" rather than "new". */}
           {rating != null && (
             <span className="flex items-center gap-1 mt-1">
-              <StarRating average={rating} />
-              <span className="text-xs text-gray-500">{p.rating_count}</span>
+              <StarRating
+                average={rating}
+                label={`Оценка ${formatRating(rating)} из 5, ${p.rating_count} ${reviewPlural(p.rating_count)}`}
+              />
+              <span className="text-xs text-gray-500" aria-hidden>
+                {p.rating_count}
+              </span>
             </span>
           )}
           <div className="flex items-baseline gap-1.5 mt-1">

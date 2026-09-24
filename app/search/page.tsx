@@ -3,6 +3,7 @@ import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
 import MobileSearchInput from "@/components/MobileSearchInput";
 import SearchResults from "@/components/SearchResults";
+import Title from "@/components/Title";
 import { parseBrandIds, parsePage, parsePriceRange, parseQuery, parseSortParam } from "@/lib/page-params";
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }): Promise<Metadata> {
@@ -39,6 +40,7 @@ export default async function SearchPage({
           <MobileSearchInput searchPath="/search" />
         </MobileHeader>
         <MainContainer>
+          <Title className="sr-only">Поиск товаров</Title>
           <div className="text-center py-16 text-gray-500">
             <p className="text-lg">Введите название товара для поиска</p>
           </div>

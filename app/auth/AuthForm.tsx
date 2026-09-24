@@ -22,13 +22,15 @@ type Props = {
   onAuthenticated?: () => void;
   /** Shows the iOS install card; both places that offer sign-in want it — see the note below. */
   installHint?: boolean;
+  /** Heading level of the form's title: `h1` on /auth, `h2` inside the sheet, which opens over a page that has one. */
+  titleAs?: "h1" | "h2";
 };
 
 /**
  * The sign-in / register / reset form itself, with no page chrome, so that `/auth` and the modal
  * a guest gets when they tap a heart are the same form rather than two that drift apart.
  */
-export default function AuthForm({ banner, next = "/", onAuthenticated, installHint = false }: Props) {
+export default function AuthForm({ banner, next = "/", onAuthenticated, installHint = false, titleAs = "h1" }: Props) {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -160,6 +162,7 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
     return (
       <CheckMailboxNotice
         kind="recovery"
+        titleAs={titleAs}
         email={email.trim().toLowerCase()}
         onBackToLogin={() => {
           setResetSent(false);
@@ -173,6 +176,7 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
     return (
       <CheckMailboxNotice
         kind="signup"
+        titleAs={titleAs}
         email={email.trim().toLowerCase()}
         onBackToLogin={() => {
           setRegistered(false);
@@ -185,7 +189,7 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
   return (
     <>
       {banner}
-      <Title className="mb-6 text-center">
+      <Title as={titleAs} className="mb-6 text-center">
         {isReset ? "Восстановление пароля" : isRegister ? "Регистрация" : "Вход"}
       </Title>
 
@@ -326,10 +330,12 @@ function CheckMailboxNotice({
   kind,
   email,
   onBackToLogin,
+  titleAs,
 }: {
   kind: "signup" | "recovery";
   email: string;
   onBackToLogin: () => void;
+  titleAs: "h1" | "h2";
 }) {
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [status, setStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -377,7 +383,7 @@ function CheckMailboxNotice({
       <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto text-green-700 text-2xl">
         ✉
       </div>
-      <Title>{kind === "signup" ? "Подтвердите email" : "Письмо отправлено"}</Title>
+      <Title as={titleAs}>{kind === "signup" ? "Подтвердите email" : "Письмо отправлено"}</Title>
       <p className="text-sm text-gray-600">
         Мы отправили письмо на <span className="font-medium text-gray-800">{email}</span>.
         <br />

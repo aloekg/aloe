@@ -16,7 +16,7 @@ export default function Footer() {
       <Container className="flex flex-col md:flex-row items-center justify-center md:justify-between gap-4">
         <Logo />
 
-        <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
+        <nav aria-label="Разделы сайта" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
           {links.map((link) => (
             <Link key={link.href} href={link.href} className="hover:text-green-700 transition-colors">
               {link.label}

@@ -65,12 +65,21 @@ export default function ProfileTabs({
       {/* Tabs */}
       {/* Scrollable below md rather than wrapped: a third tab pushed the row onto two lines on a
           phone, and two rows of tab chrome above the content is a lot of the screen to spend. */}
-      <div className="flex justify-start md:justify-center mb-6 gap-1 overflow-x-auto scrollbar-none">
+      {/* role=tablist/tab, not aria-current="page": these switch panels on this page, they do not
+          navigate, and "page" promised a link. Each panel below is labelled by its tab. */}
+      <div
+        role="tablist"
+        aria-label="Разделы профиля"
+        className="flex justify-start md:justify-center mb-6 gap-1 overflow-x-auto scrollbar-none"
+      >
         {TABS.map(({ key, label }) => (
           <Button
             key={key}
+            id={`profile-tab-${key}`}
+            role="tab"
+            aria-selected={tab === key}
+            aria-controls={`profile-panel-${key}`}
             onClick={() => setTab(key)}
-            aria-current={tab === key ? "page" : undefined}
             className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
               tab === key ? "border-green-600 text-green-700" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
@@ -82,19 +91,23 @@ export default function ProfileTabs({
         ))}
       </div>
 
-      {tab === "reviews" && <ReviewsTab reviews={reviews} />}
+      {tab === "reviews" && (
+        <div role="tabpanel" id="profile-panel-reviews" aria-labelledby="profile-tab-reviews">
+          <ReviewsTab reviews={reviews} />
+        </div>
+      )}
 
       {tab === "profile" && (
-        <>
+        <div role="tabpanel" id="profile-panel-profile" aria-labelledby="profile-tab-profile">
           <ProfileForm
             initial={{ name: initial?.name ?? "", phone: initial?.phone ?? "", address: initial?.address ?? "" }}
           />
           {passwordEmail && <PasswordChangeForm email={passwordEmail} />}
-        </>
+        </div>
       )}
 
       {tab === "orders" && (
-        <>
+        <div role="tabpanel" id="profile-panel-orders" aria-labelledby="profile-tab-orders">
           {orders.length === 0 ? (
             <p className="text-gray-500 text-sm text-center">Заказов пока нет.</p>
           ) : (
@@ -180,7 +193,7 @@ export default function ProfileTabs({
               <Pagination page={page} totalPages={totalPages} basePath="/profile" />
             </>
           )}
-        </>
+        </div>
       )}
     </>
   );

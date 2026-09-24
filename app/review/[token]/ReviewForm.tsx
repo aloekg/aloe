@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import Image from "next/image";
 import { Button, RatingInput } from "@/components";
@@ -20,9 +20,15 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
   const [error, setError] = useState<string | null>(null);
   const show = useToast((s) => s.show);
 
-  const problem = validateReview(rating, body);
-
   async function send() {
+    // Checked on the press, not by disabling the button: a disabled button is skipped by Tab and
+    // says nothing about why, so a keyboard user who had not noticed the stars could not find out
+    // what the form still wanted.
+    const problem = validateReview(rating, body);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setPending(true);
     setError(null);
     const result = await submitReview({ token, productId: item.id, rating, body });
@@ -36,7 +42,9 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
   }
 
   return (
-    <li className="border border-gray-300 rounded-xl p-4">
+    // tabIndex -1: the parent moves focus here after the previous card submits and unmounts itself
+    // (with the button that had focus), which otherwise dropped focus to <body>.
+    <li className="border border-gray-300 rounded-xl p-4 outline-none" tabIndex={-1}>
       <div className="flex gap-3 mb-4">
         {item.image_url && (
           <Image
@@ -51,7 +59,7 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
         <p className="text-sm font-medium">{item.name}</p>
       </div>
 
-      <RatingInput value={rating} onChange={setRating} name={`rating-${item.id}`} disabled={pending} />
+      <RatingInput value={rating} onChange={setRating} name={`rating-${item.id}`} disabled={pending} required />
 
       <label htmlFor={`body-${item.id}`} className="sr-only">
         Текст отзыва
@@ -73,10 +81,9 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
         </p>
       )}
 
-      <Button variant="primary" size="lg" className="mt-3 w-full" onClick={send} disabled={pending || !!problem}>
+      <Button variant="primary" size="lg" className="mt-3 w-full" onClick={send} disabled={pending}>
         {pending ? "Отправляем…" : "Отправить отзыв"}
       </Button>
-      {problem && rating > 0 && <p className="text-xs text-gray-500 mt-2">{problem}</p>}
     </li>
   );
 }
@@ -84,10 +91,20 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
 export default function ReviewForm({ token, items }: { token: string; items: OrderItem[] }) {
   const [done, setDone] = useState<number[]>([]);
   const left = items.filter((i) => !done.includes(i.id));
+  const listRef = useRef<HTMLUListElement>(null);
+  const thanksRef = useRef<HTMLDivElement>(null);
+
+  // Each submitted card removes itself, and the "Отправить" that had focus with it. Focus follows
+  // the work: the next card, or the thank-you once there is none.
+  useEffect(() => {
+    if (done.length === 0) return;
+    const next = thanksRef.current ?? listRef.current?.querySelector<HTMLElement>("li");
+    next?.focus();
+  }, [done]);
 
   if (left.length === 0) {
     return (
-      <div className="text-center py-12">
+      <div ref={thanksRef} tabIndex={-1} className="text-center py-12 outline-none">
         <Check className="size-12 text-green-700 mx-auto mb-3" aria-hidden />
         <p className="text-lg font-medium">Спасибо за отзывы!</p>
         <p className="text-sm text-gray-500 mt-1">Мы опубликуем их после проверки — обычно в течение дня.</p>
@@ -96,7 +113,7 @@ export default function ReviewForm({ token, items }: { token: string; items: Ord
   }
 
   return (
-    <ul className="flex flex-col gap-4">
+    <ul ref={listRef} className="flex flex-col gap-4">
       {left.map((item) => (
         <ProductReview key={item.id} token={token} item={item} onDone={() => setDone((prev) => [...prev, item.id])} />
       ))}

@@ -47,9 +47,11 @@ export default function SearchInput({ value, onChange, searchPath, loading, inpu
           type="button"
           onClick={handleClear}
           aria-label="Очистить"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 transition-colors"
+          // A 32px target around a 16px glyph — WCAG 2.5.8 asks for 24, and the field itself is
+          // the neighbouring target, so the icon alone was too easy to miss into it.
+          className="absolute right-0.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center text-gray-500 hover:text-gray-600 transition-colors"
         >
-          <X className="size-4" />
+          <X className="size-4" aria-hidden />
         </button>
       )}
       {loading ? (

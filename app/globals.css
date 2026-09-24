@@ -26,6 +26,13 @@
     padding-right: env(safe-area-inset-right);
   }
 
+  /* Tailwind 4's preflight paints placeholders at 50% of the text colour, about 3.5:1 on white.
+     Where the placeholder carries information — the price boxes show the category's cheapest and
+     dearest — that is below AA; gray-500 is 4.84:1. */
+  ::placeholder {
+    color: var(--color-gray-500);
+  }
+
   /* SearchInput is `type="search"` for the role and the phone keyboard's search key, but draws its
      own clear button — one that also returns to the unfiltered URL. WebKit's native one would sit
      on top of it and only empty the field. */

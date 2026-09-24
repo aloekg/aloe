@@ -16,9 +16,11 @@ type Props = {
 
 export default function BrandProductsInfinite({ brandId, brandName, initialProducts, total }: Props) {
   const [products, setProducts] = useState(initialProducts);
+  const [loading, setLoading] = useState(false);
   const pageRef = useRef(1);
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const exhausted = products.length >= total;
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -30,6 +32,7 @@ export default function BrandProductsInfinite({ brandId, brandName, initialProdu
         if (loadingRef.current || pageRef.current * BRAND_PAGE_SIZE >= total) return;
 
         loadingRef.current = true;
+        setLoading(true);
         const nextPage = pageRef.current + 1;
         loadMoreBrandProducts(brandId, nextPage)
           .then(({ products: more }) => {
@@ -43,6 +46,7 @@ export default function BrandProductsInfinite({ brandId, brandName, initialProdu
           })
           .finally(() => {
             loadingRef.current = false;
+            setLoading(false);
           });
       },
       { rootMargin: "600px" },
@@ -60,6 +64,11 @@ export default function BrandProductsInfinite({ brandId, brandName, initialProdu
         ))}
       </ProductGrid>
       <div ref={sentinelRef} className="h-px" />
+      {/* Cards appear below the fold with no sound at all otherwise. Always mounted, so the region
+          exists before its first message — see components/Toaster.tsx for why that matters. */}
+      <p role="status" aria-live="polite" className="text-center text-sm text-gray-500 py-4 empty:hidden">
+        {loading ? "Загружаем ещё товары…" : exhausted && total > BRAND_PAGE_SIZE ? "Это все товары бренда" : ""}
+      </p>
     </>
   );
 }
