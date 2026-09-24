@@ -10,7 +10,22 @@ import { SITE_URL } from "@/lib/constants";
  * redirect with the shop's own sign-in page as the bait.
  */
 export function safeNextPath(next: string | null | undefined, fallback = "/"): string {
-  return typeof next === "string" && /^\/(?![/\\])/.test(next) ? next : fallback;
+  if (typeof next !== "string" || !/^\/(?![/\\])/.test(next)) return fallback;
+
+  // The WHATWG parser strips tab, CR and LF *before* it reads the string, so `/\t/evil.com` passes
+  // the check above and still resolves to https://evil.com/ — which is exactly what
+  // `router.push` then hands to `location.assign`. Refuse every C0 control, the space and a
+  // backslash anywhere, not only in second position; a real path arrives percent-encoded.
+  if (/[\u0000-\u0020\u007f\\]/.test(next)) return fallback;
+
+  // Belt and braces: resolve against a sentinel origin and make sure it stayed there.
+  try {
+    if (new URL(next, "https://probe.invalid").origin !== "https://probe.invalid") return fallback;
+  } catch {
+    return fallback;
+  }
+
+  return next;
 }
 
 /**

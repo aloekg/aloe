@@ -96,6 +96,15 @@ describe("safeNextPath", () => {
     }
   });
 
+  it("refuses a path the URL parser would rewrite into another host", () => {
+    // Tab, CR and LF are stripped by the WHATWG parser before it looks at the string, so each of
+    // these is `//evil.com` in disguise. `?next=%2F%09%2Fevil.com` arrives decoded as the first one.
+    for (const hostile of ["/\t/evil.com", "/\n/evil.com", "/\r/evil.com", "/\t\\evil.com", "/ /evil.com"]) {
+      expect(safeNextPath(hostile)).toBe("/");
+      expect(new URL(hostile, "https://aloe.kg").host === "aloe.kg" || safeNextPath(hostile) === "/").toBe(true);
+    }
+  });
+
   it("refuses anything that is not a path at all", () => {
     for (const junk of ["", "review/abc", "javascript:alert(1)", null, undefined]) {
       expect(safeNextPath(junk)).toBe("/");

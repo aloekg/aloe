@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { safeNextPath } from "@/lib/safe-redirect";
 import { useAuthModal } from "@/store/auth-modal";
 import { useFavorites } from "@/store/favorites";
 import { useToast } from "@/store/toast";
@@ -75,7 +76,7 @@ function AuthSheet() {
    * form defaults to "/" instead, which is right for a visit that started at /auth.
    */
   const [next] = useState(() =>
-    typeof window === "undefined" ? "/" : window.location.pathname + window.location.search,
+    typeof window === "undefined" ? "/" : safeNextPath(window.location.pathname + window.location.search),
   );
 
   return (
