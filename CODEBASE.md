@@ -745,8 +745,11 @@ merchant-listing gaps in `lib/seo.ts` honestly), and neither the card nor the pr
 anything at all for an unrated product — 5% of the catalogue has ever been delivered, and a row of
 grey stars on the other 95% reads as "rated badly" rather than "new". Reviews are signed with a
 first name and the initial of a surname — "Айгерим С." — shortened by `displayAuthorName()` **before
-it is stored**, because `anon` may read every column of an approved review; `user_id` is still never
-rendered, and a full name against a purchase is more than this shop asked permission to publish. The
+it is stored**, because `anon` may read every column it is granted of an approved review — and since
+`20260924100000_reviews_column_grants.sql` that grant is column-level: `user_id` and `order_id` are
+not readable by `anon` or `authenticated` at all, so no PostgREST query with the public key can
+string one customer's reviews together or pair a review with an order. A full name against a
+purchase is more than this shop asked permission to publish. The
 avatar is a generated initial in a deterministic colour, not a photo: 13 of 14 accounts signed up by
 email and have none, and the one Google avatar lives on `googleusercontent.com`, which `img-src`
 does not allow — widening the CSP and calling Google from every product page, for one user in
@@ -756,8 +759,10 @@ someone whose profile has no name, renders as "Покупатель".
 The profile has an **"Отзывы" tab**: everything the customer has written, moderation state included,
 each one editable. Seeing their own pending and rejected rows is what the single select policy
 allows (`status = 'approved' or user_id = auth.uid()`, widened rather than paired with a second
-policy so that "what may anon see" has one answer); the list is read with the _user's_ client, so
-the policy is the check rather than the call site.
+policy so that "what may anon see" has one answer). The list itself is read through the **service
+role** with the id `requireAuth()` took from the session — it used to use the user's client so that
+the policy, not the call site, decided whose drafts came back, but filtering on `user_id` needs the
+right to read it, and that right is exactly what leaked every other customer's id (see above).
 
 **A published review is final.** Only `pending` and `rejected` may be edited (`canEditReview`), and
 `updateOwnReview` filters on the status in the same statement as the write, so a second tab cannot

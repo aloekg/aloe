@@ -137,14 +137,17 @@ export async function deleteReview(admin: SupabaseClient<Database>, id: number) 
 }
 
 /**
- * A customer's own reviews, pending and rejected included — the 20260923180000 policy is what lets
- * them through, and only to their author.
+ * A customer's own reviews, pending and rejected included.
  *
- * Read with the *user's* client, not the service role: the policy is the check, so a mistake in the
- * caller cannot hand someone another person's drafts.
+ * Read through the service role, with an id the caller took from the session — not with the user's
+ * own client. It used to be the other way round, so that the select policy rather than this call
+ * site decided whose drafts came back; but the same grant that let a customer filter on `user_id`
+ * let every signed-up visitor read the `user_id` of everyone else's approved reviews, and
+ * 20260924100000_reviews_column_grants.sql revoked the column from anon and authenticated alike.
+ * A filter on a column you may not read is a permission error, hence the service role here.
  */
-export async function getUserReviews(supabase: SupabaseClient<Database>, userId: string): Promise<ReviewWithProduct[]> {
-  const res = await supabase
+export async function getUserReviews(admin: SupabaseClient<Database>, userId: string): Promise<ReviewWithProduct[]> {
+  const res = await admin
     .from("reviews")
     .select("*, products(id, name, thumbnail_url)")
     .eq("user_id", userId)

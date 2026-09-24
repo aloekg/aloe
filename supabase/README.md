@@ -24,6 +24,7 @@ migrations/
   20260923160000_review_author_name.sql     # reviews.author_name — уже сокращённое «Имя Ф.», хранится публично
   20260923180000_reviews_own_read.sql       # автор видит свои отзывы в любом статусе (одна select-политика)
   20260923200000_reviews_unique_per_customer.sql  # один отзыв на товар от покупателя, а не от заказа
+  20260924100000_reviews_column_grants.sql  # anon/authenticated не читают reviews.user_id и order_id (колоночный grant)
 sql/
   audit-rls.sql                             # только читающие запросы, не миграция
 ```
