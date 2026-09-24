@@ -107,6 +107,12 @@ const nextConfig: NextConfig = {
         source: "/order/:path*",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      // And where that token is first shown: checkout lands a guest on /checkout/success?t=<token>
+      // so the page can offer the account that will own the order. Same secret, same header.
+      {
+        source: "/checkout/success",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
 };

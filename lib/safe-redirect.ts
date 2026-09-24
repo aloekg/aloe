@@ -44,6 +44,16 @@ export function safeRedirect(next: string | null | undefined, base: string, fall
   return new URL(fallback, base);
 }
 
+/** The host part of DEPLOY_ORIGIN, or null for an unset or malformed value — never a throw here. */
+function deployHost(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    return new URL(raw).host;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * `x-forwarded-host` is client-controllable unless every proxy in front of us strips it, so only
  * hosts we actually deploy to are honoured.
@@ -51,13 +61,23 @@ export function safeRedirect(next: string | null | undefined, base: string, fall
 export function resolveOrigin(forwardedHost: string | null | undefined, requestOrigin: string): string {
   if (!forwardedHost) return requestOrigin;
 
-  const allowed = new URL(SITE_URL).host;
+  const canonical = new URL(SITE_URL).host;
   const host = forwardedHost.split(",")[0].trim();
 
   // Explicit hosts only. A blanket `*.vercel.app` allowance let the redirect be steered to any
-  // attacker-owned Vercel deployment, which undercut the point of validating this header at all.
-  const deployments = [process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_URL].filter(Boolean);
-  if (host === allowed || host.endsWith(`.${allowed}`) || deployments.includes(host)) return `https://${host}`;
+  // attacker-owned Vercel deployment, which undercut the point of validating this header at all —
+  // and `*.aloe.kg` was the same shape one size smaller: it admitted old.aloe.kg (the archived
+  // Joomla shop) and mail.aloe.kg (the hoster's webmail), neither of which this app answers on.
+  // The hosts this deployment actually serves are the canonical one, its www alias, the origin
+  // DEPLOY_ORIGIN names on a preview, and whatever Vercel says it deployed to.
+  const allowed = [
+    canonical,
+    `www.${canonical}`,
+    deployHost(process.env.DEPLOY_ORIGIN),
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
+  ].filter(Boolean);
+  if (allowed.includes(host)) return `https://${host}`;
 
   // Next sets x-forwarded-host from the Host header even when nothing is proxying, so a local
   // server sees `localhost:3000` here, fails every check above, and falls back to SITE_URL — which

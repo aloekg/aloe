@@ -206,6 +206,10 @@ describe("validateOrderItems", () => {
     expect(validateOrderItems([line(), line({ id: 2 })])).toBeNull();
   });
 
+  it("accepts a missing image — the row falls back to a placeholder", () => {
+    expect(validateOrderItems([line({ image_url: null }), line({ id: 2, image_url: "" })])).toBeNull();
+  });
+
   it("accepts a zero price — the admin writing off a line is not a broken row", () => {
     expect(validateOrderItems([line({ price: 0 })])).toBeNull();
   });
@@ -232,6 +236,23 @@ describe("validateOrderItems", () => {
     ["a zero quantity", [line({ quantity: 0 })], "Количество должно быть целым положительным числом"],
     ["a fractional quantity", [line({ quantity: 1.5 })], "Количество должно быть целым положительным числом"],
     ["a quantity over the cap", [line({ quantity: MAX_QUANTITY + 1 })], "Количество не может превышать 999"],
+    // The admin supplies this field and the list renders it as <img src>, so it is bounded like the rest.
+    [
+      "a javascript: image url",
+      [line({ image_url: "javascript:alert(1)" })],
+      "Ссылка на изображение должна быть адресом http(s)",
+    ],
+    ["a relative image url", [line({ image_url: "/x.webp" })], "Ссылка на изображение должна быть адресом http(s)"],
+    [
+      "a non-string image url",
+      [line({ image_url: 7 as unknown as string })],
+      "Ссылка на изображение должна быть адресом http(s)",
+    ],
+    [
+      "an over-long image url",
+      [line({ image_url: `https://x.test/${"a".repeat(2100)}` })],
+      "Ссылка на изображение должна быть адресом http(s)",
+    ],
   ])("rejects %s", (_case, items, message) => {
     expect(validateOrderItems(items)).toBe(message);
   });

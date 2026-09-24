@@ -266,10 +266,11 @@ service role touches it, through the `rate_limit_hit(bucket, key, limit, window)
 **Storage buckets:** `product-images` (product photos), `banners` (banner images), `categories`
 (category images) — all three public, created by `supabase/migrations/20260915090000_storage_buckets.sql`.
 Their `file_size_limit` / `allowed_mime_types` are not the same as the checks in
-`app/admin/actions.ts` and are not meant to be: product and banner uploads are re-encoded by `sharp`
-first, so the action accepts a 15 MB phone original while the bucket only ever sees the WebP
-derivative. Category images are the exception — `uploadImage()` stores them as uploaded, so there
-the bucket's 2 MB is the real limit.
+`app/admin/actions.ts` and are not meant to be: every upload is re-encoded by `sharp` first
+(`uploadEncoded()`), so the action accepts a 15 MB phone original while the bucket only ever sees a
+WebP derivative. Category images used to be the exception, stored as uploaded under the MIME type
+the browser _claimed_ — the one path where a non-image could land in a public bucket with an image
+Content-Type — and now go through the same encoder at ≤800px.
 
 ## TypeScript Types (`/types/index.ts`)
 
@@ -446,12 +447,13 @@ still has four neighbours to show. The rendered result is identical to the old q
 
 ## Server Actions
 
-| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                            |
-| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client |
+| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                                                                                                       |
+| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `app/order/[token]/actions.ts`  | `claimOrder()` — привязать гостевой заказ к аккаунту по кнопке (см. «Product reviews»); GET страницы ничего не меняет                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client. Writes copy an explicit column list (`pick()`), never the client's object |
 
 ## Auth
 
@@ -709,14 +711,18 @@ reason to register, rather than the review itself. `/checkout/success` therefore
 not a review: nothing has arrived yet.
 
 The same token is the order's **access token**, and `/order/[token]` is its other door. `createOrder`
-returns it so the success page can send a guest through `/auth?next=/order/<token>`, which attaches
-the order to whatever account signs in there and then lands on `/profile`. Without it the card on
-that page promised something the code could not do — checkout stores `user_id = null` for a guest,
-registering afterwards matched nothing, and the customer arrived at an empty profile. The claim is
+returns it so the success page can send a guest through `/auth?next=/order/<token>`; signed in, the
+page shows the order and a **button** that attaches it to the account (`claimOrder` in
+`app/order/[token]/actions.ts`) and lands on `/profile`. Without it the card on the success page
+promised something the code could not do — checkout stores `user_id = null` for a guest, registering
+afterwards matched nothing, and the customer arrived at an empty profile. The claim used to happen
+on the GET itself, which made the link the action: a guest order's link sent to any signed-in
+stranger landed in their history, and forwarding one's own link gave the order away. It is
 conditional on `user_id is null` in the query itself, so an order that already belongs to someone
 never changes hands however the link travelled afterwards; a signed-out visitor sees the order's
 status and an invitation instead, which is guest order tracking by the same door. `/order/:path*`
-gets `no-referrer` and a robots `disallow` for the same reason `/review/:path*` does.
+and `/checkout/success` (where the token is first shown) get `no-referrer`, and `/order` a robots
+`disallow`, for the same reason `/review/:path*` does.
 
 Every check lives in the server action rather than in RLS, because the last of them cannot be
 written as a policy — "was this product in that order" reads `orders.items`, a jsonb document.
@@ -821,7 +827,7 @@ Both are WebP (q76 / q82). `uploadProductImage()` produces the pair with `sharp`
 Banners are re-encoded the same way: `uploadBannerImage(formData, type)` takes the `desktop`/`mobile`
 tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop, ≤1000px q80 for mobile —
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
-other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
+other's breakpoint. Category tiles are one WebP at ≤800px q80.
 
 **Which banner the browser actually fetches** is decided by `<picture>`, not by CSS. The homepage
 keeps both carousels in the DOM and hides one with `display:none`, and a hidden `<img>` is still

@@ -160,6 +160,25 @@ export type OrderItemInput = {
 export const MAX_ITEM_NAME = 200;
 export const MAX_ITEM_PRICE = 1_000_000;
 export const MAX_DELIVERY_COST = 100_000;
+/** A storage URL is ~120 characters; this is headroom, not a target. */
+export const MAX_IMAGE_URL = 2048;
+
+/**
+ * The image an edited line will render with — in the admin list and, through "Повторить заказ", in
+ * the customer's own cart. Empty is fine (the row falls back to a placeholder); anything present
+ * must be an absolute http(s) URL, since the admin supplies it and `<img src>` will load whatever
+ * it says.
+ */
+export function isAcceptableImageUrl(value: unknown): value is string | null | undefined {
+  if (value == null || value === "") return true;
+  if (typeof value !== "string" || value.length > MAX_IMAGE_URL) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 export type OrderMoney = { itemsTotal: number; deliveryCost: number; total: number };
 
@@ -191,6 +210,8 @@ export function validateOrderItems(items: OrderItemInput[]): string | null {
     if (!Number.isInteger(item.quantity) || item.quantity <= 0)
       return "Количество должно быть целым положительным числом";
     if (item.quantity > MAX_QUANTITY) return `Количество не может превышать ${MAX_QUANTITY}`;
+
+    if (!isAcceptableImageUrl(item.image_url)) return "Ссылка на изображение должна быть адресом http(s)";
   }
   return null;
 }

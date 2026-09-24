@@ -37,9 +37,23 @@ describe("resolveOrigin", () => {
     expect(resolveOrigin(null, "https://localhost:3000")).toBe("https://localhost:3000");
   });
 
-  it("honours our own host and its subdomains", () => {
+  it("honours our own host and its www alias", () => {
     expect(resolveOrigin("aloe.kg", "https://x")).toBe("https://aloe.kg");
     expect(resolveOrigin("www.aloe.kg", "https://x")).toBe("https://www.aloe.kg");
+  });
+
+  it("honours the preview host only when DEPLOY_ORIGIN names it", () => {
+    expect(resolveOrigin("stage.aloe.kg", "https://x")).toBe("https://aloe.kg");
+
+    vi.stubEnv("DEPLOY_ORIGIN", "https://stage.aloe.kg");
+    expect(resolveOrigin("stage.aloe.kg", "https://x")).toBe("https://stage.aloe.kg");
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses sibling subdomains this app does not serve", () => {
+    // `*.aloe.kg` used to pass; old.aloe.kg is the archived Joomla shop, mail.aloe.kg the webmail.
+    expect(resolveOrigin("old.aloe.kg", "https://x")).toBe("https://aloe.kg");
+    expect(resolveOrigin("mail.aloe.kg", "https://x")).toBe("https://aloe.kg");
   });
 
   it("honours the deployment host only when the platform declares it", () => {

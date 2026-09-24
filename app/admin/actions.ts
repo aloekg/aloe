@@ -2,7 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import sharp from "sharp";
-import { DELIVERY_OPTIONS, ORDER_STATUS, purchaseCountDelta } from "@/lib/constants";
+import { DELIVERY_OPTIONS, LABEL_MAP, ORDER_STATUS, purchaseCountDelta } from "@/lib/constants";
 import { generateInvoicePdf, type InvoiceItem } from "@/lib/invoice";
 import { sendNewOrderEmail } from "@/lib/mailer";
 import {
@@ -35,6 +35,19 @@ async function assertAdmin() {
 }
 
 const adminDb = createAdminClient;
+
+/**
+ * Copies only the named keys, and only those the caller actually sent. The service role writes
+ * whatever object it is handed, and the argument of a server action is what the browser posted, not
+ * what the TypeScript type says — so `update(fields)` straight from the client let a request set
+ * `purchase_count`, `rating_sum` or `created_at` on a product, past the trigger and past the rule that
+ * the popular shelf counts confirmed orders only. Explicit columns or nothing.
+ */
+function pick<T extends object, K extends keyof T>(source: T, keys: readonly K[]): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  for (const key of keys) if (key in source) out[key] = source[key];
+  return out;
+}
 
 /**
  * The storage buckets are public, so the stored Content-Type decides whether an object is
@@ -88,26 +101,44 @@ function encodeWebp(input: Buffer, { width, quality }: { width: number; quality:
   );
 }
 
-async function uploadImage(
+/**
+ * Category tiles render at ~200px on a phone grid and ~300px on the desktop one; one WebP at this
+ * width covers both at retina density.
+ */
+const CATEGORY_IMAGE = { width: 800, quality: 80 };
+
+/**
+ * Validates, re-encodes to WebP and stores one image. Every upload in this file goes through here
+ * now: the category path used to store the bytes as they arrived, under the Content-Type the
+ * browser *claimed* — the one upload where a file that was not an image at all could land in a
+ * public bucket with an image MIME. Decoding through sharp is what makes the declared type true.
+ */
+async function uploadEncoded(
   bucket: "product-images" | "banners" | "categories",
   formData: FormData,
+  variant: { width: number; quality: number },
+  prefix = "",
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const file = formData.get("file") as File | null;
   if (!file || !file.size) return { ok: false, error: "Файл не выбран" };
-
-  const ext = ALLOWED_IMAGE_TYPES[file.type];
-  if (!ext) return { ok: false, error: "Допустимы только JPEG, PNG, WebP и AVIF" };
+  if (!ALLOWED_IMAGE_TYPES[file.type]) return { ok: false, error: "Допустимы только JPEG, PNG, WebP и AVIF" };
   if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: "Файл больше 15 МБ" };
 
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  let body: Buffer;
+  try {
+    body = await encodeWebp(Buffer.from(await file.arrayBuffer()), variant);
+  } catch {
+    return { ok: false, error: "Не удалось обработать изображение — возможно, файл повреждён" };
+  }
 
+  const path = `${prefix}${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
   const db = adminDb();
-  const { error } = await db.storage.from(bucket).upload(path, buffer, { contentType: file.type });
+  const { error } = await db.storage
+    .from(bucket)
+    .upload(path, body, { contentType: "image/webp", cacheControl: "2592000" });
   if (error) return { ok: false, error: error.message };
 
-  const { data } = db.storage.from(bucket).getPublicUrl(path);
-  return { ok: true, url: data.publicUrl };
+  return { ok: true, url: db.storage.from(bucket).getPublicUrl(path).data.publicUrl };
 }
 
 /**
@@ -122,7 +153,7 @@ async function uploadImage(
  */
 export async function updateOrderStatus(orderId: number, status: string) {
   await assertAdmin();
-  if (!(status in ORDER_STATUS)) throw new Error(`Unknown order status: ${status}`);
+  if (!Object.hasOwn(ORDER_STATUS, status)) throw new Error(`Unknown order status: ${status}`);
   const db = adminDb();
 
   const { data: order, error: fetchError } = await db
@@ -336,22 +367,40 @@ export type ProductInput = {
   published?: boolean;
 };
 
+/** Every column the editor may write. `purchase_count`, `rating_*`, `created_at`, `external_id` are not here on purpose. */
+const PRODUCT_FIELDS = [
+  "name",
+  "price",
+  "old_price",
+  "image_url",
+  "thumbnail_url",
+  "category",
+  "category_id",
+  "label",
+  "description",
+  "brand_id",
+  "seo_text",
+  "published",
+] as const satisfies readonly (keyof ProductInput)[];
+
 export async function upsertProduct(
   data: ProductInput,
 ): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   await assertAdmin();
   const db = adminDb();
 
+  if (data.label != null && !Object.hasOwn(LABEL_MAP, data.label)) return { ok: false, error: "Неизвестная метка" };
+  const fields = pick(data, PRODUCT_FIELDS);
+
   if (data.id) {
-    const { id, ...fields } = data;
-    const { error } = await db.from("products").update(fields).eq("id", id);
+    const { error } = await db.from("products").update(fields).eq("id", data.id);
     if (error) return { ok: false, error: error.message };
     updateTag("products");
-    revalidatePath(`/product/${id}`);
-    return { ok: true, id };
+    revalidatePath(`/product/${data.id}`);
+    return { ok: true, id: data.id };
   }
 
-  const { data: row, error } = await db.from("products").insert(data).select("id").single();
+  const { data: row, error } = await db.from("products").insert(fields).select("id").single();
   if (error) return { ok: false, error: error.message };
   updateTag("products");
   revalidatePath(`/product/${row.id}`);
@@ -378,13 +427,26 @@ export type BulkProductUpdate = {
   category?: string;
 };
 
+const BULK_PRODUCT_FIELDS = [
+  "brand_id",
+  "price",
+  "old_price",
+  "label",
+  "published",
+  "category_id",
+  "category",
+] as const satisfies readonly (keyof BulkProductUpdate)[];
+
 export async function bulkUpdateProducts(
   ids: number[],
   fields: BulkProductUpdate,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await assertAdmin();
-  if (ids.length === 0 || Object.keys(fields).length === 0) return { ok: true };
-  const { error } = await adminDb().from("products").update(fields).in("id", ids);
+  const update = pick(fields, BULK_PRODUCT_FIELDS);
+  if (ids.length === 0 || Object.keys(update).length === 0) return { ok: true };
+  if (update.label != null && !Object.hasOwn(LABEL_MAP, update.label)) return { ok: false, error: "Неизвестная метка" };
+  if (!ids.every((id) => Number.isInteger(id) && id > 0)) return { ok: false, error: "Некорректный список товаров" };
+  const { error } = await adminDb().from("products").update(update).in("id", ids);
   if (error) return { ok: false, error: error.message };
   updateTag("products");
   return { ok: true };
@@ -494,7 +556,7 @@ export async function uploadCategoryImage(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   await assertAdmin();
-  return uploadImage("categories", formData);
+  return uploadEncoded("categories", formData, CATEGORY_IMAGE);
 }
 
 export async function deleteCategory(id: number): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -544,19 +606,30 @@ export type BannerInput = {
   type?: "desktop" | "mobile";
 };
 
+const BANNER_FIELDS = [
+  "image_url",
+  "sort_order",
+  "active",
+  "link",
+  "type",
+] as const satisfies readonly (keyof BannerInput)[];
+
 export async function upsertBanner(
   data: BannerInput,
 ): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   await assertAdmin();
   const db = adminDb();
+  if (data.type != null && data.type !== "desktop" && data.type !== "mobile") {
+    return { ok: false, error: "Неизвестный тип баннера" };
+  }
+  const fields = pick(data, BANNER_FIELDS);
   if (data.id) {
-    const { id, ...fields } = data;
-    const { error } = await db.from("banners").update(fields).eq("id", id);
+    const { error } = await db.from("banners").update(fields).eq("id", data.id);
     if (error) return { ok: false, error: error.message };
     updateTag("banners");
-    return { ok: true, id };
+    return { ok: true, id: data.id };
   }
-  const { data: row, error } = await db.from("banners").insert(data).select("id").single();
+  const { data: row, error } = await db.from("banners").insert(fields).select("id").single();
   if (error) return { ok: false, error: error.message };
   updateTag("banners");
   return { ok: true, id: row.id };
@@ -589,27 +662,7 @@ export async function uploadBannerImage(
   type: "desktop" | "mobile",
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   await assertAdmin();
-
-  const file = formData.get("file") as File | null;
-  if (!file || !file.size) return { ok: false, error: "Файл не выбран" };
-  if (!ALLOWED_IMAGE_TYPES[file.type]) return { ok: false, error: "Допустимы только JPEG, PNG, WebP и AVIF" };
-  if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: "Файл больше 15 МБ" };
-
-  let body: Buffer;
-  try {
-    body = await encodeWebp(Buffer.from(await file.arrayBuffer()), type === "mobile" ? BANNER_MOBILE : BANNER_DESKTOP);
-  } catch {
-    return { ok: false, error: "Не удалось обработать изображение — возможно, файл повреждён" };
-  }
-
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-  const db = adminDb();
-  const { error } = await db.storage
-    .from("banners")
-    .upload(path, body, { contentType: "image/webp", cacheControl: "2592000" });
-  if (error) return { ok: false, error: error.message };
-
-  return { ok: true, url: db.storage.from("banners").getPublicUrl(path).data.publicUrl };
+  return uploadEncoded("banners", formData, type === "mobile" ? BANNER_MOBILE : BANNER_DESKTOP);
 }
 
 export async function getBrands(): Promise<
@@ -719,27 +772,7 @@ export async function uploadDescriptionImage(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   await assertAdmin();
-
-  const file = formData.get("file") as File | null;
-  if (!file || !file.size) return { ok: false, error: "Файл не выбран" };
-  if (!ALLOWED_IMAGE_TYPES[file.type]) return { ok: false, error: "Допустимы только JPEG, PNG, WebP и AVIF" };
-  if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: "Файл больше 15 МБ" };
-
-  let body: Buffer;
-  try {
-    body = await encodeWebp(Buffer.from(await file.arrayBuffer()), DESCRIPTION_IMAGE);
-  } catch {
-    return { ok: false, error: "Не удалось обработать изображение — возможно, файл повреждён" };
-  }
-
-  const path = `inline/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-  const db = adminDb();
-  const { error } = await db.storage
-    .from("product-images")
-    .upload(path, body, { contentType: "image/webp", cacheControl: "2592000" });
-  if (error) return { ok: false, error: error.message };
-
-  return { ok: true, url: db.storage.from("product-images").getPublicUrl(path).data.publicUrl };
+  return uploadEncoded("product-images", formData, DESCRIPTION_IMAGE, "inline/");
 }
 
 /**
@@ -794,7 +827,7 @@ export async function setUserRole(
  */
 export async function setReviewModeration(reviewId: number, status: "pending" | "approved" | "rejected") {
   await assertAdmin();
-  if (!(status in REVIEW_STATUS)) throw new Error(`Unknown review status: ${status}`);
+  if (!Object.hasOwn(REVIEW_STATUS, status)) throw new Error(`Unknown review status: ${status}`);
 
   const { error } = await setReviewStatus(adminDb(), reviewId, status);
   if (error) throw new Error(error.message);
