@@ -33,7 +33,6 @@ export default function ProfileTabs({
   reviews,
 }: {
   initial: ProfileFields | null;
-  /** The account's address, or null when it signs in through Google and has no password. */
   passwordEmail: string | null;
   orders: Order[];
   page: number;
@@ -62,11 +61,6 @@ export default function ProfileTabs({
 
   return (
     <>
-      {/* Tabs */}
-      {/* Scrollable below md rather than wrapped: a third tab pushed the row onto two lines on a
-          phone, and two rows of tab chrome above the content is a lot of the screen to spend. */}
-      {/* role=tablist/tab, not aria-current="page": these switch panels on this page, they do not
-          navigate, and "page" promised a link. Each panel below is labelled by its tab. */}
       <div
         role="tablist"
         aria-label="Разделы профиля"
@@ -142,8 +136,6 @@ export default function ProfileTabs({
                             </span>
                           </li>
                         ))}
-                        {/* Without this line the sum of the items never matches "Итого" on any
-                            order that was charged for delivery. */}
                         {order.delivery_type && (
                           <li className="flex justify-between text-gray-500">
                             <span>Доставка</span>
@@ -165,9 +157,6 @@ export default function ProfileTabs({
                           Итого: {order.total.toLocaleString("ru-RU")} <Currency />
                         </span>
                         <span className="flex items-center gap-2">
-                          {/* Only on a delivered order, and only while something in it is still
-                              unreviewed — the page behind the link says so itself, but offering a
-                              link that leads to "вы уже всё оценили" is a wasted tap. */}
                           {orderCanBeReviewed(order.status) && order.review_token && (
                             <Link
                               href={`/review/${order.review_token}`}

@@ -31,15 +31,7 @@ const SECTION_GAP = 40;
 const SUBHEADER_HEIGHT = 36;
 const GROUP_GAP = 24;
 
-/**
- * How many products of each section the non-virtualized fallback renders. That fallback is what
- * the server sends and what the first client render hydrates, and it used to be the whole
- * category — up to ~470 cards, each with its own store subscriptions, all hydrated and then thrown
- * away the moment `useIsClient` flipped and the virtualizer took over with three rows. Twelve is
- * two desktop rows or six phone rows: more than the first screen shows, so nothing visible is
- * missing before hydration, and a fraction of the hydration work. The crawler sees the same twelve;
- * every product also has its own page, and the sitemap lists them all.
- */
+// The SSR fallback is capped per section: rendering the whole category bloats hydration.
 const SSR_PRODUCTS_PER_SECTION = 12;
 
 function sectionRowCount(section: Section, cols: number): number {
@@ -78,9 +70,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
     const el = containerRef.current;
     if (!el) return;
 
-    // Every setCols invalidates the row model, the section offsets and all virtualizer
-    // estimates, so dragging a window edge used to trigger dozens of full rebuilds. Coalesce
-    // into a frame and bail when the column count has not actually changed.
+    // setCols rebuilds every row; coalesce into a frame and bail when the count is unchanged.
     let frame: number | null = null;
     const measure = () => {
       frame = null;
@@ -124,9 +114,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
   }, [sections, cols]);
 
   useEffect(() => {
-    // getBoundingClientRect() forces a synchronous layout, and getMeasurements() walks every
-    // row — doing both on each scroll event was the main jank source on the busiest page of
-    // the site. Cache the container offset and coalesce work into one frame.
+    // Coalesce into one frame: getBoundingClientRect and getMeasurements are too costly per scroll event.
     let containerDocTop = 0;
     let frame: number | null = null;
 
@@ -138,17 +126,14 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
 
     const update = () => {
       frame = null;
-      // Re-measured here, not just on resize: the sticky subcategory bar switches between
-      // flex-wrap and flex-nowrap as a *result* of scrolling, which changes the height above the
-      // container and desynced a cached offset. The read is once per frame either way.
+      // Re-measured per frame, not only on resize: the sticky bar's height changes as a result of scrolling.
       measureTop();
       const relPos = window.scrollY + 220 - containerDocTop;
       const measurements = (
         virtualizer as unknown as { getMeasurements: () => Array<{ start: number }> }
       ).getMeasurements();
       let activeIdx = 0;
-      // No early exit: a not-yet-measured row reads as Infinity, and bailing there would pick
-      // the wrong section. The loop is over sections (a dozen), not rows.
+      // No early exit: an unmeasured row reads as Infinity and would pick the wrong section.
       for (let si = 0; si < sectionHeaderRows.length; si++) {
         const start = measurements[sectionHeaderRows[si]]?.start ?? Infinity;
         if (start <= relPos) activeIdx = si;
@@ -190,9 +175,6 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
         rowIdx += sectionRowCount(sections[i], cols);
       }
 
-      // Use actual measured positions from the virtualizer cache (falls back to
-      // estimateSize for items not yet rendered). Add containerDocTop so the
-      // calculation works regardless of how much header space the page has.
       const measurements = (
         virtualizer as unknown as { getMeasurements: () => Array<{ start: number }> }
       ).getMeasurements();
@@ -200,7 +182,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       if (itemStart == null) return null;
 
       const containerDocTop = containerRef.current.getBoundingClientRect().top + window.scrollY;
-      // 214px = desired viewport position of the section header (below the sticky bar)
+      // 214px = the section header's viewport position below the sticky bar.
       return Math.max(0, containerDocTop + itemStart - 214);
     };
 
@@ -211,9 +193,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       if (target != null) window.scrollTo({ top: target, behavior: "auto" });
     });
 
-    // `cols` starts at a default guess and only reflects the real container width once the
-    // layout effect above has measured it — skip locking in the initial scroll until then,
-    // otherwise it computes a target using the wrong row layout and lands on the wrong section.
+    // Wait until `cols` is measured, or the initial scroll targets the wrong row layout.
     const measuredCols = containerRef.current
       ? Math.max(2, Math.floor((containerRef.current.offsetWidth + 16) / ITEM_WIDTH))
       : null;
@@ -221,9 +201,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       didInitialScroll.current = true;
       const target = getScrollTarget(initialSectionId);
       if (target != null) {
-        // The App Router's own post-navigation scroll handling briefly fights our scroll
-        // during the first few frames after mount, so keep reasserting the target position
-        // until it settles (bailing out once the user scrolls on their own).
+        // Reassert for ~20 frames: the App Router's post-navigation scroll snaps back to the top.
         let frame = 0;
         const holdPosition = () => {
           if (Math.abs(window.scrollY - target) > 2 && Math.abs(window.scrollY) < 2) {
@@ -239,8 +217,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
 
     return () => {
       unregister();
-      // Without this the loop keeps calling window.scrollTo after a navigation away,
-      // yanking the next page to an unrelated offset.
+      // Must cancel, or the loop scrolls the next page after navigating away.
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
     // virtualizer is a stable class instance — safe to omit from deps

@@ -2,10 +2,7 @@
 
 import { useEffect } from "react";
 
-/**
- * Replaces the root layout entirely when it is the layout itself that failed, so this file
- * must render its own <html> and <body> and cannot rely on globals.css being applied.
- */
+// Replaces the root layout, so it renders its own <html>/<body> and cannot rely on globals.css.
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error(error);

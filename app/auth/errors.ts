@@ -1,8 +1,4 @@
-/**
- * Matched on `error.code`, not on the message: GoTrue's English strings get reworded between
- * releases, while the codes are a stable contract. `message` is only a fallback for the few
- * errors that arrive without one.
- */
+// Match on error.code, not the message: GoTrue rewords its English strings between releases.
 const ERROR_BY_CODE: Record<string, string> = {
   invalid_credentials: "Неверный email или пароль",
   email_not_confirmed: "Email не подтверждён. Проверьте почту и перейдите по ссылке в письме.",

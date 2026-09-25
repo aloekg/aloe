@@ -3,26 +3,17 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { MAX_PRICE, parsePriceRange, type PriceRange } from "@/lib/page-params";
 
-/** Long enough that typing "1500" is one update rather than four, short enough to feel immediate. */
 const APPLY_DELAY_MS = 500;
 
 const inputCls =
-  // text-base below md: iOS zooms the page when a focused input is under 16px, and the zoom does
-  // not undo itself. border-gray-500, not 300 — see ACCESSIBILITY.md, where 300 fails at 1.47:1.
+  // text-base below md stops iOS zooming on focus; border-gray-500, not 300, for contrast.
   "w-20 md:w-24 min-w-0 text-base md:text-sm border border-gray-500 rounded-lg px-2 py-1.5 bg-white text-gray-700 " +
   "focus:outline-none focus:ring-1 focus:ring-green-700 focus:border-green-700 " +
   "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
 const toInput = (n: number | null) => (n == null ? "" : String(n));
 
-/**
- * The price range, as two number boxes and no link — the same rule as SortSelect, so that narrowing
- * a price mints no crawlable URL.
- *
- * Controlled by `value`, but it holds the half-typed text locally: parsing on every keystroke would
- * make "1500" pass through 1, 15 and 150, each a different result set. It reports upward once
- * typing pauses, and immediately on Enter or blur for anyone who does not wait.
- */
+// No link here: a filter control must not mint a crawlable URL.
 export default function PriceFilter({
   value,
   onChange,
@@ -31,20 +22,15 @@ export default function PriceFilter({
 }: {
   value: PriceRange;
   onChange: (range: PriceRange) => void;
-  /** The cheapest and dearest of the current set, offered as placeholders. */
   bounds?: { min: number; max: number } | null;
   className?: string;
 }) {
   const [min, setMin] = useState(() => toInput(value.min));
   const [max, setMax] = useState(() => toInput(value.max));
-  // The range this component last agreed with its parent on, so it can tell its own echo apart from
-  // a change made elsewhere — a "Сбросить" in the filter bar, or a Back that restored another URL.
   const [applied, setApplied] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idBase = useId();
 
-  // Adjusting state during render rather than in an effect: React re-runs this component before
-  // committing, so the boxes never paint with the stale range.
   if (value.min !== applied.min || value.max !== applied.max) {
     setApplied(value);
     setMin(toInput(value.min));
@@ -62,8 +48,7 @@ export default function PriceFilter({
     (nextMin: string, nextMax: string) => {
       if (timer.current) clearTimeout(timer.current);
       const range = parsePriceRange(nextMin, nextMax);
-      // Blur fires whether or not anything was typed, and "0100" parses to the range already
-      // applied. Reporting either upward would navigate /search to the URL it is already on.
+      // Skip no-op emits: on /search each one is a navigation to the URL already open.
       if (range.min === applied.min && range.max === applied.max) return;
       setApplied(range);
       onChange(range);
@@ -79,8 +64,6 @@ export default function PriceFilter({
     [emit],
   );
 
-  // parsePriceRange drops both bounds when "от" exceeds "до", so nothing is applied — but the boxes
-  // kept showing the pair, and nothing said why the list had not changed.
   const inverted = min !== "" && max !== "" && Number(min) > Number(max);
   const errorId = `${idBase}-error`;
 

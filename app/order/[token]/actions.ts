@@ -6,16 +6,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import { claimOrderForUser, getOrderByReviewToken } from "@/services/review.service";
 
-/**
- * Attaches the order behind `token` to the signed-in account, then lands on the profile.
- *
- * A POST, deliberately. The page used to do this on GET — open the link while signed in and the
- * order was yours — which made the link itself the action: anyone could place a guest order and
- * send its `/order/<token>` to a signed-in stranger, and a customer who forwarded their own link to
- * a family member gave the order away with it. Now the page shows the order and asks; the claim
- * happens on the button, from this action, and only while the order still belongs to nobody
- * (`is("user_id", null)` inside the update, so two tabs cannot both win).
- */
+// Must stay a POST, never the page's GET: a link must not claim an order by itself.
 export async function claimOrder(token: string): Promise<{ ok: false; error: string } | never> {
   const { allowed } = await rateLimit("claim-order", { limit: 10, windowSeconds: 60 });
   if (!allowed) return { ok: false, error: "Слишком много попыток. Попробуйте через минуту." };

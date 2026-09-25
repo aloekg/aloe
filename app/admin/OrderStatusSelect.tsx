@@ -4,7 +4,6 @@ import { useState } from "react";
 import { ORDER_STATUS } from "@/lib/constants";
 import { updateOrderStatus } from "./actions";
 
-// Derived from ORDER_STATUS so the options here can't drift from what the server accepts.
 const STATUSES = Object.entries(ORDER_STATUS).map(([value, { label }]) => ({ value, label }));
 
 export default function OrderStatusSelect({

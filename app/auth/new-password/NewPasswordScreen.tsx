@@ -9,10 +9,6 @@ import { createClient } from "@/lib/supabase-browser";
 import { NETWORK_ERROR, translateError } from "../errors";
 import NewPasswordForm from "../NewPasswordForm";
 
-/**
- * The interactive half of the reset screen. Whether there is a session to spend was already
- * decided on the server — by the time this renders, `email` is proof of one.
- */
 export default function NewPasswordScreen({ email }: { email: string }) {
   const [done, setDone] = useState(false);
   const router = useRouter();
@@ -23,9 +19,7 @@ export default function NewPasswordScreen({ email }: { email: string }) {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) return translateError(error);
 
-      // A reset usually means the old password was lost — or learned by someone else. Ending the
-      // other sessions is the difference between changing a lock and changing it while a copy of
-      // the old key is still in circulation. `others` keeps this device signed in.
+      // Ends every other session after a reset; `others` keeps this device signed in.
       const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
       if (signOutError) console.error("[auth] could not revoke other sessions", signOutError.message);
 

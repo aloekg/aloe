@@ -23,10 +23,7 @@ const STATIC_PAGES: Array<{
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // `loadAllPages`, not a bare `{ data }` loop: every query here used to swallow its error, and
-  // since a failed page is also an empty one, the loop broke on its first iteration and the route
-  // returned a sitemap with no products in it — cached for an hour and handed to Search Console,
-  // which reads as the whole catalogue having been withdrawn.
+  // loadAllPages throws on a failed page: a silent empty one would publish a sitemap without products.
   const [categories, brands, products] = await Promise.all([
     loadAllPages("sitemap-categories", (from, to) =>
       supabase.from("categories").select("id, slug, parent_id").order("id").range(from, to),
@@ -44,13 +41,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ),
   ]);
 
-  // Only entities that actually have published products. BrandPage calls notFound() when a brand
-  // has none, and CategoryPage when no subcategory section is non-empty — submitting those filled
-  // Search Console with "submitted URL not found (404)", which discredits the whole sitemap.
+  // Only entities with published products: their pages 404 otherwise.
   const productCategoryIds = new Set(products.map((p) => p.category_id).filter((id): id is number => id != null));
   const productBrandIds = new Set(products.map((p) => p.brand_id).filter((id): id is number => id != null));
 
-  /** A category counts as non-empty if it, or anything beneath it, holds a published product. */
   const childrenOf = new Map<number, number[]>();
   for (const c of categories) {
     if (c.parent_id != null) {
@@ -61,10 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const hasProducts = (id: number): boolean =>
     productCategoryIds.has(id) || (childrenOf.get(id) ?? []).some(hasProducts);
 
-  // Sub-subcategories (parent itself has a parent) have no page of their own — skip them.
-  // Subcategories are skipped too: ?sub= is only a scroll anchor, the content is identical to the
-  // parent URL and generateMetadata points its canonical there, so they were submitted as
-  // duplicates that could never rank.
+  // Top-level only: sub-subcategories have no page, and ?sub= URLs duplicate their parent.
   const categoryUrls: MetadataRoute.Sitemap = categories
     .filter((c) => !c.parent_id && hasProducts(c.id))
     .map((c) => ({

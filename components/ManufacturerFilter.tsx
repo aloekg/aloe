@@ -17,7 +17,6 @@ export default function ManufacturerFilter({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // A fresh array each render would make the useCallback below pointless.
   const selected = useMemo(() => searchParams.getAll("brand").map(Number), [searchParams]);
 
   const toggle = useCallback(

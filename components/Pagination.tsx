@@ -60,7 +60,6 @@ export default function Pagination({ page, totalPages, ...rest }: Props) {
 
   return (
     <nav aria-label="Пагинация" className="flex items-center gap-1 flex-wrap justify-center mt-6">
-      {/* Prev */}
       {toHref ? (
         prevDisabled ? (
           <span aria-disabled="true" className={btnCls(false, true)}>
@@ -103,7 +102,6 @@ export default function Pagination({ page, totalPages, ...rest }: Props) {
         ),
       )}
 
-      {/* Next */}
       {toHref ? (
         nextDisabled ? (
           <span aria-disabled="true" className={btnCls(false, true)}>

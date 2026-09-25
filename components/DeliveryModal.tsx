@@ -5,11 +5,6 @@ import { Truck } from "lucide-react";
 import DeliveryContent from "./DeliveryContent";
 import Sheet from "./Sheet";
 
-/**
- * The header's delivery-info dialog. It used to carry its own backdrop, scroll lock, focus trap and
- * Escape listener — a second copy of what `Sheet` does, and one that knew nothing about the sheet
- * stack (lib/sheet-stack.ts). One dialog component, one set of rules.
- */
 export default function DeliveryModal() {
   const [open, setOpen] = useState(false);
 

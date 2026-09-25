@@ -9,12 +9,6 @@ import { useToast } from "@/store/toast";
 import Sheet from "./Sheet";
 import Skeleton from "./Skeleton";
 
-/**
- * Lazy because this component is mounted in the root layout, on every page, while the form behind
- * it — password rules, validation, the Google icon — is only ever needed by a guest who taps a
- * heart. The placeholder is roughly the height of the sign-in form so the sheet does not resize
- * under the customer once the chunk arrives.
- */
 const AuthForm = dynamic(() => import("@/app/auth/AuthForm"), {
   loading: () => (
     <div className="flex flex-col gap-4">
@@ -24,11 +18,6 @@ const AuthForm = dynamic(() => import("@/app/auth/AuthForm"), {
   ),
 });
 
-/**
- * Signing in without leaving the page. Mounted once in the root layout, because the trigger is
- * `FavoriteButton`, which renders on every card in a grid — a modal per card would be dozens of
- * identical dialogs waiting to be opened.
- */
 export default function AuthModal() {
   const open = useAuthModal((s) => s.open);
 
@@ -38,14 +27,7 @@ export default function AuthModal() {
   return <AuthSheet />;
 }
 
-/**
- * Presses the heart the guest pressed before signing in. It can only run once `favorites` has
- * loaded the account's list: adding before that would be written into a store the following
- * `setUser` load is about to replace.
- *
- * It lives outside the sheet because the sheet closes the moment the session lands, while the
- * favourites load is still in flight.
- */
+// Outside the sheet, which closes before favorites load; adding before `initialized` would be overwritten by setUser.
 function usePendingFavorite() {
   const pendingFavoriteId = useAuthModal((s) => s.pendingFavoriteId);
   const clearPending = useAuthModal((s) => s.clearPending);
@@ -58,8 +40,7 @@ function usePendingFavorite() {
   useEffect(() => {
     if (pendingFavoriteId == null || !userId || !initialized) return;
     clearPending();
-    // Already there — the same product favourited on another device, say. `add` does not
-    // deduplicate, and a second row would show the heart twice in the store's ids.
+    // `add` does not deduplicate.
     if (ids.includes(pendingFavoriteId)) return;
     add(pendingFavoriteId);
     show("Добавлено в избранное", "success");
@@ -71,26 +52,17 @@ function AuthSheet() {
   const authenticated = useAuthModal((s) => s.authenticated);
   const pendingFavoriteId = useAuthModal((s) => s.pendingFavoriteId);
   const [signedIn, setSignedIn] = useState(false);
-  /**
-   * Google sign-in leaves the site and comes back, so it has to be told where "back" is; the page
-   * form defaults to "/" instead, which is right for a visit that started at /auth.
-   */
   const [next] = useState(() =>
     typeof window === "undefined" ? "/" : safeNextPath(window.location.pathname + window.location.search),
   );
 
   return (
     <Sheet
-      // Signing in dismisses the sheet the same way a tap on the backdrop does, but the pending
-      // favourite has to survive it — hence two different closers.
+      // Two closers: signing in must not drop the pending favourite.
       onClose={signedIn ? authenticated : close}
       requestClose={signedIn}
       label="Вход в аккаунт"
     >
-      {/* No `fullHeight`: unlike the quick view, this sheet has nothing to wait for — the form is
-          rendered from local state — so it can size itself to the form and stop where it ends.
-          The width is the product sheet's, but the form itself stays at reading width: input
-          fields spanning 768px are neither usable nor pretty. */}
       <div className="w-full max-w-sm mx-auto px-4 pb-6 md:px-6">
         <AuthForm
           next={next}

@@ -6,7 +6,6 @@ import type { Database } from "@/types/database";
 export type AdminUserRow = {
   id: string;
   email: string;
-  /** From `profiles` — an account that never saved one has none. */
   name: string | null;
   phone: string | null;
   role: AdminRole | null;
@@ -14,25 +13,10 @@ export type AdminUserRow = {
   lastSignInAt: string | null;
 };
 
-/** GoTrue's admin list is paginated; this is comfortably inside its per-page cap. */
 const PAGE_SIZE = 200;
-/**
- * A stop for a runaway loop rather than a real limit: 2000 accounts is far past anything this
- * shop has, and the page says so instead of silently showing a prefix of the list.
- */
 const MAX_PAGES = 10;
 
-/**
- * `profiles` is a lookup keyed by the accounts already in hand, not a list of its own, so it is
- * fetched by those ids. Reading the whole table was silently capped at PostgREST's max-rows —
- * past 1000 accounts the join simply missed and every row past the cap rendered a blank name and
- * phone, with `truncated` still false because it only ever described the auth side.
- *
- * 150 because the ids travel in the request URL, not in a body: a uuid costs ~39 characters once
- * the separators are percent-encoded, so 150 of them is a ~6 KB URL against the 8 KB at which
- * postgrest-js itself starts warning — and 500 would be ~20 KB, trading a silent truncation for a
- * refused request at exactly the account count this fix is about.
- */
+// Fetched by id, not the whole table (capped at 1000 rows). Ids go in the URL: 150 keeps it under 8 KB.
 const PROFILE_CHUNK = 150;
 
 async function loadProfiles(db: SupabaseClient<Database>, ids: string[]) {
@@ -46,11 +30,6 @@ async function loadProfiles(db: SupabaseClient<Database>, ids: string[]) {
   return pages.flat();
 }
 
-/**
- * Accounts live in `auth.users`, which PostgREST does not expose — only the Auth admin API reads
- * them, so this takes the service-role client from `requireAdmin()` and cannot be called with a
- * user-scoped one. Emails come from there; names and phones only exist in `profiles`.
- */
 export async function listUsers(db: SupabaseClient<Database>): Promise<{ users: AdminUserRow[]; truncated: boolean }> {
   const accounts = [];
   let truncated = false;
@@ -82,9 +61,6 @@ export async function listUsers(db: SupabaseClient<Database>): Promise<{ users: 
     lastSignInAt: account.last_sign_in_at ?? null,
   }));
 
-  // Whoever has access comes first — the list exists to answer that question, and the answer
-  // should not need scrolling. Newest accounts next, which is where a just-registered colleague
-  // will be.
   const rank = (role: AdminRole | null) => (role === "superadmin" ? 0 : role === "admin" ? 1 : 2);
   users.sort((a, b) => rank(a.role) - rank(b.role) || b.createdAt.localeCompare(a.createdAt));
 

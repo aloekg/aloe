@@ -14,7 +14,6 @@ const TABS = [
   { label: "Баннеры", href: "/admin/banners" },
 ];
 
-/** Only the super-admin hands out access, and /admin/users 404s for everyone else. */
 const SUPERADMIN_TABS = [{ label: "Пользователи", href: "/admin/users" }];
 
 export default function AdminNav({ isSuperAdmin }: { isSuperAdmin: boolean }) {

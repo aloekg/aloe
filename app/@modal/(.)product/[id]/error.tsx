@@ -3,10 +3,6 @@
 import { useEffect } from "react";
 import Button from "@/components/Button";
 
-/**
- * Without this, a failed quick-view fetch bubbles to the page-level boundary and replaces the
- * grid the user was browsing. Keeping the failure inside the modal preserves that context.
- */
 export default function ProductModalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error(error);

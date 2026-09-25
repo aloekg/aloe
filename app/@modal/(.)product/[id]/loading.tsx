@@ -1,10 +1,5 @@
 import Skeleton from "@/components/Skeleton";
 
-/**
- * The highest-frequency interaction in the app had no feedback at all: clicking a card left the
- * page frozen until the fetch resolved. The shell is the layout's, so this skeleton appears inside a
- * sheet that has already slid in.
- */
 export default function Loading() {
   return (
     <div className="grid sm:grid-cols-2 gap-6 px-4 pb-4 md:px-6 md:pb-6">

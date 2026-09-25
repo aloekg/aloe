@@ -23,11 +23,6 @@ export default function Footer() {
             </Link>
           ))}
 
-          {/*
-            A plain <a>, not next/link: different host, so there is nothing to prefetch or
-            client-navigate. `nofollow` keeps the old shop's duplicated catalogue from competing with
-            this one in search, and it opens in the same tab because switching versions is the intent.
-          */}
           <a href={LEGACY_SITE_URL} rel="nofollow" className="hover:text-green-700 transition-colors">
             Перейти на старую версию сайта
           </a>

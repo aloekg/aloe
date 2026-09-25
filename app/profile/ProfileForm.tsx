@@ -26,8 +26,6 @@ export default function ProfileForm({ initial }: Props) {
 
   useEffect(() => () => clearTimeout(savedTimerRef.current), []);
 
-  // "Изменить" unmounts when pressed, and "Сохранить"/"Отмена" when the edit ends; focus went to
-  // <body> both times. Into the first field on the way in, back onto the button on the way out.
   useEffect(() => {
     if (editing) nameRef.current?.focus();
     else if (touched.current) editButtonRef.current?.focus();
@@ -88,13 +86,6 @@ export default function ProfileForm({ initial }: Props) {
         <p className="text-sm text-gray-500">Данные не заполнены. Нажмите «Изменить» чтобы добавить.</p>
       )}
 
-      {/*
-        The three labels used to be bare <label> elements with no `htmlFor` and no `id` on the
-        inputs, and they do not wrap them either — so nothing tied caption to control and all three
-        fields were announced as unnamed. `autoComplete` goes with them: these are the visitor's own
-        name, phone and address, which is exactly what WCAG 2.1's "Identify Input Purpose" asks be
-        marked, and it lets the browser fill them. app/checkout/CheckoutForm.tsx already does both.
-      */}
       <div>
         <label htmlFor={nameId} className="block text-sm font-medium text-gray-700 mb-1">
           Имя
@@ -144,13 +135,7 @@ export default function ProfileForm({ initial }: Props) {
         />
       </div>
 
-      {/*
-        Both outcomes were announced to nobody: plain <p> elements appearing after the save, with no
-        role and no live region, so a screen reader user pressed "Сохранить" and got silence either
-        way. The wrappers are always mounted and hidden by `empty:hidden` while they hold nothing —
-        a live region that appears together with its text is the same bug as the one in
-        components/Toaster.tsx, and the empty element would otherwise take a slot in `space-y-4`.
-      */}
+      {/* Always mounted: a live region that appears together with its text is not announced. */}
       <div role="alert" className="empty:hidden">
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>

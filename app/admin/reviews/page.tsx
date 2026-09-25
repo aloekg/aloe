@@ -16,8 +16,6 @@ export default async function AdminReviewsPage({
   const sp = await searchParams;
   const page = parsePage(sp.page);
 
-  // Both the highlight and the filter come from the same function — see reviewTabFromParam for the
-  // bug that is.
   const tab = reviewTabFromParam(sp.status);
   const status = reviewTabFilter(tab);
 

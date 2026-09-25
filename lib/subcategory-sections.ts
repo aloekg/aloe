@@ -1,12 +1,5 @@
 import type { ProductListItem } from "@/types";
 
-/**
- * Builds one `VirtualCategoryContent` section per subcategory: products assigned to a
- * sub-subcategory are grouped under it (rendered with their own sub-heading), products assigned
- * directly to the subcategory land in `products` (rendered under the subcategory heading, no
- * sub-heading). When there are no sub-subcategories, `groups` is empty and everything is in
- * `products` — the original flat behavior.
- */
 export function buildCategorySection(
   subcategory: { id: number; name: string },
   subSubcategories: { id: number; name: string }[],

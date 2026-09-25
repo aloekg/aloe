@@ -13,8 +13,7 @@ export default async function BrandsPage() {
   const list = await getCachedBrands();
 
   const grouped = list.reduce<Record<string, typeof list>>((acc, brand) => {
-    // name is NOT NULL but unconstrained on length, and upsertBrand validates nothing — one
-    // accidental blank save used to take down the whole brands index with an undefined read.
+    // name can be blank: upsertBrand validates nothing.
     const letter = brand.name?.trim()?.[0]?.toUpperCase() ?? "#";
     (acc[letter] ??= []).push(brand);
     return acc;

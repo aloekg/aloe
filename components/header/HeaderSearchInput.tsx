@@ -10,10 +10,7 @@ import AutocompleteDropdown, { type AutocompleteProduct } from "./AutocompleteDr
 
 export default function HeaderSearchInput({ className }: { className?: string }) {
   const [query, setQuery] = useState("");
-  // Remembering *which* query was dismissed keeps this derived: no effect syncing a boolean,
-  // and typing further re-opens the dropdown on its own.
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
-  /** Option the arrow keys are on, or -1 when the field's own text is what Enter would submit. */
   const [activeIndex, setActiveIndex] = useState(-1);
   const searchRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -27,20 +24,11 @@ export default function HeaderSearchInput({ className }: { className?: string })
   useOutsideClick(searchRef, close);
 
   const open = query.length >= MIN_QUERY && dismissedFor !== query;
-  // During the debounce window nothing is in flight yet, so `loading` is false while `results` is
-  // still empty (or left over from the previous keystroke) — reporting either as the answer for
-  // what was just typed is wrong. `isCurrent` covers that gap; the input's own spinner keeps using
-  // `loading`, so it only spins on a real request.
+  // `isCurrent` covers the debounce gap, where `loading` is false but results are stale.
   const pending = loading || !isCurrent;
-  /** The listbox is in the DOM — what `aria-expanded` has to agree with, not merely "popup shown". */
   const expanded = open && !pending && results.length > 0;
 
-  // A new query invalidates the position within the old suggestions, and leaving
-  // `aria-activedescendant` on an id that no longer exists points the screen reader at nothing.
-  // Adjusted during render, which is React's documented answer to "reset state when its input
-  // changed" and costs no extra pass — the same shape MobileSearchInput uses. The key is built
-  // from primitives on purpose: `results` is a fresh `[]` on every render while the query is too
-  // short to search, so comparing it by identity would re-run this forever.
+  // Reset during render. Key built from primitives: `results` is a fresh [] each render and would loop.
   const resetKey = `${query}|${open}`;
   const [seenResetKey, setSeenResetKey] = useState(resetKey);
   if (seenResetKey !== resetKey) {
@@ -52,9 +40,7 @@ export default function HeaderSearchInput({ className }: { className?: string })
     (product: AutocompleteProduct) => {
       setQuery("");
       setActiveIndex(-1);
-      // Same intercepted quick-view modal as ProductCard — see the note there on `scroll: false`.
-      // The push moved up here from the dropdown when the options stopped being buttons, so this
-      // flag had to come with it.
+      // scroll: false, same as ProductCard: the fixed modal otherwise sends the page behind it to the top.
       router.push(`/product/${product.id}`, { scroll: false });
     },
     [router],
@@ -76,18 +62,13 @@ export default function HeaderSearchInput({ className }: { className?: string })
     if (!expanded) return;
 
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      // The browser would otherwise move the caret to either end of the query.
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : -1;
-      // Wrapping through -1 rather than only across the options, so the list can always be left
-      // again without deleting anything: one more press returns to the text that was typed.
       const span = results.length + 1;
       setActiveIndex((i) => ((i + 1 + step + span) % span) - 1);
       return;
     }
     if (e.key === "Enter" && activeIndex >= 0 && results[activeIndex]) {
-      // Enter on a highlighted suggestion opens it; the form's submit — search for the raw text —
-      // stays the behaviour when nothing is highlighted.
       e.preventDefault();
       goToProduct(results[activeIndex]);
     }
@@ -123,12 +104,7 @@ export default function HeaderSearchInput({ className }: { className?: string })
         />
       )}
 
-      {/*
-        Mounted always, and empty until there is something to say: a live region inserted together
-        with its first message is routinely missed, the same reason components/Toaster.tsx keeps its
-        container. Without it the suggestions appeared and vanished in silence — `aria-expanded`
-        reports that a list exists, not how much is in it.
-      */}
+      {/* Always mounted: a live region inserted together with its first message is often missed. */}
       <div role="status" aria-live="polite" className="sr-only">
         {open && !pending ? (results.length > 0 ? `Найдено совпадений: ${results.length}` : "Ничего не найдено") : ""}
       </div>

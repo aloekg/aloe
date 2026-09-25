@@ -2,11 +2,6 @@ import Link from "next/link";
 
 type Crumb = { label: string; href?: string };
 
-/**
- * Named `<nav>` with an ordered list, because the product page has three `<nav>` elements and a
- * screen reader's landmark list has to tell them apart. The separators are drawn, not read, and
- * the last crumb is marked as the current page rather than being merely unlinked.
- */
 export default function Breadcrumb({ crumbs }: { crumbs: Crumb[] }) {
   return (
     <nav aria-label="Путь к разделу" className="text-sm text-gray-500 mb-6">

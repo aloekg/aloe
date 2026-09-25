@@ -1,24 +1,13 @@
 import { SITE_URL } from "@/lib/constants";
 
-/**
- * A relative, same-origin path: one leading slash and not a second, which is what separates
- * `/review/abc` from the protocol-relative `//evil.com` a browser reads as another host. A
- * backslash is excluded too — browsers normalise `/\evil.com` the same way.
- *
- * Shared by the server redirect below and by the client, where there is no origin to resolve
- * against: `/auth` hands whatever `?next=` says to `router.push`, so an unchecked value is an open
- * redirect with the shop's own sign-in page as the bait.
- */
+// Also the client-side guard: /auth hands ?next= straight to router.push. Rejects "//host" and "/\host".
 export function safeNextPath(next: string | null | undefined, fallback = "/"): string {
   if (typeof next !== "string" || !/^\/(?![/\\])/.test(next)) return fallback;
 
-  // The WHATWG parser strips tab, CR and LF *before* it reads the string, so `/\t/evil.com` passes
-  // the check above and still resolves to https://evil.com/ — which is exactly what
-  // `router.push` then hands to `location.assign`. Refuse every C0 control, the space and a
-  // backslash anywhere, not only in second position; a real path arrives percent-encoded.
+  // URL parsing strips tab/CR/LF first, so "/\t/evil.com" passes the regex above; reject controls anywhere.
   if (/[\u0000-\u0020\u007f\\]/.test(next)) return fallback;
 
-  // Belt and braces: resolve against a sentinel origin and make sure it stayed there.
+  // Looks redundant, but is the final open-redirect guard: must resolve to the sentinel origin.
   try {
     if (new URL(next, "https://probe.invalid").origin !== "https://probe.invalid") return fallback;
   } catch {
@@ -28,10 +17,6 @@ export function safeNextPath(next: string | null | undefined, fallback = "/"): s
   return next;
 }
 
-/**
- * Only same-origin relative paths may be redirected to. Bare concatenation onto an origin lets
- * `next=@evil.com` resolve to a foreign host and `next=.evil.com` to a lookalike subdomain.
- */
 export function safeRedirect(next: string | null | undefined, base: string, fallback = "/auth?confirmed=true"): URL {
   if (next && safeNextPath(next, "") !== "") {
     try {
@@ -44,7 +29,6 @@ export function safeRedirect(next: string | null | undefined, base: string, fall
   return new URL(fallback, base);
 }
 
-/** The host part of DEPLOY_ORIGIN, or null for an unset or malformed value — never a throw here. */
 function deployHost(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
@@ -54,22 +38,13 @@ function deployHost(raw: string | undefined): string | null {
   }
 }
 
-/**
- * `x-forwarded-host` is client-controllable unless every proxy in front of us strips it, so only
- * hosts we actually deploy to are honoured.
- */
 export function resolveOrigin(forwardedHost: string | null | undefined, requestOrigin: string): string {
   if (!forwardedHost) return requestOrigin;
 
   const canonical = new URL(SITE_URL).host;
   const host = forwardedHost.split(",")[0].trim();
 
-  // Explicit hosts only. A blanket `*.vercel.app` allowance let the redirect be steered to any
-  // attacker-owned Vercel deployment, which undercut the point of validating this header at all —
-  // and `*.aloe.kg` was the same shape one size smaller: it admitted old.aloe.kg (the archived
-  // Joomla shop) and mail.aloe.kg (the hoster's webmail), neither of which this app answers on.
-  // The hosts this deployment actually serves are the canonical one, its www alias, the origin
-  // DEPLOY_ORIGIN names on a preview, and whatever Vercel says it deployed to.
+  // x-forwarded-host is client-controllable: explicit hosts only, no *.vercel.app or *.aloe.kg wildcards.
   const allowed = [
     canonical,
     `www.${canonical}`,
@@ -79,11 +54,7 @@ export function resolveOrigin(forwardedHost: string | null | undefined, requestO
   ].filter(Boolean);
   if (allowed.includes(host)) return `https://${host}`;
 
-  // Next sets x-forwarded-host from the Host header even when nothing is proxying, so a local
-  // server sees `localhost:3000` here, fails every check above, and falls back to SITE_URL — which
-  // means an email confirmation or password-reset link opened against a dev server redirects to
-  // the live shop. Honouring localhost in development makes those flows testable without touching
-  // production behaviour: the branch cannot be reached in a production build.
+  // Dev only: Next sets x-forwarded-host from Host, so without this localhost links redirect to SITE_URL.
   if (process.env.NODE_ENV !== "production" && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) {
     return requestOrigin;
   }

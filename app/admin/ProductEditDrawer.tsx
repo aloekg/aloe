@@ -40,12 +40,7 @@ export default function ProductEditDrawer({
 }: Props) {
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  /**
-   * Drops `snippet` where the caret is, rather than appending, so an image can be placed between
-   * two paragraphs. The textarea is controlled, so the caret has to be restored after React has
-   * rendered the new value — otherwise it jumps to the end and the next insert lands in the wrong
-   * place. Falls back to appending if the field was never focused.
-   */
+  // The textarea is controlled: restore the caret after React renders, or it jumps to the end.
   function insertIntoDescription(snippet: string) {
     const el = descriptionRef.current;
     const current = editing.description ?? "";
@@ -61,7 +56,6 @@ export default function ProductEditDrawer({
 
     requestAnimationFrame(() => {
       el.focus();
-      // Between the brackets of `![](…)`, where the alt text goes.
       const caret = start + 2;
       el.setSelectionRange(caret, caret);
     });

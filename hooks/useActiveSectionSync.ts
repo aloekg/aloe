@@ -19,9 +19,6 @@ export function useActiveSectionSync(containerRef: React.RefObject<HTMLElement |
       const viewLeft = container.scrollLeft;
       const viewRight = viewLeft + container.offsetWidth;
       if (pillLeft < viewLeft || pillRight > viewRight) {
-        // This one fires on its own as the page scrolls, not in answer to a press, which is exactly
-        // the motion `prefers-reduced-motion` is about. The pill still has to come into view, so it
-        // jumps instead of gliding.
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         container.scrollTo({
           left: pillLeft - container.offsetWidth / 2 + pill.offsetWidth / 2,

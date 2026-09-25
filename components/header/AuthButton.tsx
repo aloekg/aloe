@@ -11,9 +11,7 @@ export default function AuthButton() {
   const supabaseAuth = useMemo(() => createClient().auth, []);
 
   useEffect(() => {
-    // getSession reads the cookie the browser already holds; getUser asked GoTrue to verify it on
-    // every page load. This decides which icon to draw, nothing more — the server re-checks the
-    // real session on every route that matters.
+    // getSession, not getUser: this only picks an icon; the server re-checks the session where it matters.
     supabaseAuth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
 
     const {

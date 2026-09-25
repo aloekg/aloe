@@ -56,8 +56,6 @@ export default function ProductList({ products, selectedIds, onToggle, onToggleA
                   Скрыт
                 </span>
               )}
-              {/* Not cosmetic: such a product cannot be published at all — the
-                  products_published_has_category CHECK rejects it — so the row has to say why. */}
               {!p.category_id && (
                 <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                   Без категории

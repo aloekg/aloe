@@ -20,18 +20,12 @@ type Props = {
   brandIds: number[];
   sort: SortValue;
   priceRange: PriceRange;
-  /** Which route rendered this, so pagination links and the empty state point back correctly. */
   basePath: string;
   emptyHref?: string;
   emptyLabel?: string;
   className?: string;
 };
 
-/**
- * The search result body, shared by /search and /catalog?q= — the two used to carry ~60 lines of
- * identical markup and query plumbing, which meant two crawlable URLs rendering the same result
- * set from two copies of the same code.
- */
 export default async function SearchResults({
   q,
   page,
@@ -43,14 +37,7 @@ export default async function SearchResults({
   emptyLabel = "Вернуться в каталог",
   className = "mb-4",
 }: Props) {
-  // The facet query returns ids; the names come from the brand list that is cached for an hour
-  // anyway, so a broad search no longer carries a join on every page of matches. `getCachedBrands`
-  // is already ordered by name, which is the order the filter renders in.
-  //
-  // The facet is deliberately computed from the query alone, so it does not narrow as the price
-  // does. Recomputing it per price range would mean scanning up to five pages of a thousand rows on
-  // every keystroke of a public, unauthenticated, unrated route — and a facet that keeps offering
-  // the brands the search matched is the behaviour customers expect anyway.
+  // The brand facet ignores the price range on purpose: recomputing it per range is a costly scan.
   const [{ products, total }, facetBrandIds, allBrands] = await Promise.all([
     searchProducts(supabase, q, {
       brandIds,
@@ -66,17 +53,14 @@ export default async function SearchResults({
   const facet = new Set(facetBrandIds);
   const brands = allBrands.filter((b) => facet.has(b.id));
 
-  // Same reasoning as LabelProductsPage: page 1 with no matches is a legitimate "ничего не
-  // найдено", a page past the end is not.
+  // A page past the end must 404, or every ?page= mints an indexable cache entry.
   if (page > 1 && products.length === 0) notFound();
 
   const totalPages = Math.ceil(total / SEARCH_PAGE_SIZE);
 
-  // Whether an empty result is "no such product" or "no product in this range" — the two need
-  // different ways out, and offering "вернуться в каталог" to someone who simply set the price too
-  // low sends them away from the search that would have worked.
   const filtered = hasPriceRange(priceRange) || brandIds.length > 0;
 
+  // Pagination must carry every active filter, or page 2 shows a different result set.
   return (
     <MainContainer>
       <div className={className}>
@@ -119,8 +103,6 @@ export default async function SearchResults({
               <ProductCard key={p.id} product={p} preload={i === 0} />
             ))}
           </ProductGrid>
-          {/* Every active filter has to ride along: these are the only crawlable links on the page,
-              and a page-2 link that drops the filter silently shows a different result set. */}
           <Pagination
             page={page}
             totalPages={totalPages}

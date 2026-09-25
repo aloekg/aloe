@@ -4,11 +4,6 @@ import { Check, Circle } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { passwordRules, passwordStrength } from "./validation";
 
-/**
- * The strength bar and requirement checklist shown under a password field while one is being
- * chosen. Rendered wherever a password is *set* — registration, a reset, a change from the
- * profile — so the three screens show the same rules in the same words.
- */
 export default function PasswordHints({ password }: { password: string }) {
   if (!password) return null;
 

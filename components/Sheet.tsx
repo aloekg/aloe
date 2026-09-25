@@ -8,60 +8,30 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useIsClient } from "@/hooks/useIsClient";
 import { isTopSheet, popSheet, pushSheet, subscribeSheetStack } from "@/lib/sheet-stack";
 
-/**
- * Mirrors the `duration-300` below. A caller usually unmounts this component from `onClose` (the
- * product quick view navigates back), so the exit has to finish before that happens — nothing else
- * keeps the panel on screen.
- */
+// Mirrors `duration-300` below; onClose must wait for the exit to finish.
 const TRANSITION_MS = 300;
 
 type Props = {
   children: React.ReactNode;
-  /** Runs once the exit animation has finished — unmount or navigate from here, not before. */
+  // Runs after the exit animation: unmount or navigate from here, not before.
   onClose: () => void;
-  /** Pin the panel to its maximum height instead of sizing it to the content. */
   fullHeight?: boolean;
-  /** Width of the panel, as a Tailwind `max-w-*`. */
   width?: string;
-  /**
-   * Set to true to dismiss the sheet from outside — it plays the same exit as a tap on the
-   * backdrop and then calls `onClose`. Unmounting the sheet directly would skip the animation.
-   */
+  // Dismiss from outside through this; unmounting the sheet directly skips the exit animation.
   requestClose?: boolean;
 } & (
   | {
-      /**
-       * A heading shown on the same line as the close button. It names the dialog too, so there is
-       * no second hidden copy — pass this OR `label`, never the same string as both.
-       */
       heading: string;
       label?: never;
     }
   | {
-      /**
-       * Names the dialog for screen readers, as a visually hidden heading. For a panel that carries
-       * its own title inside — the quick view, the sign-in sheet — which a `heading` would double.
-       */
       label: string;
       heading?: never;
     }
 );
 
-/**
- * A bottom sheet on a phone, a centred dialog from `md` up. Mounted means open: the panel animates
- * in on mount and out through `close()`, which is the only way it should be dismissed.
- *
- * The panel transitions `translate`/`scale`, not `transform`: Tailwind 4 compiles `translate-y-*`
- * and `scale-*` to those standalone CSS properties, so `transition-[transform,…]` would name a
- * property nothing here animates and the sheet would appear with no movement at all.
- *
- * It renders through a **portal into `document.body`**, and that is load-bearing rather than tidy.
- * `z-50` only ranks the sheet against its siblings inside the nearest stacking context, and a
- * `position: sticky` ancestor carrying a `z-index` makes one — so a sheet opened from the category
- * page's sticky subcategory bar (`z-10`) was trapped beneath `MobileBottomNav` at `z-40`, which
- * drew its icons straight across the open panel. The portal takes the whole dialog out of any
- * ancestor's context, which is the only fix that keeps working wherever a caller mounts it.
- */
+// Transition `translate`/`scale`, not `transform`: Tailwind 4 compiles them to standalone properties.
+// The portal is required: a sticky z-indexed ancestor would trap `z-50` under MobileBottomNav.
 export default function Sheet({
   children,
   onClose,
@@ -77,9 +47,6 @@ export default function Sheet({
   const closing = useRef(false);
   const exitTimer = useRef<number | undefined>(undefined);
 
-  // See lib/sheet-stack.ts: with two sheets open, only the topmost traps focus and takes Escape.
-  // Registered in an effect, read through useSyncExternalStore — so the first client render, before
-  // the effect has run, is briefly "not on top"; the panel is still off screen at that point.
   const isTop = useSyncExternalStore(
     subscribeSheetStack,
     () => isTopSheet(titleId),
@@ -93,9 +60,7 @@ export default function Sheet({
   useBodyScrollLock(true);
   useFocusTrap(panelRef, isTop);
 
-  // Two frames, not one: the first paints the off-screen state, the second transitions away from
-  // it. Flipped inside a single rAF the browser folds both into one style pass and the sheet just
-  // appears, already open.
+  // Two frames, not one: a single rAF folds both states into one style pass and skips the animation.
   useEffect(() => {
     let inner = 0;
     const outer = requestAnimationFrame(() => {
@@ -107,8 +72,6 @@ export default function Sheet({
     };
   }, []);
 
-  // A browser Back can unmount us mid-exit; the pending timer would then fire `onClose` into a
-  // component that is already gone.
   useEffect(() => () => window.clearTimeout(exitTimer.current), []);
 
   const close = useCallback(() => {
@@ -132,20 +95,11 @@ export default function Sheet({
     return () => document.removeEventListener("keydown", onKey);
   }, [close, isTop]);
 
-  // Rendered only on the client: `document` does not exist on the server, and a sheet is always
-  // opened by an interaction anyway. `useIsClient` flips during hydration, well before the two
-  // frames below reveal the panel, so nothing appears un-animated.
   const isClient = useIsClient();
   if (!isClient) return null;
 
+  // The header row is absolute over the content; `pt-12` on the content clears it.
   return createPortal(
-    // `inert` while another sheet is on top: nothing in this one can be focused, clicked or read
-    // until that one closes, which is what a modal above a modal means.
-    //
-    // The backdrop closes on click and only on a click that landed on it (not one that bubbled up
-    // from the panel). It has no keyboard handler by design: the keyboard's way out is Escape, wired
-    // above, and the close button in the header — a backdrop that took focus would be a Tab stop
-    // named nothing.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
@@ -173,11 +127,6 @@ export default function Sheet({
             : "translate-y-full md:translate-y-0 md:opacity-0 md:scale-95"
         }`}
       >
-        {/* The header overlays the scrolling content rather than sitting above it, which is what
-            keeps the close button in place as the panel scrolls. A heading therefore belongs on
-            this line: put below it, it scrolls away and leaves the close button captioning
-            nothing. `pt-12` on the content clears this row either way — a text-base heading is
-            shorter than the 48px the icon button already reserves. */}
         <div className="w-full absolute top-0 left-0 z-10 flex items-center gap-3 bg-white py-2 pl-4 pr-2">
           {heading ? (
             <h2 id={titleId} className="text-base font-semibold truncate">
@@ -197,8 +146,6 @@ export default function Sheet({
             <X className="size-5" />
           </button>
         </div>
-        {/* safe-area-pb: the panel is flush with the bottom edge on a phone, so on a notched
-            device its last row would otherwise sit under the home indicator. */}
         <div className="flex flex-col flex-1 min-h-0 w-full overflow-y-auto scrollbar-none pt-12 safe-area-pb md:pb-0">
           {children}
         </div>

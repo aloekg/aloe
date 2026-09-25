@@ -5,8 +5,7 @@ import AdminNav from "./AdminNav";
 export const metadata = { title: "Админ", robots: { index: false, follow: false } };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  // Pages re-gate independently — a layout does not guard the pages nested under it in RSC,
-  // they render in parallel. The lookup is request-cached, so this costs no extra round trip.
+  // Pages re-gate independently: an RSC layout does not guard the pages nested under it.
   const { role } = await requireAdmin();
 
   return (

@@ -9,19 +9,9 @@ import Button from "./Button";
 import ProductCard from "./ProductCard";
 import SeeAllProducts from "./SeeAllProducts";
 
-/** Tailwind's `md`. Embla exists for the arrows, and the arrows exist from here up. */
+// Tailwind's `md`, where the arrows appear.
 const DESKTOP = "(min-width: 48rem)";
 
-/**
- * A row of cards. From `md` up it is an Embla carousel with arrows; below that it is a plain
- * `overflow-x: auto` row the phone scrolls natively.
- *
- * Embla is not attached on a phone on purpose. The arrows are `hidden md:flex`, so all it did there
- * was reimplement the swipe the browser already does — with a pointer listener, a resize observer
- * and a layout measurement of every slide, seventeen times over on the home page, on the device
- * least able to afford it. Native scrolling is also the better swipe: momentum, rubber-banding and
- * the scrollbar gesture all come from the platform. What the customer sees does not change.
- */
 export default function ProductCarousel({
   title,
   href: seeAllHref,
@@ -64,6 +54,9 @@ export default function ProductCarousel({
 
   const hiddenCount = Math.max(0, (totalCount ?? products.length) - visibleCount);
 
+  // Embla's ref is withheld below md on purpose: the phone scrolls natively.
+  // No card is preloaded: the home page stacks many carousels and each preload would jump the LCP banner.
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
@@ -72,17 +65,7 @@ export default function ProductCarousel({
       </div>
 
       <div className="relative">
-        {/* The ref is what initialises Embla; withheld below md, this is just a scrolling div. A
-            desktop window narrowed past md hands Embla a null node, which destroys the instance and
-            clears the inline styles it set, so the row falls back to native scrolling in place. */}
         <div ref={desktop ? emblaRef : undefined} className="overflow-x-auto md:overflow-hidden scrollbar-hide">
-          {/*
-            No card is preloaded here, deliberately. The homepage stacks fourteen of these, so
-            `preload` on the first card of each emitted fourteen <link rel=preload>s into <head> —
-            190 KB of off-screen thumbnails that the browser fetched ahead of the stylesheet, the
-            JS chunks and the banner that actually is the LCP element. The one card near the fold
-            gains nothing from a preload anyway: it is in the viewport, so it loads on layout.
-          */}
           <div className="grid grid-flow-col auto-cols-[minmax(160px,220px)] gap-3">
             {products.map((p) => (
               <div key={p.id}>

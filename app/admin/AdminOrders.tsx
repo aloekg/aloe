@@ -42,9 +42,7 @@ export default function AdminOrders({
 }: Props) {
   const navigate = useAdminListNav();
   const search = useDebouncedSearch(q, (value) => navigate({ q: value }));
-  // One patch per order rather than a map per field: the total, the items and the delivery fee all
-  // move together, and splitting them is how the card came to show a fresh total beside a stale
-  // delivery line whenever an edit crossed the free-delivery threshold.
+  // One patch per order: total, items and delivery fee must move together.
   const [patches, setPatches] = useState<Record<number, OrderPatch>>({});
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [editingDeliveryId, setEditingDeliveryId] = useState<number | null>(null);
@@ -54,8 +52,6 @@ export default function AdminOrders({
     [],
   );
 
-  // Every keystroke in the search box used to recreate all order objects and re-render each
-  // OrderItemsEditor and OrderStatusSelect.
   const orders = useMemo(() => initial.map((o) => ({ ...o, ...patches[o.id] })), [initial, patches]);
 
   const show = useToast((s) => s.show);
@@ -100,7 +96,6 @@ export default function AdminOrders({
 
   return (
     <>
-      {/* Status badges / filters */}
       <div className="flex gap-2 flex-wrap mb-5">
         {Object.entries(ORDER_STATUS).map(([key, { label, cls }]) => {
           const active = activeStatuses.has(key);
@@ -128,7 +123,6 @@ export default function AdminOrders({
         )}
       </div>
 
-      {/* Search */}
       <div className="relative mb-5">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
         <input
@@ -166,8 +160,7 @@ export default function AdminOrders({
               })
             : "—";
 
-          // Built from the patched status, so the text follows the select the admin has just
-          // changed rather than the one the page was rendered with.
+          // From the patched status, so the text follows the select just changed.
           const chatHref = whatsAppLink(
             order.customer_phone,
             orderStatusMessage({
@@ -178,8 +171,7 @@ export default function AdminOrders({
             }),
           );
 
-          // Everything the invoice prints from the order, so an edit in either editor throws away
-          // the PDF the share button is holding rather than sending the superseded one.
+          // Everything the invoice prints: an edit in either editor must drop the held PDF.
           const invoiceRevision = [
             order.total,
             order.delivery_cost,
@@ -194,8 +186,6 @@ export default function AdminOrders({
                   <p className="text-xs text-gray-500">{date}</p>
                   {!(order.notified_at || notified[order.id]) && (
                     <div className="my-1.5 flex w-fit flex-wrap items-center gap-x-2 gap-y-0.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                      {/* "not confirmed", not "not sent": rows predating this tracking are NULL
-                          too, and some of those were in fact emailed. */}
                       <span>Отправка письма не подтверждена</span>
                       <Button
                         variant="ghost"
@@ -234,8 +224,7 @@ export default function AdminOrders({
                           {order.delivery_cost} <Currency />
                         </>
                       ) : (
-                        // Not a flat "бесплатно": regions is still to be agreed and urgent is paid
-                        // to the courier, which is what the customer reads in their own profile.
+                        // Not a flat «бесплатно»: regions is agreed by phone and urgent is paid to the courier.
                         deliveryFreeNote(order.delivery_type)
                       )}{" "}
                       <Button
@@ -249,9 +238,6 @@ export default function AdminOrders({
                   )}
                   {order.comment && <p className="text-sm text-gray-500 italic">💬 {order.comment}</p>}
                 </div>
-                {/* Narrow screens: one wrapping row so the total, the status select and the
-                    invoice link stay left-aligned under the customer block instead of floating
-                    in a shrink-to-fit right-aligned column. */}
                 <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 sm:flex-col sm:items-end">
                   <p className="text-xl font-bold text-green-700">
                     {order.total} <Currency />

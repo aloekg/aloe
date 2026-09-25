@@ -9,10 +9,6 @@ import { useToast } from "@/store/toast";
 import type { OrderItem } from "@/types";
 import { submitReview } from "../actions";
 
-/**
- * One card per product still awaiting a review. Each submits on its own — an order of five lines
- * should not be all-or-nothing, and someone who only wants to rate one thing should be able to.
- */
 function ProductReview({ token, item, onDone }: { token: string; item: OrderItem; onDone: () => void }) {
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState("");
@@ -21,9 +17,7 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
   const show = useToast((s) => s.show);
 
   async function send() {
-    // Checked on the press, not by disabling the button: a disabled button is skipped by Tab and
-    // says nothing about why, so a keyboard user who had not noticed the stars could not find out
-    // what the form still wanted.
+    // Validated on press rather than by disabling the button: a disabled button is skipped by Tab.
     const problem = validateReview(rating, body);
     if (problem) {
       setError(problem);
@@ -42,8 +36,7 @@ function ProductReview({ token, item, onDone }: { token: string; item: OrderItem
   }
 
   return (
-    // tabIndex -1: the parent moves focus here after the previous card submits and unmounts itself
-    // (with the button that had focus), which otherwise dropped focus to <body>.
+    // tabIndex -1: receives focus after the previous card submits and unmounts.
     <li className="border border-gray-300 rounded-xl p-4 outline-none" tabIndex={-1}>
       <div className="flex gap-3 mb-4">
         {item.image_url && (
@@ -94,8 +87,6 @@ export default function ReviewForm({ token, items }: { token: string; items: Ord
   const listRef = useRef<HTMLUListElement>(null);
   const thanksRef = useRef<HTMLDivElement>(null);
 
-  // Each submitted card removes itself, and the "Отправить" that had focus with it. Focus follows
-  // the work: the next card, or the thank-you once there is none.
   useEffect(() => {
     if (done.length === 0) return;
     const next = thanksRef.current ?? listRef.current?.querySelector<HTMLElement>("li");

@@ -22,11 +22,7 @@ export const metadata: Metadata = pageMetadata({
   path: "/catalog",
 });
 
-/**
- * Reads no searchParams, so it prerenders. `/catalog?q=` — once a second copy of the search results
- * — is sent to /search by a redirect in next.config.ts; doing that here made the whole page dynamic
- * for the sake of URLs nothing produces any more, a serverless render of the tile grid per visit.
- */
+// Reads no searchParams so it prerenders; /catalog?q= is redirected in next.config.ts instead.
 export default async function CatalogPage() {
   const allCategories = await getCachedCategories();
   const topCategories = (
@@ -47,8 +43,7 @@ export default async function CatalogPage() {
       <MainContainer>
         <Title className="sr-only md:not-sr-only md:mb-4">Каталог товаров</Title>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-          {/* `preload` on these four: they are the first row on the phone's "Каталог" tab and the
-              page's LCP candidate. `fill` images are lazy by default, which deferred exactly them. */}
+          {/* `preload`: these are the LCP candidate, and `fill` images are lazy by default. */}
           {specials.map((s) => (
             <Link key={s.href} href={s.href} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
               {s.image_url && (
