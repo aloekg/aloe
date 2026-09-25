@@ -14,22 +14,13 @@ import PasswordHints from "./PasswordHints";
 import { RESEND_COOLDOWN_SECONDS, validateAuthForm, validateResetForm, type AuthFieldErrors } from "./validation";
 
 type Props = {
-  /** Rendered above the title — the page puts its email-confirmation notices here. */
   banner?: React.ReactNode;
-  /** Where to land after signing in, and after the Google round-trip. Same-origin path. */
   next?: string;
-  /** Overrides that navigation — the modal closes itself and stays where the customer was. */
   onAuthenticated?: () => void;
-  /** Shows the iOS install card; both places that offer sign-in want it — see the note below. */
   installHint?: boolean;
-  /** Heading level of the form's title: `h1` on /auth, `h2` inside the sheet, which opens over a page that has one. */
   titleAs?: "h1" | "h2";
 };
 
-/**
- * The sign-in / register / reset form itself, with no page chrome, so that `/auth` and the modal
- * a guest gets when they tap a heart are the same form rather than two that drift apart.
- */
 export default function AuthForm({ banner, next = "/", onAuthenticated, installHint = false, titleAs = "h1" }: Props) {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [email, setEmail] = useState("");
@@ -39,11 +30,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  /**
-   * Field errors stay quiet until the first submit — flagging "введите email" while someone is
-   * still typing the first character is noise. After that they update on every keystroke, so a
-   * fixed field clears itself immediately.
-   */
   const [submitted, setSubmitted] = useState(false);
   const router = useRouter();
   const emailId = useId();
@@ -52,8 +38,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
 
   const isRegister = mode === "register";
   const isReset = mode === "reset";
-  // The reset form has no password field, so it is validated on the email alone rather than
-  // through validateAuthForm, whose contract is "login or register".
   const fieldErrors: AuthFieldErrors = !submitted
     ? {}
     : isReset
@@ -68,7 +52,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}` },
       });
-      // On success the browser is already navigating away, so only the failure path lands here.
       if (error) {
         setError(translateError(error));
         setLoading(false);
@@ -79,10 +62,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
     }
   }
 
-  /**
-   * A new session only reaches the server components after a refresh. Where the customer ends up
-   * afterwards is the caller's: the page sends them on, the modal closes and leaves them put.
-   */
   function finish() {
     router.refresh();
     if (onAuthenticated) onAuthenticated();
@@ -98,8 +77,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
     const errors = isReset ? validateResetForm(email) : validateAuthForm(mode, { email, password, confirm });
     if (Object.keys(errors).length > 0) return;
 
-    // GoTrue stores addresses lowercased; normalising here keeps "Ivan@" and "ivan@" from looking
-    // like two different accounts on the client.
     const normalizedEmail = email.trim().toLowerCase();
     setLoading(true);
 
@@ -108,9 +85,7 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
         const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
           redirectTo: `${window.location.origin}/auth/confirm?next=/auth/new-password`,
         });
-        // Anything but a rate limit is reported as success on purpose: GoTrue stays silent about
-        // whether an address has an account, and saying "нет такого пользователя" here would hand
-        // a stranger the account-enumeration oracle the registration form is careful to deny.
+        // Never report "no such user" here: that would be an account-enumeration oracle.
         if (error) setError(translateError(error));
         else setResetSent(true);
       } else if (isRegister) {
@@ -122,13 +97,10 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
         if (error) {
           setError(translateError(error));
         } else if (data.user?.identities?.length === 0) {
-          // With confirmations on, GoTrue hides "already registered" behind a success response and
-          // an empty identities array, so that a stranger cannot probe which emails have accounts.
+          // An empty identities array is GoTrue's disguised "already registered".
           setError("Пользователь с таким email уже зарегистрирован");
         } else if (data.session) {
-          // A session straight out of signUp means GoTrue auto-confirmed the address (the
-          // project's "Confirm email" is off), so no letter was ever sent — showing "проверьте
-          // почту" here would leave the user waiting for mail that does not exist.
+          // A session here means the address was auto-confirmed and no letter was sent.
           finish();
         } else {
           setRegistered(true);
@@ -152,8 +124,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
     setMode(next);
     setError("");
     setSubmitted(false);
-    // The email is almost always the same one — retyping it is pure friction. The passwords are
-    // cleared because the rules differ between the two modes.
     setPassword("");
     setConfirm("");
   }
@@ -193,7 +163,6 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
         {isReset ? "Восстановление пароля" : isRegister ? "Регистрация" : "Вход"}
       </Title>
 
-      {/* A real <form>: Enter submits from any field, and password managers recognise the pair. */}
       <form onSubmit={handleSubmit} noValidate className="border border-gray-300 rounded-xl p-6 flex flex-col gap-4">
         {isReset && (
           <p className="text-sm text-gray-600">
@@ -313,19 +282,11 @@ export default function AuthForm({ banner, next = "/", onAuthenticated, installH
         </p>
       </form>
 
-      {/* The right moment to offer this, though the copy does not say why: an installed iOS web app
-          gets its own storage, so a session started here in Safari does not follow it in. Install
-          first and you sign in once. That is our problem to know, not the customer's to read. */}
       {installHint && <InstallAppIos className="mt-6" />}
     </>
   );
 }
 
-/**
- * "We sent you a letter" — shown after registration and after a reset request. One component
- * because the two differ only in wording and in which call the resend button repeats; the
- * cooldown, the rate-limit handling and the spam-folder hint are the same problem either way.
- */
 function CheckMailboxNotice({
   kind,
   email,
@@ -342,8 +303,6 @@ function CheckMailboxNotice({
   const [sending, setSending] = useState(false);
   const supabase = createClient();
 
-  // The first letter has just gone out, so the countdown starts immediately rather than offering
-  // a resend that GoTrue would reject for coming too soon.
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setTimeout(() => setCooldown((s) => s - 1), 1000);

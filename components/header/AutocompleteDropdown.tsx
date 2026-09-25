@@ -13,17 +13,6 @@ export type AutocompleteProduct = {
   category_id: number | null;
 };
 
-/**
- * The suggestion popup of the ARIA combobox that HeaderSearchInput owns. The input keeps focus and
- * the state lives up there, so this renders a listbox and reports presses rather than acting on
- * them — which also puts the click path and the Enter path through one function instead of two.
- *
- * The suggestions used to be `<button>`s. That put every one of them in the tab order, so reaching
- * "показать все результаты" meant tabbing past ten products, and nothing announced that a list had
- * appeared under the field at all. As options they are not focusable: the parent moves
- * `aria-activedescendant` with the arrow keys while focus stays in the input, which is what makes
- * the arrow keys work for everyone and not only for whoever can see the highlight.
- */
 export default function AutocompleteDropdown({
   results,
   loading,
@@ -35,7 +24,6 @@ export default function AutocompleteDropdown({
 }: {
   results: AutocompleteProduct[];
   loading: boolean;
-  /** Index of the option `aria-activedescendant` points at, or -1 for none. */
   activeIndex: number;
   listboxId: string;
   optionId: (index: number) => string;
@@ -51,16 +39,11 @@ export default function AutocompleteDropdown({
   }
 
   return (
-    // Pressing an option must not blur the input first: focus belongs to the combobox, and a blur
-    // would also let the outside-click handler close the popup before the click landed. That is the
-    // whole of this handler — it is not an interaction, so the static-element rule does not apply.
+    // Keeps focus in the input, so a blur cannot let the outside-click handler close the popup first.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div className={`${shell} overflow-hidden`} onMouseDown={(e) => e.preventDefault()}>
       <ul id={listboxId} role="listbox" aria-label="Предложения по запросу">
         {results.map((p, i) => (
-          // The keyboard never reaches an option directly: in the combobox pattern focus stays on
-          // the input, which handles ArrowUp/ArrowDown/Enter and points here with
-          // aria-activedescendant. A key handler on the option would have nothing to receive.
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events
           <li
             key={p.id}
@@ -74,8 +57,6 @@ export default function AutocompleteDropdown({
             }`}
           >
             <div className="relative w-10 h-10 shrink-0 bg-gray-100 rounded">
-              {/* Empty alt: the name is right beside it, and repeating it would have the option
-                  announced twice. */}
               <Image
                 src={p.thumbnail_url || p.image_url || ""}
                 alt=""

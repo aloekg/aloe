@@ -4,11 +4,6 @@ import { useActionState } from "react";
 import { Button } from "@/components";
 import { claimOrder } from "./actions";
 
-/**
- * The one control on /order/<token> for a signed-in visitor. `useActionState` gives the pending
- * state and the failure message without a second round trip; success never returns here, because
- * the action redirects to /profile.
- */
 export default function ClaimOrderButton({ token }: { token: string }) {
   const [state, submit, pending] = useActionState(async () => claimOrder(token), null);
 

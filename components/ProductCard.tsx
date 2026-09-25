@@ -13,9 +13,7 @@ import OldPrice from "./OldPrice";
 import StarRating, { formatRating } from "./StarRating";
 
 type Props = {
-  // Deliberately narrower than `Product`: the card renders seven fields, and typing it this way
-  // keeps `description`/`seo_text` from being pulled into list queries again. A full `Product`
-  // still satisfies it.
+  // Keep narrower than Product so description/seo_text stay out of list queries.
   product: ProductListItem;
   className?: string;
   href?: string;
@@ -35,26 +33,17 @@ function ProductBadge({ label }: { label: ProductListItem["label"] }) {
 function ProductCard({ product: p, className = "", href, preload = false }: Props) {
   const rating = averageRating(p.rating_sum, p.rating_count);
   const productHref = href ?? `/product/${p.id}`;
-  // The card never renders above ~300px, so it takes the small variant; the detail page and the
-  // quick-view modal load `image_url`. Rows predating the thumbnail backfill fall back to it.
   const cardImage = p.thumbnail_url || p.image_url;
 
+  // scroll={false}: the quick-view modal is position:fixed, so Next would otherwise scroll the grid to top.
+  // alt="" on purpose: the link already carries the name as text.
+
   return (
-    // `relative` so FavoriteButton can sit over the image from outside the <Link>: a <button>
-    // nested inside an <a> is invalid HTML and behaves unpredictably for keyboard and
-    // screen-reader users.
+    // FavoriteButton stays outside the <Link>: a <button> inside an <a> is invalid HTML.
     <div className={`relative flex flex-col rounded-lg overflow-hidden ${className}`}>
       <FavoriteButton productId={p.id} />
-      {/* `scroll={false}`: this link is intercepted into the quick-view modal, and the modal is
-          `position: fixed`, which Next's post-navigation scroll handler skips (layout-router's
-          `shouldSkipElement`). With no sibling left to consider it falls back to
-          `documentElement.scrollTop = 0`, so opening a quick view silently sent the grid behind
-          it back to the top — visible on closing, and it reset the category page's sticky
-          subcategory bar out of its scrolled layout. */}
       <Link className="flex-1 flex flex-col" href={productHref} scroll={false}>
         <div className="relative p-2 aspect-square shadow-xs rounded-lg">
-          {/* alt="": the same link carries the name as text, and an alt repeating it made every
-              card announce its name twice. The photo adds nothing the name does not say. */}
           <Image
             src={cardImage}
             alt=""
@@ -70,8 +59,6 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
             {p.name}
           </p>
           {p.brand_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.brand_name}</p>}
-          {/* Nothing at all when unrated: only 5% of the catalogue has ever been delivered, and an
-              empty row of grey stars on the rest would read as "rated badly" rather than "new". */}
           {rating != null && (
             <span className="flex items-center gap-1 mt-1">
               <StarRating
@@ -96,8 +83,6 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
           id: p.id,
           name: p.name,
           price: p.price,
-          // Cart rows render at ~64px. The order record itself is re-resolved from the DB in
-          // `createOrder`, so this only affects what the cart displays.
           image_url: cardImage,
         }}
       />

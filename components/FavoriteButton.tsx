@@ -19,14 +19,10 @@ export default function FavoriteButton({ productId }: { productId: number }) {
     e.preventDefault();
     e.stopPropagation();
 
-    // Until the first auth event lands, `userId` is null for signed-in users too — sending them
-    // to /auth here was a false negative that happened on every fast click after page load.
+    // Until the first auth event, `userId` is null for signed-in users too.
     if (!initialized) return;
 
     if (!userId) {
-      // The modal says why it opened and presses this heart once the session lands, so there is no
-      // toast here: a card in a grid can be one tap from a sign-in without losing the customer's
-      // place in the catalogue.
       openAuthModal(productId);
       return;
     }

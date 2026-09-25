@@ -21,12 +21,10 @@ export default function AuthSync() {
         return;
       }
 
-      // No session. Favourites hold nothing worth preserving, so settle them either way —
-      // otherwise `initialized` never flips for a guest and FavoriteButton stays disabled.
+      // Settle favourites for guests too, or `initialized` never flips and FavoriteButton stays disabled.
       setFavoritesUser(null);
 
-      // The cart persists to localStorage for guests, so only a real sign-out may clear it.
-      // INITIAL_SESSION also arrives with a null session and must not wipe it.
+      // Only a real sign-out clears the cart: INITIAL_SESSION also arrives with a null session.
       if (event === "SIGNED_OUT") setCartUser(null);
     });
 

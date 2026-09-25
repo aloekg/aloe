@@ -9,7 +9,6 @@ import type { Banner } from "@/types";
 import { deleteBanner, reorderBanners, uploadBannerImage, upsertBanner, type BannerInput } from "./actions";
 import { useDragReorder } from "./useDragReorder";
 
-/** banners.active and banners.sort_order are nullable in the schema; BannerInput is not. */
 function toBannerInput(banner: Banner, overrides: Partial<BannerInput> = {}): BannerInput {
   return {
     id: banner.id,
@@ -194,8 +193,6 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
                     onChange={(e) => setLinks((prev) => ({ ...prev, [b.id]: e.target.value }))}
                     className="w-full min-w-0 text-xs border border-gray-500 rounded-lg px-2 py-1 focus:outline-none focus:border-green-700"
                   />
-                  {/* What a screen reader says instead of the picture: the offer on the banner and
-                      where it leads. Without it the storefront falls back to "Баннер N". */}
                   <input
                     type="text"
                     maxLength={200}

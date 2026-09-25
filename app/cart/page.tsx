@@ -22,13 +22,9 @@ export default function CartPage() {
   const decrement = useCart((s) => s.decrement);
   const total = useCart((s) => s.total);
   const clear = useCart((s) => s.clear);
-  // "Очистить" used to act on the tap. Emptying a basket someone spent minutes filling — and, for
-  // a signed-in customer, the copy of it in the database — is exactly the kind of irreversible step
-  // WCAG 3.3.4 asks be confirmed, so the two buttons below open this sheet instead.
   const [confirming, setConfirming] = useState(false);
   const isClient = useIsClient();
-  // The cart store rehydrates from localStorage synchronously, so the server's empty-cart
-  // markup never matches the first client render. Hold a placeholder until we're on the client.
+  // The cart rehydrates from localStorage synchronously; hold a placeholder until on the client to avoid a hydration mismatch.
   if (!isClient) {
     return (
       <>
@@ -94,9 +90,6 @@ export default function CartPage() {
             </div>
           ))}
         </div>
-        {/* Gated on the cart's own localStorage prices, which is what "Итого" above shows too — so
-            the button matches the number on screen. Checkout re-quotes on the server and refuses
-            there as well; this only saves the trip. */}
         {shortfall > 0 && (
           <p className="mt-4 text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-amber-900">
             Минимальная сумма заказа — {MIN_ORDER_TOTAL} <Currency />. Добавьте ещё на{" "}

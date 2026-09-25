@@ -1,7 +1,5 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
-/** Building blocks shared by the analytics cards — kept here so each card stays about its data. */
-
 export function money(value: number): string {
   return Math.round(value).toLocaleString("ru-RU");
 }
@@ -10,7 +8,6 @@ export function percent(part: number, whole: number): string {
   return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—";
 }
 
-/** The delivery tariff's labels list every district; a breakdown needs the zone's name, not its scope. */
 export const SHORT_ZONE: Record<string, string> = {
   center: "Центр Бишкека",
   residential: "Жилмассивы",
@@ -19,16 +16,7 @@ export const SHORT_ZONE: Record<string, string> = {
   unknown: "Не указана",
 };
 
-export function Card({
-  title,
-  note,
-  children,
-}: {
-  title: string;
-  /** One line under the title for the caveat a reader needs before trusting the numbers. */
-  note?: string;
-  children: React.ReactNode;
-}) {
+export function Card({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-200 p-4">
       <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
@@ -42,10 +30,6 @@ export function EmptyNote({ children }: { children: React.ReactNode }) {
   return <p className="py-4 text-center text-sm text-gray-500">{children}</p>;
 }
 
-/**
- * Change against the previous period. The arrow carries the direction and the words carry the
- * number, so the colour is never the only thing saying "better" or "worse".
- */
 function Delta({ current, previous, caption }: { current: number; previous: number; caption: string }) {
   if (previous === 0) {
     return <span className="text-gray-500">{current > 0 ? `в прошлом периоде 0` : `без изменений ${caption}`}</span>;
@@ -90,10 +74,6 @@ export function StatTile({
   );
 }
 
-/**
- * Ranked rows with the magnitude drawn behind the label. One hue for every row: the length already
- * encodes the value, and shading each bar by its own size would burn the colour channel restating it.
- */
 export function BarList({ rows }: { rows: Array<{ key: string; label: string; value: string; share: number }> }) {
   return (
     <ul className="space-y-1.5">
@@ -113,7 +93,6 @@ export function BarList({ rows }: { rows: Array<{ key: string; label: string; va
   );
 }
 
-/** A compact product list: name on the left, a couple of numbers on the right. */
 export function ProductTable({
   columns,
   rows,

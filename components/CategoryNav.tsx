@@ -34,7 +34,6 @@ const ICONS = {
   telo: HandHeart,
 };
 
-// slug is plain text in the schema; ICONS is looked up defensively below.
 type Category = { id: number; name: string; slug: string; parent_id: number | null };
 
 const specials = [
@@ -59,8 +58,6 @@ function NavItem({
     <Link
       href={href}
       onNavigate={() => window.scrollTo(0, 0)}
-      // Which category you are in was said by the dark circle and nothing else, so it was said only
-      // to people who can see it — and colour alone is never allowed to carry information (1.4.1).
       aria-current={active ? "page" : undefined}
       className={`flex flex-col items-center gap-1.5 rounded-lg transition-colors shrink-0 w-18`}
     >
@@ -85,9 +82,7 @@ export default function CategoryNav({ categories }: { categories: Category[] }) 
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
 
-  // This nav lives in the root layout, so it is on every route. setState fired on every scroll
-  // event and re-rendered all ~14 NavItems; React bails on an unchanged boolean, but the reads
-  // below still force layout, so coalesce them into a frame.
+  // Coalesce the layout-forcing reads into one frame: this nav is on every route.
   const frame = useRef<number | null>(null);
   const updateFades = useCallback(() => {
     if (frame.current !== null) return;

@@ -11,18 +11,6 @@ import {
 } from "@/lib/analytics";
 import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
 
-/**
- * The dashboard's second tier: everything that needs more than the period's orders — the catalogue
- * (categories, brands, promo labels, what did not sell), the whole order history (repeat purchases)
- * or favorites. Kept apart from `buildReport` so the core numbers stay readable, and pure for the
- * same reason as `lib/analytics.ts`: tests/analytics-insights.test.ts runs it with no database.
- */
-
-// ---------------------------------------------------------------------------
-// Catalogue
-// ---------------------------------------------------------------------------
-
-/** What `loadCatalogue` selects per product. */
 export type CatalogueProductRow = {
   id: number;
   name: string;
@@ -45,9 +33,7 @@ export type ProductMeta = {
   published: boolean;
   purchaseCount: number;
   createdAt: string | null;
-  /** On promotion *now* — `orders.items` freezes the price paid but not whether it was a sale price. */
   promo: boolean;
-  /** The top-level category, however deep the product actually hangs. */
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
 };
@@ -60,8 +46,6 @@ export function buildCatalogueIndex(
   const categoryById = new Map(categories.map((c) => [c.id, c]));
   const brandById = new Map(brands.map((b) => [b.id, b]));
 
-  // The same two hops the storefront walks: a product may sit on a subcategory or a
-  // sub-subcategory, and neither is what a sales breakdown wants to list.
   const topLevelOf = (categoryId: number | null) => {
     let current = categoryId == null ? undefined : categoryById.get(categoryId);
     for (let hop = 0; hop < 2 && current?.parent_id != null; hop += 1) current = categoryById.get(current.parent_id);
@@ -85,25 +69,19 @@ export function buildCatalogueIndex(
   return index;
 }
 
-// ---------------------------------------------------------------------------
-// Report
-// ---------------------------------------------------------------------------
-
 export type NamedStat = { id: number | null; name: string; quantity: number; revenue: number };
 
 export type HeatmapInsight = {
-  /** [weekday: Monday = 0][hour 0–23] → orders. */
+  // [weekday: Monday = 0][hour 0–23] → orders.
   cells: number[][];
   max: number;
   peak: { weekday: number; hour: number; orders: number } | null;
 };
 
 export type PromoInsight = {
-  /** Goods only — delivery is not something a promotion sells. */
   goodsRevenue: number;
   promoRevenue: number;
   promoQuantity: number;
-  /** Distinct promo products that sold in the period, out of how many are on promotion now. */
   soldProducts: number;
   catalogueProducts: number;
 };
@@ -112,12 +90,9 @@ export type ThresholdBin = { from: number; to: number | null; orders: number };
 
 export type ThresholdInsight = {
   threshold: number;
-  /** Orders in the zones where the threshold actually waives the fee — the only ones it can move. */
   orders: number;
   bins: ThresholdBin[];
-  /** Within `NEAR` сом under the threshold: they paid for delivery by a small margin. */
   nearMiss: number;
-  /** Within `NEAR` сом over it: the baskets most plausibly topped up to get it free. */
   justOver: number;
   near: number;
 };
@@ -130,22 +105,17 @@ export type CancellationInsight = {
 };
 
 export type RepeatInsight = {
-  /** Customers whose first order ever falls in the period. */
   cohort: number;
-  /** …of whom this many have ordered again since — at any time up to now. */
   returned: number;
   medianDaysToSecond: number | null;
-  /** Customers active in the period, by how many orders they have placed in their whole history. */
   lifetime: Array<{ label: string; customers: number }>;
 };
 
 export type FavoriteInsight = { id: number; name: string; favorites: number; sold: number };
 
 export type UnsoldInsight = {
-  /** Published products with no sale in the period (those added during it are not held against it). */
   total: number;
   neverSold: number;
-  /** Sold before, silent now — the likelier sign that something changed. Highest lifetime count first. */
   stalled: Array<{ id: number; name: string; purchaseCount: number }>;
 };
 
@@ -165,11 +135,10 @@ export const TOP_NAMED_LIMIT = 8;
 export const LIST_LIMIT = 10;
 const THRESHOLD_STEP = 1000;
 const THRESHOLD_NEAR = 2000;
-/** One product in one cancelled order is an anecdote, not a pattern — it would top the list at 100%. */
 const MIN_ORDERS_FOR_CANCEL_RATE = 2;
 
 export type InsightsInput = {
-  /** Every order in the period, cancelled included — the cancellation breakdown needs them all. */
+  // Every order in the period, cancelled included.
   rows: AnalyticsOrderRow[];
   fromDay: string | null;
   toDay: string;
@@ -210,10 +179,6 @@ function sortNamed(stats: Map<number | null, NamedStat>): NamedStat[] {
     .slice(0, TOP_NAMED_LIMIT);
 }
 
-/**
- * Category and brand come from the catalogue as it is now, not as it was at the sale — `items`
- * freezes the name and the price, nothing else. A re-categorised product counts where it sits today.
- */
 export function namedBreakdowns(
   counted: AnalyticsOrderRow[],
   catalogue: Map<number, ProductMeta>,
@@ -283,11 +248,6 @@ export function buildPromo(counted: AnalyticsOrderRow[], catalogue: Map<number, 
   };
 }
 
-/**
- * Only the zones where crossing the threshold changes the fee. "residential" is never free, and
- * "regions" / "urgent" are not charged by the tariff at all, so a basket there says nothing about
- * whether the threshold made anyone add to it.
- */
 const THRESHOLD_ZONES = new Set<string>(DELIVERY_OPTIONS.filter((o) => o.freeOverThreshold).map((o) => o.id));
 
 export function buildThreshold(counted: AnalyticsOrderRow[]): ThresholdInsight {
@@ -303,7 +263,6 @@ export function buildThreshold(counted: AnalyticsOrderRow[]): ThresholdInsight {
 
   for (const row of counted) {
     if (!row.delivery_type || !THRESHOLD_ZONES.has(row.delivery_type)) continue;
-    // The threshold is on the goods; `total` includes the fee the threshold is about.
     const goods = row.total - row.delivery_cost;
     orders += 1;
     bins[Math.min(bins.length - 1, Math.floor(Math.max(0, goods) / THRESHOLD_STEP))].orders += 1;
@@ -314,7 +273,7 @@ export function buildThreshold(counted: AnalyticsOrderRow[]): ThresholdInsight {
   return { threshold, orders, bins, nearMiss, justOver, near: THRESHOLD_NEAR };
 }
 
-/** Always over every order in the period — a cancellation rate that excluded cancellations would be 0. */
+// Pass every order in the period, cancelled included.
 export function buildCancellations(rows: AnalyticsOrderRow[]): CancellationInsight {
   const byZone = new Map<string, { id: string; orders: number; cancelled: number }>();
   const byProduct = new Map<number, { id: number; name: string; orders: number; cancelled: number }>();
@@ -330,7 +289,6 @@ export function buildCancellations(rows: AnalyticsOrderRow[]): CancellationInsig
     if (isCancelled) zone.cancelled += 1;
     byZone.set(zoneId, zone);
 
-    // Per order, not per line: a product listed twice in one cancelled order is one cancellation.
     const seen = new Set<number>();
     for (const item of row.items ?? []) {
       if (seen.has(item.id)) continue;
@@ -373,10 +331,6 @@ const LIFETIME_BUCKETS = [
   { label: "5 и больше", min: 5, max: Infinity },
 ];
 
-/**
- * Cancelled orders are left out of the history here as everywhere a purchase is counted. Several
- * orders on the same day are separate purchases, so "days to second order" can be 0.
- */
 export function buildRepeat(
   history: CustomerSeenRow[],
   counted: AnalyticsOrderRow[],
@@ -408,7 +362,6 @@ export function buildRepeat(
   const active = new Set(counted.map(customerKey).filter(Boolean));
   const lifetime = LIFETIME_BUCKETS.map((b) => ({ label: b.label, customers: 0 }));
   for (const key of active) {
-    // A customer active only through cancelled orders (when those are counted) still placed one.
     const orders = Math.max(1, daysByCustomer.get(key)?.length ?? 0);
     lifetime[LIFETIME_BUCKETS.findIndex((b) => orders >= b.min && orders <= b.max)].customers += 1;
   }
@@ -417,11 +370,6 @@ export function buildRepeat(
   return { cohort, returned, medianDaysToSecond: middle == null ? null : round(middle), lifetime };
 }
 
-/**
- * Favorites are a snapshot, not events — removing a heart deletes the row — so this compares the
- * wishlist as it stands today with the period's sales. Unpublished products are left out: nobody
- * can buy them, so their low sales mean nothing.
- */
 export function buildFavorites(
   favoriteCounts: Map<number, number>,
   catalogue: Map<number, ProductMeta>,
@@ -436,10 +384,6 @@ export function buildFavorites(
   return rows.sort((a, b) => b.favorites - a.favorites || a.sold - b.sold).slice(0, LIST_LIMIT);
 }
 
-/**
- * `since` is the period's first day, or null for "всё время". A product added during the period has
- * not had the whole period to sell, so it is not listed as unsold.
- */
 export function buildUnsold(
   catalogue: Map<number, ProductMeta>,
   sold: Map<number, number>,

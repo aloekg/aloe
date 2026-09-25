@@ -43,8 +43,6 @@ export default function AdminCategories({
   const show = useToast((s) => s.show);
   const drag = useDragReorder();
 
-  // One pass over the tree instead of three nested scans plus a recursive full-array walk per
-  // rendered row — all of which re-ran on every keystroke in the edit drawer.
   const { parents, subs, childrenOf, lockedIds } = useMemo(() => {
     const childrenOf = new Map<number, Category[]>();
     const parents: Category[] = [];
@@ -57,7 +55,6 @@ export default function AdminCategories({
     }
     const subs = parents.flatMap((p) => childrenOf.get(p.id) ?? []);
 
-    // A category is locked when it, or anything beneath it, holds a product.
     const used = new Set(usedIds);
     const lockedIds = new Set<number>();
     const walk = (c: Category): boolean => {

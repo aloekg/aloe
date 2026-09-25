@@ -9,12 +9,7 @@ export default function Toaster() {
   const pause = useToast((s) => s.pause);
   const resume = useToast((s) => s.resume);
 
-  // The container is rendered even with nothing in it. It used to return null while empty, which
-  // meant the live region entered the DOM at the same moment as its first message — and a region
-  // inserted together with its content is routinely missed, because screen readers watch regions
-  // that already exist for changes. So "Добавлено в корзину" was announced only sometimes.
-  // `pointer-events-none` keeps the now-permanent element from covering anything; each toast turns
-  // pointers back on for itself.
+  // Always render the live region, even empty: one inserted with its first message is often not announced.
   return (
     <div
       role="status"
@@ -26,8 +21,6 @@ export default function Toaster() {
           key={toast.id}
           type="button"
           onClick={() => remove(toast.id)}
-          // A timed message must be holdable (WCAG 2.2.1): it stays while the pointer or focus is
-          // on it, and gets a second back when they leave so it does not vanish under the cursor.
           onMouseEnter={() => pause(toast.id)}
           onMouseLeave={() => resume(toast.id)}
           onFocus={() => pause(toast.id)}

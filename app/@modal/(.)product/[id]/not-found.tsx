@@ -1,10 +1,6 @@
 import Link from "next/link";
 
-/**
- * The shell now lives in the layout, so a `notFound()` from the page renders inside the open sheet.
- * Without a boundary here that sheet would be blank — the root not-found is a full page and has no
- * business appearing inside a quick view.
- */
+// Required: without it a notFound() from the page leaves the open sheet blank.
 export default function ProductModalNotFound() {
   return (
     <div className="m-auto p-8 text-center">

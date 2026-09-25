@@ -1,24 +1,11 @@
 import { Star } from "lucide-react";
 import { starFill } from "@/lib/reviews";
 
-/** "4" for a whole rating, "4,5" for an average — the way the rest of the page prints it. */
 export function formatRating(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(".", ",");
 }
 
-/**
- * Five stars, read-only. Rendered on the server wherever a rating is shown, so it stays out of the
- * client bundle for the grid — `RatingInput` is the interactive counterpart.
- *
- * The stars themselves are decoration and hidden from assistive tech; the rating is read from a
- * visually hidden `label` beside them, "Оценка 4 из 5" by default. It used to be the whole
- * component that was `aria-hidden`, which was right only where a number stood next to it — and in
- * a review list, or on a card, nothing did, so a screen reader heard the review count alone.
- * Pass `label={false}` where the parent already names the rating (RatingSummary's link label).
- *
- * A half star is drawn by clipping a filled star over an empty one rather than by a half-star glyph:
- * lucide has no half-star, and rounding 3.5 to 4 would overstate every product sitting on a .5.
- */
+// Pass label={false} only where the parent already names the rating.
 export default function StarRating({
   average,
   size = "sm",

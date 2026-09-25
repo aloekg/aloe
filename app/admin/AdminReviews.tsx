@@ -21,10 +21,6 @@ const TABS: { value: string; label: string }[] = [
 
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric" });
 
-/**
- * The moderation queue. Defaults to `pending`, because that is the only tab with work in it — the
- * others exist to undo a decision.
- */
 export default function AdminReviews({
   reviews,
   total,
@@ -40,7 +36,6 @@ export default function AdminReviews({
 }) {
   const navigate = useAdminListNav({ status: "pending" });
   const [pending, startTransition] = useTransition();
-  // Which row is mid-action, so only its buttons go quiet rather than the whole list.
   const [busy, setBusy] = useState<number | null>(null);
 
   const act = (id: number, run: () => Promise<void>) => {
@@ -152,9 +147,6 @@ export default function AdminReviews({
                       <Undo2 className="size-4" aria-hidden /> Вернуть на модерацию
                     </Button>
                   )}
-                  {/* Rejecting keeps the row, and the unique constraint on (order_id, product_id)
-                      then stops the same person reposting. Deleting gives that back, so it is for
-                      content that must not remain stored at all. */}
                   <Button
                     variant="secondary"
                     size="sm"

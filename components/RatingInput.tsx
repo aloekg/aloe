@@ -6,11 +6,6 @@ import { MAX_RATING, MIN_RATING } from "@/lib/reviews";
 
 const LABELS = ["Ужасно", "Плохо", "Нормально", "Хорошо", "Отлично"];
 
-/**
- * The star picker. A radio group rather than five buttons: a rating is one choice out of five, and
- * that is what lets arrow keys move between them and a screen reader announce "2 из 5" instead of
- * five unrelated toggles.
- */
 export default function RatingInput({
   value,
   onChange,
@@ -22,7 +17,6 @@ export default function RatingInput({
   onChange: (value: number) => void;
   name: string;
   disabled?: boolean;
-  /** Marks the group required for assistive tech; the form still validates on submit. */
   required?: boolean;
 }) {
   const [hovered, setHovered] = useState(0);
@@ -30,8 +24,6 @@ export default function RatingInput({
 
   return (
     <div className="flex items-center gap-3">
-      {/* The rule wants the group itself focusable; here the native <input type="radio"> children
-          are the focusable, arrow-navigable parts, which is what a radiogroup wrapper is for. */}
       {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
       <div
         role="radiogroup"
@@ -65,7 +57,6 @@ export default function RatingInput({
           </label>
         ))}
       </div>
-      {/* aria-live so the label is announced as the choice changes, not only on focus. */}
       <span className="text-sm text-gray-500 min-w-20" aria-live="polite">
         {shown ? LABELS[shown - 1] : ""}
       </span>

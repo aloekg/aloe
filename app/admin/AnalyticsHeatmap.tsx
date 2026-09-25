@@ -4,23 +4,10 @@ import { useState } from "react";
 import type { HeatmapInsight } from "@/lib/analytics-insights";
 import { cn } from "@/lib/cn";
 
-/**
- * Orders by weekday × hour, Bishkek time. Magnitude, so one hue light → dark; four steps plus zero is as many
- * as the eye separates reliably in a grid, and zero gets its own neutral so "never" does not read as
- * "a little".
- *
- * The hovered cell is spelled out in a line above the grid rather than in 168 separate tooltips, and
- * the peak is written as text — the one conclusion a reader needs does not depend on telling two
- * greens apart.
- */
-
 export const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const WEEKDAYS_LONG = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
 
-/**
- * Starts at green-500, not a pale tint: checked with the dataviz palette validator, anything lighter
- * falls under 2:1 against the white card and a quiet hour becomes indistinguishable from none.
- */
+// Starts at green-500: lighter steps fall under 2:1 contrast against the white card.
 const STEPS = ["bg-green-500", "bg-green-600", "bg-green-700", "bg-green-900"];
 
 function stepFor(value: number, max: number): string {

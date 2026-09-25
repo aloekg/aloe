@@ -41,18 +41,12 @@ export default async function CategoryPage({
 
   const subcategories = allCategories.filter((c) => c.parent_id === category.id);
 
-  // One query for the whole category rather than one per subcategory — every section renders on
-  // this page anyway, so fifteen round trips bought nothing.
   const subSubsBySub = new Map(subcategories.map((s) => [s.id, allCategories.filter((c) => c.parent_id === s.id)]));
-  // Sorted because getCachedCategoryProducts says callers do: the ids land in an unstable_cache
-  // key, so [1,2] and [2,1] are two entries for one payload. The flatMap order follows
-  // categories.sort_order, which a drag-reorder in the admin re-permutes.
+  // Sorted: the ids are an unstable_cache key, and admin drag-reorders re-permute them.
   const allCategoryIds = subcategories
     .flatMap((s) => [s.id, ...(subSubsBySub.get(s.id) ?? []).map((c) => c.id)])
     .sort((a, b) => a - b);
-  // No sort and no price range in that call — they are not part of what the category holds, and
-  // folding them into the cache key would mint a fresh ~90 KB entry per combination. The filter is
-  // applied to the result instead, below and again in CategoryBrowser.
+  // No sort or price range in the cached call: each would mint a cache entry. Filtered on the result instead.
   const byCategory = new Map(await getCachedCategoryProducts(allCategoryIds));
 
   const sections = subcategories.map((s) => {
@@ -61,11 +55,7 @@ export default async function CategoryPage({
     return { sub: s, subSubcategories, products, total: products.length };
   });
 
-  // Decided on the *unfiltered* set, and it has to stay that way. A category exists or it does
-  // not; a price range that matches nothing in it is an empty result, not a missing page. Moving
-  // this below the filter would answer `?price_min=99999999` with a 404 on a real category — a
-  // soft-404 in Search Console, and a contradiction of what app/sitemap.ts promises. Nobody would
-  // find it by hand; a crawler would.
+  // Decided on the unfiltered set: a price range matching nothing is a 200, not a 404.
   const nonEmpty = sections.filter((s) => s.total > 0);
   if (!nonEmpty.length) notFound();
 
@@ -73,9 +63,6 @@ export default async function CategoryPage({
     buildCategorySection(sub, subSubcategories, products),
   );
 
-  // Only subcategories that actually rendered a section — a pill for an empty one would
-  // scroll nowhere, since VirtualCategoryContent never received a matching section. Narrowing this
-  // further to what the filter left is CategoryBrowser's job, since the filter moves with it.
   const visibleSubcategories = nonEmpty.map((s) => s.sub);
 
   const initialSectionId = visibleSubcategories.find((s) => s.slug === sp.sub)?.id;
@@ -87,8 +74,7 @@ export default async function CategoryPage({
   return (
     <>
       <MobileHeader title={category.name} withBackButton />
-      {/* `hidden`, not `sr-only`: MobileHeader now carries the <h1> below md, and an `sr-only` copy
-          here would make the same name a second heading on a phone. */}
+      {/* `hidden`, not `sr-only`: MobileHeader carries the <h1> below md. */}
       <h1 className="hidden md:block md:container md:mx-auto md:px-4 md:pt-2 md:text-2xl md:font-bold">
         {category.name}
       </h1>

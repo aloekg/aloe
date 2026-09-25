@@ -10,11 +10,7 @@ import { MAX_ITEM_NAME, money, parsePriceInput, type OrderItemInput } from "@/li
 import type { OrderItem } from "@/types";
 import { updateOrderItems } from "./actions";
 
-/**
- * The price is held as the raw string, not a number: "", "12." and "12,5" are all states a field
- * passes through while being typed, and every one of them is NaN as a number — which is how a
- * half-typed price used to blank the line's subtotal.
- */
+// Price is held as the raw string: mid-typing states like "12." are NaN as numbers.
 type Draft = { id: number; name: string; price: string; quantity: number; image_url: string | null };
 
 type Props = {
@@ -79,7 +75,6 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
     setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  // Only the lines that currently parse; a price mid-keystroke contributes nothing rather than NaN.
   const itemsTotal = money(items.reduce((sum, i) => sum + (parsePriceInput(i.price) ?? 0) * i.quantity, 0));
 
   async function handleSave() {
@@ -105,7 +100,6 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
       setError(result.error);
       return;
     }
-    // The server's normalized items, not the draft: trimmed names and rounded prices.
     onSaved(result.items, result.total, result.deliveryCost);
   }
 
@@ -155,8 +149,7 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
                   </Button>
                 </div>
                 <span className="text-gray-500">×</span>
-                {/* Not type="number": it scrolls under the wheel, rejects the ru-RU comma, and in
-                    some browsers hands back "" for "12." — the very NaN this editor avoids. */}
+                {/* Not type="number": it rejects the ru-RU comma and can return "" for "12.". */}
                 <input
                   type="text"
                   inputMode="decimal"

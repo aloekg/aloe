@@ -8,25 +8,13 @@ type Props = {
   quantity: number;
   onDecrement: () => void;
   onIncrement: () => void;
-  /** Product name, used for the buttons' accessible names. */
   label: string;
   size?: "sm" | "md" | "lg";
-  /** Cart page uses a filled pill; the product card sits on plain background. */
   variant?: "plain" | "pill";
-  /**
-   * Put focus on "+" as soon as this mounts. AddToCart passes it when the press on "В корзину" is
-   * what swapped that button out for this control: the pressed element is unmounted mid-interaction
-   * and focus falls back to <body>, which drops a keyboard user out of a grid of forty products and
-   * back to the top of the page. Left unset everywhere the stepper is simply rendered, so nothing
-   * steals focus from a page the visitor has just opened.
-   */
+  // Only for when this replaces the pressed button; elsewhere it would steal focus on page load.
   focusIncrementOnMount?: boolean;
 };
 
-/**
- * Shared −/quantity/+ control. At quantity 1 the decrement button becomes a delete, which is why
- * the two former copies (AddToCart and the cart page) had to agree on the same small rule.
- */
 export default function QuantityStepper({
   quantity,
   onDecrement,
@@ -39,7 +27,7 @@ export default function QuantityStepper({
   const incrementRef = useRef<HTMLButtonElement>(null);
   const atMinimum = quantity === 1;
 
-  // Mount only: re-running it on later renders would pull focus back every time the quantity moves.
+  // Mount only: re-running would pull focus back on every quantity change.
   useEffect(() => {
     if (focusIncrementOnMount) incrementRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps

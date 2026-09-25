@@ -102,8 +102,6 @@ export default function AdminProducts({
 
   function openEdit(p: ProductRecord) {
     loadBrands();
-    // ProductInput requires these; the columns are nullable in the schema, so fall back
-    // rather than write null into a field the storefront treats as present.
     setEditing({
       id: p.id,
       name: p.name,
@@ -142,7 +140,7 @@ export default function AdminProducts({
       setError(result.error);
       return;
     }
-    // One upload, two derivatives — set both together so a card never points at the large file.
+    // Set both together so a card never points at the large file.
     setEditing((prev) => (prev ? { ...prev, image_url: result.url, thumbnail_url: result.thumbnailUrl } : prev));
   }
 

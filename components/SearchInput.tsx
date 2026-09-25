@@ -19,20 +19,11 @@ export default function SearchInput({ value, onChange, searchPath, loading, inpu
     router.push(searchPath);
   }
 
+  // aria-label sits before the spread so a caller can override it.
+  // type="search": WebKit's own clear button is hidden in globals.css, since it would skip handleClear's navigation.
   return (
     <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500 pointer-events-none" />
-      {/*
-        `aria-label` rather than a visible <label>: the field had neither, and a placeholder is not
-        a name — it is announced inconsistently and disappears the moment anything is typed, so a
-        screen reader user who paused mid-query had nothing left telling them what the field was.
-        It sits before the spread so a caller can still override it.
-
-        `type="search"` gives the field its real role and the phone keyboard its search key. Its
-        one side effect is WebKit's own clear button, which app/globals.css hides: it would sit on
-        top of the X below, and clearing through it would empty the field without the navigation
-        `handleClear` does, leaving results on screen for a query no longer in the box.
-      */}
       <input
         type="search"
         aria-label="Поиск товаров"
@@ -47,8 +38,6 @@ export default function SearchInput({ value, onChange, searchPath, loading, inpu
           type="button"
           onClick={handleClear}
           aria-label="Очистить"
-          // A 32px target around a 16px glyph — WCAG 2.5.8 asks for 24, and the field itself is
-          // the neighbouring target, so the icon alone was too easy to miss into it.
           className="absolute right-0.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center text-gray-500 hover:text-gray-600 transition-colors"
         >
           <X className="size-4" aria-hidden />

@@ -6,7 +6,6 @@ import type { Database } from "@/types/database";
 
 const PUBLIC_COLUMNS = "id, product_id, rating, body, author_name, created_at";
 
-/** Approved reviews of one product, newest first — what the product page renders. */
 export async function getProductReviews(supabase: SupabaseClient<Database>, productId: number, limit = 20) {
   const res = await supabase
     .from("reviews")
@@ -15,15 +14,11 @@ export async function getProductReviews(supabase: SupabaseClient<Database>, prod
     .eq("status", "approved")
     .order("created_at", { ascending: false })
     .limit(limit);
-  // soft, not strict: a failed review query must not take the product page down with it. The page
-  // then renders without the section, which is what a product with no reviews looks like anyway.
   return soft("product-reviews", res, []);
 }
 
-/** The order a review token names, or null. `maybeSingle` — an unknown token is ordinary. */
 export async function getOrderByReviewToken(admin: SupabaseClient<Database>, token: string) {
-  // Guarded before the query, not after: Postgres answers a malformed uuid with an error, and an
-  // unparseable URL segment must read as "no such order", not as an outage.
+  // Guard before the query: Postgres errors on a malformed uuid, which must read as "no such order".
   if (!isReviewToken(token)) return null;
 
   const { data, error } = await admin
@@ -35,13 +30,6 @@ export async function getOrderByReviewToken(admin: SupabaseClient<Database>, tok
   return data;
 }
 
-/**
- * Product ids this **customer** has already reviewed, so the form offers only what is left.
- *
- * By customer, not by order: a repeat purchase of the same product does not earn a second review —
- * it earns an edit of the first (see the 20260923200000 migration). Scoped to the ids in the order
- * being reviewed, so it stays a small lookup however much the customer has written.
- */
 export async function getReviewedProductIds(
   admin: SupabaseClient<Database>,
   userId: string,
@@ -78,30 +66,20 @@ export async function insertReview(
   });
 }
 
-/** The name on a customer's profile, for the review they are about to write. Absent is ordinary. */
 export async function getProfileName(admin: SupabaseClient<Database>, userId: string): Promise<string | null> {
   const { data, error } = await admin.from("profiles").select("name").eq("id", userId).maybeSingle();
   if (error) {
-    // Logged, not thrown: a review signed "Покупатель" is worth more than a failed submission.
     console.error(`[reviews] profile lookup failed: ${error.message}`);
     return null;
   }
   return data?.name ?? null;
 }
 
-/**
- * Attaches a guest order to the account that just signed in through its review link. The token is
- * the proof of ownership — it reached the customer over WhatsApp, on their own number — which is
- * what makes this safe without verifying a phone.
- *
- * Conditional on `user_id is null`: an order already belonging to someone must never change hands,
- * however the link was shared afterwards.
- */
+// The `user_id is null` filter is the guard: an order that already has an owner must never change hands.
 export async function claimOrderForUser(admin: SupabaseClient<Database>, orderId: number, userId: string) {
   return admin.from("orders").update({ user_id: userId }).eq("id", orderId).is("user_id", null);
 }
 
-/** The moderation queue. Newest first, optionally narrowed to one status. */
 export async function getAdminReviews(
   admin: SupabaseClient<Database>,
   { status, page, pageSize = 20 }: { status?: string; page: number; pageSize?: number },
@@ -119,7 +97,6 @@ export async function getAdminReviews(
   return { reviews: (data ?? []) as ReviewWithProduct[], total: count ?? 0 };
 }
 
-/** How many reviews sit in each status, for the admin's filter counts. */
 export async function getReviewStatusCounts(admin: SupabaseClient<Database>): Promise<Record<string, number>> {
   const { data, error } = await admin.from("reviews").select("status");
   if (error) throw new Error(`[reviews] status counts failed: ${error.message}`);
@@ -128,47 +105,29 @@ export async function getReviewStatusCounts(admin: SupabaseClient<Database>): Pr
   return counts;
 }
 
-/** Returns the review's `product_id` so the caller can expire that product's cache and no other. */
+// Returns product_id so the caller expires that product's cache tag only.
 export async function setReviewStatus(admin: SupabaseClient<Database>, id: number, status: string) {
   return admin.from("reviews").update({ status }).eq("id", id).select("product_id").maybeSingle();
 }
 
-/** Same return as `setReviewStatus`, for the same reason. */
 export async function deleteReview(admin: SupabaseClient<Database>, id: number) {
   return admin.from("reviews").delete().eq("id", id).select("product_id").maybeSingle();
 }
 
-/**
- * A customer's own reviews, pending and rejected included.
- *
- * Read through the service role, with an id the caller took from the session — not with the user's
- * own client. It used to be the other way round, so that the select policy rather than this call
- * site decided whose drafts came back; but the same grant that let a customer filter on `user_id`
- * let every signed-up visitor read the `user_id` of everyone else's approved reviews, and
- * 20260924100000_reviews_column_grants.sql revoked the column from anon and authenticated alike.
- * A filter on a column you may not read is a permission error, hence the service role here.
- */
+// Service role on purpose: user_id is not readable by anon/authenticated. userId must come from the session.
 export async function getUserReviews(admin: SupabaseClient<Database>, userId: string): Promise<ReviewWithProduct[]> {
   const res = await admin
     .from("reviews")
     .select("*, products(id, name, thumbnail_url)")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
-  // soft: the profile page has orders and personal details to show regardless, and a failed review
-  // query must not take the whole page down.
   return soft("user-reviews", res, []) as ReviewWithProduct[];
 }
 
-/** The statuses `updateOwnReview` will touch — see `canEditReview`. */
+// Must match canEditReview.
 const EDITABLE_STATUSES = ["pending", "rejected"];
 
-/**
- * Rewrites a review the customer owns, and only while it is still unpublished.
- *
- * `eq("user_id", userId)` is not decoration: without it the id alone would be enough to rewrite
- * anyone's review. The status filter is the other half — a published review is final, so there is
- * no longer any way to have something approved and then change what it says.
- */
+// The user_id filter is required: without it the id alone would rewrite anyone's review.
 export async function updateOwnReview(
   admin: SupabaseClient<Database>,
   { reviewId, userId, rating, body }: { reviewId: number; userId: string; rating: number; body: string | null },
@@ -179,8 +138,7 @@ export async function updateOwnReview(
       .update({ rating, body, status: "pending" })
       .eq("id", reviewId)
       .eq("user_id", userId)
-      // In the statement, not only in the action above it: a published review is final, and the
-      // window between reading a status and writing over it is exactly where a second tab lives.
+      // Status checked in the statement too, so a concurrent approval cannot be overwritten.
       .in("status", EDITABLE_STATUSES)
       .select("id, status")
       .maybeSingle()

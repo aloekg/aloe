@@ -60,8 +60,7 @@ export default function DeliveryContent({ compact = false }: Props) {
         </div>
       </section>
 
-      {/* id="returns" is what MERCHANT_RETURN_POLICY.merchantReturnLink points at. The wording is
-          the placeholder described on RETURN_WINDOW_DAYS — replace it together with the constant. */}
+      {/* id="returns" is the target of MERCHANT_RETURN_POLICY.merchantReturnLink. */}
       <section id="returns" className={py}>
         <H className={`${hSize} font-bold text-gray-900 mb-3`}>Возврат товара</H>
         <div className="space-y-2 text-sm text-gray-700">

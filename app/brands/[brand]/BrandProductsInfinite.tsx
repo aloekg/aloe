@@ -40,8 +40,6 @@ export default function BrandProductsInfinite({ brandId, brandName, initialProdu
             setProducts((prev) => [...prev, ...more]);
           })
           .catch((err) => {
-            // Without this the loading flag stays set and infinite scroll dies silently
-            // for the rest of the session.
             console.error("[brand] failed to load more products", err);
           })
           .finally(() => {
@@ -64,8 +62,7 @@ export default function BrandProductsInfinite({ brandId, brandName, initialProdu
         ))}
       </ProductGrid>
       <div ref={sentinelRef} className="h-px" />
-      {/* Cards appear below the fold with no sound at all otherwise. Always mounted, so the region
-          exists before its first message — see components/Toaster.tsx for why that matters. */}
+      {/* Always mounted, so the live region exists before its first message. */}
       <p role="status" aria-live="polite" className="text-center text-sm text-gray-500 py-4 empty:hidden">
         {loading ? "Загружаем ещё товары…" : exhausted && total > BRAND_PAGE_SIZE ? "Это все товары бренда" : ""}
       </p>

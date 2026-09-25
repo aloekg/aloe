@@ -2,11 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-/**
- * Whether a CSS media query currently matches. `false` on the server and during hydration — the
- * server cannot know the viewport, and a first client render that disagreed with the markup would
- * be a hydration mismatch — then the real answer from the first effect on, and live on resize.
- */
+// `false` on the server and during hydration, to keep the markup matching.
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
     (onChange) => {

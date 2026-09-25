@@ -19,31 +19,14 @@ type Section = {
 };
 
 type Props = {
-  /** Every section of the category, unfiltered — see the note on filtering below. */
   sections: Section[];
   subcategories: { id: number; name: string; slug: string }[];
   initialSort: SortValue;
   initialRange: PriceRange;
   initialSectionId?: number;
-  /** Rendered after the grid, inside the same container — the next-category link. */
   children?: React.ReactNode;
 };
 
-/**
- * The filterable part of /catalog/[slug]: the filter bar, the sticky subcategory pills and the
- * virtualized grid, which have to agree on one set of sections.
- *
- * **Filtering happens here, on the client, and costs nothing.** The server already sent every
- * product of the category — one cached query, ~90 KB for the largest — so narrowing it is an array
- * operation, and routing a filter change through the server would spend a render and a Data Cache
- * lookup to compute what this component can compute in a frame. The URL is kept in step through the
- * History API for the same reason SubcategoryFilter does it: the address bar stays shareable
- * without a server round trip per interaction.
- *
- * The server applies the same filter for the first render (page.tsx), so a shared link, a reload or
- * a crawler sees the filtered page rather than a flash of the unfiltered one. Both sides call
- * `filterCategorySections`, which is why it must stay pure.
- */
 export default function CategoryBrowser({
   sections,
   subcategories,
@@ -56,15 +39,13 @@ export default function CategoryBrowser({
   const [range, setRange] = useState<PriceRange>(initialRange);
   const navigate = useFilterNav("url-only");
 
-  // Whether the view still shows what the URL asked for. The `?sub=` deep-link scroll belongs to
-  // that view only: once the customer narrows or reorders the page, jumping them back to the
-  // section the link named would fight the interaction they just made.
+  // The ?sub= deep-link scroll applies only to the view the URL asked for.
   const isInitialView = sort === initialSort && range.min === initialRange.min && range.max === initialRange.max;
 
+  // Same transform page.tsx applies server-side, so filterCategorySections must stay pure.
   const visible = useMemo(() => filterCategorySections(sections, range, sort), [sections, range, sort]);
 
-  // Placeholders come from the whole category, not from what the filter left — a box that renumbers
-  // itself as you type is worse than no hint at all.
+  // Bounds from the whole category on purpose, not from the filtered set.
   const bounds = useMemo(
     () => priceBounds(sections.flatMap((s) => [...s.products, ...s.groups.flatMap((g) => g.products)])),
     [sections],
@@ -76,8 +57,6 @@ export default function CategoryBrowser({
     [subcategories, visibleIds],
   );
 
-  // What the sheet's apply button counts. Only the price narrows the set, but the signature stays
-  // general so the bar does not have to know that.
   const countFor = useCallback(
     (next: FilterState) =>
       filterCategorySections(sections, next.range, next.sort).reduce(
@@ -99,8 +78,6 @@ export default function CategoryBrowser({
 
   return (
     <>
-      {/* The phone gets no row of its own: its two triggers ride at the head of the sticky pill row
-          below, which is already permanent. This one is `hidden md:block` from the inside. */}
       <Container className="md:py-2">
         <ProductFilterBar
           variant="inline"
@@ -140,9 +117,7 @@ export default function CategoryBrowser({
           </div>
         ) : (
           <VirtualCategoryContent
-            // Remounts the virtualizer when the set changes shape. Its row model, its measurement
-            // cache and the section offsets are all derived from `sections`; reusing the instance
-            // across a filter change left it scrolled to an offset that no longer existed.
+            // Remounts the virtualizer: its measurements go stale when the sections change shape.
             key={`${sort}:${range.min ?? ""}:${range.max ?? ""}`}
             sections={visible}
             initialSectionId={isInitialView ? initialSectionId : undefined}

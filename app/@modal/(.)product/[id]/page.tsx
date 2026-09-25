@@ -22,7 +22,6 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
       ? Math.round(((product.old_price - product.price) / product.old_price) * 100)
       : null;
   const productHref = `/product/${product.id}`;
-  // The modal itself shows the large image; cart rows are ~64px.
   const cartImage = product.thumbnail_url || product.image_url;
 
   return (

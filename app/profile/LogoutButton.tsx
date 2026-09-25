@@ -27,8 +27,7 @@ export default function LogoutButton() {
       className="flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
     >
       <LogOut className="size-4" aria-hidden />
-      {/* sr-only, not hidden: display:none takes the text out of the accessibility tree too, and
-          on a phone the button was an unnamed icon. */}
+      {/* sr-only, not hidden: display:none would leave the phone icon button unnamed. */}
       <span className="sr-only md:not-sr-only">Выйти из аккаунта</span>
     </Button>
   );

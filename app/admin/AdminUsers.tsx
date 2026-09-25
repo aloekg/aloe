@@ -26,8 +26,6 @@ export default function AdminUsers({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  // Filtering in the browser rather than through the URL like the other admin lists: the Auth
-  // admin API has no search of its own, so the whole list is already here.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return users;
@@ -113,11 +111,6 @@ export default function AdminUsers({
                 <p>Последний вход: {formatDate(user.lastSignInAt)}</p>
               </div>
 
-              {/*
-                The super-admin's own row has no control at all — the action refuses to write that
-                role in either direction, so a button here could only ever produce an error. It is
-                changed in Supabase, not here.
-              */}
               {isSuper ? (
                 <span className="text-xs text-gray-500 shrink-0">меняется в Supabase</span>
               ) : (

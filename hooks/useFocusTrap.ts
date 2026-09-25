@@ -11,10 +11,6 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(",");
 
-/**
- * Keeps Tab inside an overlay and returns focus to whatever opened it. Without this a keyboard
- * user tabs straight through the backdrop into the page behind, with no way to tell they left.
- */
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, active = true) {
   useEffect(() => {
     if (!active) return;
@@ -28,9 +24,6 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active = true) 
         (el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement,
       );
 
-    // Move focus in so the first Tab lands inside rather than at the top of the document — unless
-    // it is already inside, as it is when a sheet regains the top after the one above it closed and
-    // handed focus back to the heart that opened it.
     if (!container.contains(document.activeElement)) {
       const initial = focusable()[0] ?? container;
       initial.focus({ preventScroll: true });
@@ -47,9 +40,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active = true) 
       const last = items[items.length - 1];
       const activeEl = document.activeElement;
 
-      // Both directions need the escaped-focus check. Only Shift+Tab had it, so once focus left
-      // the overlay a forward Tab walked into the page behind the backdrop — which happens
-      // routinely, because the modal's Suspense fallback unmounts and restores focus outside.
+      // Both directions need the escaped check: a Suspense fallback unmounting can drop focus outside.
       const escaped = !container.contains(activeEl);
 
       if (e.shiftKey && (activeEl === first || escaped)) {
@@ -65,10 +56,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active = true) 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
 
-      // Only restore if the opener is still in the document and focus is still ours to move.
-      // Calling focus() on a detached node is a no-op that silently drops focus to <body>, and
-      // stealing it back would fight a user who has deliberately moved on. AdminDrawer hits this:
-      // saving re-renders the row whose button opened it.
+      // Restore only to a connected opener, and only while focus is still inside.
       const stillInside = container.contains(document.activeElement);
       if (previouslyFocused?.isConnected && stillInside) {
         previouslyFocused.focus({ preventScroll: true });

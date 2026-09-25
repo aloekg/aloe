@@ -4,27 +4,14 @@ import nodemailer from "nodemailer";
 import { DEPLOY_ORIGIN } from "@/lib/deploy-origin";
 import type { OrderItem } from "@/types";
 
-/**
- * The mail server at SMTP_HOST (mail.aloe.kg) presents a certificate issued for *.hoster.kg —
- * same machine, name the certificate does not cover. `mail.hoster.kg` resolves to a *different*
- * address, so SMTP_HOST cannot simply be changed.
- *
- * Node checks the certificate name against `host`, not `servername`, so setting `servername` alone
- * does nothing here — that mistake silently stopped every order notification. Overriding
- * `checkServerIdentity` keeps the CA chain verification intact (rejectUnauthorized stays on) and
- * only relaxes the name binding to the one the hoster actually certifies. Verified: a deliberately
- * wrong name still fails, so this is a narrowed check rather than a bypass.
- */
+// SMTP_HOST presents a *.hoster.kg certificate, and Node checks the name against `host`,
+// so `servername` alone does nothing; see checkServerIdentity below.
 const SMTP_CERT_NAME = process.env.SMTP_TLS_SERVERNAME || "mail.hoster.kg";
 
-/**
- * Addresses *this* deployment, not the canonical domain, so the admin lands on the build that took
- * the order rather than on whatever SITE_URL currently resolves to. On production the two are now
- * the same; on a preview they are not. See lib/deploy-origin.ts.
- */
+// DEPLOY_ORIGIN, not SITE_URL: link to the deployment that took the order.
 const ADMIN_ORDERS_URL = `${DEPLOY_ORIGIN}/admin/orders`;
 
-/** Order fields originate from a public checkout form — never interpolate them raw. */
+// Order fields come from a public form: always escape.
 function esc(value: string | number): string {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -34,7 +21,7 @@ function esc(value: string | number): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Only http(s) URLs reach an <img src> — no `javascript:` or `data:` from a cart item. */
+// Only http(s) URLs may reach <img src>.
 function safeImageUrl(url: string): string {
   return /^https?:\/\//i.test(url) ? esc(url) : "";
 }
@@ -55,8 +42,6 @@ type NewOrderEmailData = {
 function getTransport() {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
-    // Loud, because this is the only new-order notification channel: a rotated password or a
-    // dropped env var otherwise lets orders pile up unnoticed with nothing in the logs.
     console.error(
       "[mailer] SMTP is not configured — new-order notifications are DISABLED. Missing:",
       [!SMTP_HOST && "SMTP_HOST", !SMTP_PORT && "SMTP_PORT", !SMTP_USER && "SMTP_USER", !SMTP_PASS && "SMTP_PASS"]
@@ -71,8 +56,7 @@ function getTransport() {
     port: Number(SMTP_PORT),
     secure: Number(SMTP_PORT) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    // See SMTP_CERT_NAME above. `rejectUnauthorized` stays at its default of true, so the CA chain
-    // is still verified — only the hostname is checked against the name the certificate covers.
+    // Relaxes only the name binding; rejectUnauthorized stays true, so the CA chain is still verified.
     tls: {
       checkServerIdentity: (_host, cert) => tls.checkServerIdentity(SMTP_CERT_NAME, cert),
     },
@@ -111,10 +95,6 @@ function renderOrderEmailHtml(data: NewOrderEmailData) {
   `;
 }
 
-/**
- * Reports the outcome instead of swallowing it, so the caller can record that the notification
- * actually went out. This is the only channel the shop learns about orders through.
- */
 export async function sendNewOrderEmail(
   data: NewOrderEmailData,
   invoicePdf?: Buffer,

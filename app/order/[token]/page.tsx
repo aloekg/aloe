@@ -10,26 +10,13 @@ import ClaimOrderButton from "./ClaimOrderButton";
 
 export const metadata: Metadata = {
   title: "Ваш заказ",
-  // A per-order URL carrying a secret. `/order/:path*` also gets no-referrer in next.config.ts.
+  // Per-order URL carrying a secret.
   robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";
 
-/**
- * Attaches a guest order to the account that just signed in, and is the honest half of the promise
- * `/checkout/success` makes to a guest — "с аккаунтом вы увидите статус этого заказа".
- *
- * Without it that promise was false: checkout stores `user_id = null` for a guest, registering
- * afterwards matched nothing, and the customer arrived at an empty profile. Matching on the phone
- * instead would let anyone who knows a number claim someone else's orders and read their address.
- *
- * So the order's token is the proof, exactly as it is for the review link: it is handed to the
- * browser that placed the order and, later, to the customer's own WhatsApp. The claim only ever
- * applies while the order belongs to nobody, so a link shared afterwards changes nothing — and it
- * happens on a button (./actions.ts), not on this GET: a link that acted on its own could be sent
- * to any signed-in stranger, or given away by forwarding it.
- */
+// The claim happens on a button (./actions.ts), never on this GET: a link must not act by itself.
 export default async function ClaimOrderPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
@@ -42,7 +29,6 @@ export default async function ClaimOrderPage({ params }: { params: Promise<{ tok
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Already theirs: the profile is where this order lives now.
   if (user && order.user_id === user.id) redirect("/profile");
 
   const status = ORDER_STATUS[order.status ?? "new"] ?? ORDER_STATUS.new;
@@ -58,7 +44,6 @@ export default async function ClaimOrderPage({ params }: { params: Promise<{ tok
         </p>
 
         {!claimable ? (
-          // Somebody else's already. The status above is all a holder of the link gets to see.
           <p className="text-sm text-gray-500">Этот заказ уже привязан к другому аккаунту.</p>
         ) : user ? (
           <div className="border border-gray-300 rounded-xl p-5">

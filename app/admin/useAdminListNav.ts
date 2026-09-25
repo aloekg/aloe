@@ -5,11 +5,6 @@ import { useRouter } from "next/navigation";
 
 type Updates = Record<string, string | number | null | undefined>;
 
-/**
- * Builds a `navigate(updates)` function for admin list pages: merges `updates` into the
- * current URL's query string, dropping keys whose value matches its default (or is empty),
- * and resets `page` whenever any non-page field changes.
- */
 export function useAdminListNav(defaults: Record<string, string> = {}) {
   const router = useRouter();
 
@@ -39,13 +34,10 @@ export function useAdminListNav(defaults: Record<string, string> = {}) {
   return navigate;
 }
 
-/** Debounces a search input's value before invoking `onSearch`. */
 export function useDebouncedSearch(initial: string, onSearch: (value: string) => void, delay = 400) {
   const [value, setValue] = useState(initial);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Typing and then switching admin tabs used to fire onSearch after unmount, navigating the
-  // page that had just replaced this one.
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);

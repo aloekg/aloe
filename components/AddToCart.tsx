@@ -22,9 +22,7 @@ export default function AddToCart({ product, size }: Props) {
   const increment = useCart((s) => s.increment);
   const decrement = useCart((s) => s.decrement);
   const show = useToast((s) => s.show);
-  // Whether *this visit to this component* swapped the button for the stepper, as opposed to the
-  // stepper simply being what the product's state renders as. Only the former should move focus:
-  // the element the visitor had just pressed stopped existing, so something has to catch it.
+  // Only a press that swapped the button for the stepper should move focus.
   const [addedByPress, setAddedByPress] = useState(false);
 
   if (item) {

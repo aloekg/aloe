@@ -16,8 +16,6 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const { supabase, user } = await requireAuth();
   const page = parsePage((await searchParams).page);
 
-  // A Google-only account has no password to change, and offering the form would end in
-  // "invalid credentials" against a password that never existed.
   const hasPassword =
     user.identities?.some((identity) => identity.provider === "email") ??
     (user.app_metadata?.providers as string[] | undefined)?.includes("email") ??
@@ -26,9 +24,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const [{ orders, total }, profile, reviews] = await Promise.all([
     getUserOrders(supabase, user.id, { page, pageSize: ORDERS_PAGE_SIZE }),
     getProfile(supabase, user.id),
-    // Service role with the session's own id: anon and authenticated may no longer read
-    // `user_id` at all (20260924100000_reviews_column_grants.sql), so the user's client cannot
-    // filter on it. `user.id` comes from requireAuth(), not from the request.
+    // Service role with the session's own id: the user's client cannot read reviews.user_id.
     getUserReviews(createAdminClient(), user.id),
   ]);
 
@@ -48,9 +44,6 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <MainContainer className="max-w-2xl">
         <Title className="hidden md:block mb-6">Мой профиль</Title>
 
-        {/* The same facts as the desktop card below, stacked: the phone used to show the avatar and
-            the name alone, which left the account itself unidentified — and an empty heading
-            whenever the customer had not filled the profile in yet. */}
         <div className="flex md:hidden flex-col items-center gap-2 mb-6 text-center">
           <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-lg shrink-0">
             {user.email?.[0].toUpperCase()}

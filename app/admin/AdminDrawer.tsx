@@ -24,7 +24,6 @@ export default function AdminDrawer({ title, onClose, saving, onSave, saveDisabl
   useBodyScrollLock(true);
   useFocusTrap(panelRef);
 
-  // This drawer had no Escape handler at all, unlike the two other overlays.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

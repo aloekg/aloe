@@ -11,12 +11,10 @@ import ReviewForm from "./ReviewForm";
 
 export const metadata: Metadata = {
   title: "Оставить отзыв",
-  // A per-customer URL carrying a secret: it must never be indexed, and must not leak through a
-  // referrer either. The `/review/:path*` no-referrer rule in next.config.ts covers the second.
+  // Per-customer URL carrying a secret.
   robots: { index: false, follow: false },
 };
 
-/** Never cached: the form depends on the session and on what has already been reviewed. */
 export const dynamic = "force-dynamic";
 
 export default async function ReviewPage({ params }: { params: Promise<{ token: string }> }) {
@@ -25,8 +23,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ token: 
   const admin = createAdminClient();
   const order = await getOrderByReviewToken(admin, token);
 
-  // A bad token and an undelivered order both 404: confirming that a token exists is already more
-  // than someone holding a guessed link should learn.
+  // Unknown token and undelivered order both 404 on purpose: do not confirm a token exists.
   if (!order || !orderCanBeReviewed(order.status)) notFound();
 
   const supabase = await createClient();
@@ -59,7 +56,6 @@ export default async function ReviewPage({ params }: { params: Promise<{ token: 
             <p className="text-sm text-gray-500 mb-4">
               Заодно заказ привяжется к вашему аккаунту — и вся история покупок будет под рукой.
             </p>
-            {/* `next` brings them back to this exact token, so the link survives the round trip. */}
             <Link
               href={`/auth?next=${encodeURIComponent(`/review/${token}`)}`}
               className="inline-block px-4 py-2.5 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800"

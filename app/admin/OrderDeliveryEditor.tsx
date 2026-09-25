@@ -12,7 +12,6 @@ type Props = {
   orderId: number;
   deliveryType: string | null;
   deliveryCost: number;
-  /** The goods total of the order as currently rendered, so the preview matches what the server computes. */
   itemsTotal: number;
   onCancel: () => void;
   onSaved: (deliveryType: string, deliveryCost: number, total: number) => void;
@@ -27,8 +26,6 @@ export default function OrderDeliveryEditor({
   onSaved,
 }: Props) {
   const [type, setType] = useState(deliveryType ?? DELIVERY_OPTIONS[0].id);
-  // A fee that the tariff cannot explain was typed in by someone; reopen it as manual rather than
-  // quietly reverting what was agreed on the phone.
   const [manual, setManual] = useState(() => isManualDeliveryCost(deliveryCost, deliveryType, itemsTotal));
   const [cost, setCost] = useState(String(deliveryCost || ""));
   const [saving, setSaving] = useState(false);

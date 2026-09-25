@@ -1,16 +1,5 @@
-/**
- * Which `Sheet` is on top.
- *
- * Two sheets can be open at once — the sign-in sheet over the product quick view, when a guest taps
- * a heart — and each used to run its own focus trap and its own `Escape` listener on `document`.
- * Every Tab then had the lower trap notice "focus has left me" and pull it back, the upper one pull
- * it back again, and the customer could never reach the email field; one `Escape` closed both, and
- * the quick view's `router.back()` with it. So sheets register here in opening order, and only the
- * topmost one traps focus and answers `Escape`; the one beneath is `inert` until it is on top again.
- *
- * Module-level rather than context: the two sheets are mounted in unrelated subtrees (the root
- * layout and a parallel route), so there is no common ancestor to hold a provider.
- */
+// Only the topmost sheet may trap focus and answer Escape; two traps fight and lock the user out.
+// Module-level, not context: the sheets mount in unrelated subtrees (root layout and a parallel route).
 const stack: string[] = [];
 const listeners = new Set<() => void>();
 

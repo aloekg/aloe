@@ -14,7 +14,6 @@ import { editReview } from "./actions";
 
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-/** What each status means for the person who wrote it — the storefront's labels say too little here. */
 const STATUS_NOTE: Record<ReviewStatus, string> = {
   pending: "Мы проверим его и опубликуем — обычно в течение дня. Пока он на модерации, его можно изменить.",
   approved: "Опубликован на странице товара. Опубликованный отзыв изменить уже нельзя.",
@@ -32,8 +31,6 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
   const formRef = useRef<HTMLDivElement>(null);
   const touched = useRef(false);
 
-  // "Редактировать" is replaced by the form, and "Сохранить"/"Отмена" by the button again — each
-  // taking the focused element with it. Move focus to what replaced it; never on first render.
   useEffect(() => {
     if (editing) formRef.current?.focus();
     else if (touched.current) editButtonRef.current?.focus();
@@ -108,8 +105,6 @@ function ReviewRow({ review }: { review: ReviewWithProduct }) {
             maxLength={MAX_REVIEW_BODY}
             className="mt-3 w-full text-base md:text-sm border border-gray-500 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-700 focus:border-green-700"
           />
-          {/* Said before they press save, not after: a rejected review goes back into the queue
-              rather than straight onto the page. */}
           {review.status === "rejected" && (
             <p className="text-xs text-gray-500 mt-2">После изменения отзыв снова уйдёт на проверку.</p>
           )}
