@@ -4,7 +4,6 @@ import { useState } from "react";
 import { ORDER_STATUS } from "@/lib/constants";
 import { updateOrderStatus } from "./actions";
 
-// Derived from ORDER_STATUS so the options here can't drift from what the server accepts.
 const STATUSES = Object.entries(ORDER_STATUS).map(([value, { label }]) => ({ value, label }));
 
 export default function OrderStatusSelect({
@@ -35,13 +34,13 @@ export default function OrderStatusSelect({
 
   return (
     <div className="flex items-center gap-2">
-      {saving && <span className="text-xs text-gray-400">сохраняем...</span>}
-      {error && <span className="text-xs text-red-500">ошибка</span>}
+      {saving && <span className="text-xs text-gray-500">сохраняем...</span>}
+      {error && <span className="text-xs text-red-600">ошибка</span>}
       <select
         value={currentStatus}
         onChange={handleChange}
         disabled={saving}
-        className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
+        className="text-xs border border-gray-500 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-green-700"
       >
         {STATUSES.map((s) => (
           <option key={s.value} value={s.value}>

@@ -9,7 +9,6 @@ import type { Banner } from "@/types";
 import { deleteBanner, reorderBanners, uploadBannerImage, upsertBanner, type BannerInput } from "./actions";
 import { useDragReorder } from "./useDragReorder";
 
-/** banners.active and banners.sort_order are nullable in the schema; BannerInput is not. */
 function toBannerInput(banner: Banner, overrides: Partial<BannerInput> = {}): BannerInput {
   return {
     id: banner.id,
@@ -17,6 +16,7 @@ function toBannerInput(banner: Banner, overrides: Partial<BannerInput> = {}): Ba
     sort_order: banner.sort_order ?? 0,
     active: banner.active ?? false,
     link: banner.link,
+    alt: banner.alt,
     type: banner.type === "mobile" ? "mobile" : "desktop",
     ...overrides,
   };
@@ -28,6 +28,9 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
   const [saving, setSaving] = useState(false);
   const [links, setLinks] = useState<Record<number, string>>(() =>
     Object.fromEntries(initial.map((b) => [b.id, b.link ?? ""])),
+  );
+  const [alts, setAlts] = useState<Record<number, string>>(() =>
+    Object.fromEntries(initial.map((b) => [b.id, b.alt ?? ""])),
   );
   const [savingLink, setSavingLink] = useState<Record<number, boolean>>({});
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,7 +58,7 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
     }
     setBanners((prev) => [
       ...prev,
-      { id: result.id, image_url: upload.url, sort_order, active: true, link: null, type, created_at: null },
+      { id: result.id, image_url: upload.url, sort_order, active: true, link: null, alt: null, type, created_at: null },
     ]);
     setLinks((prev) => ({ ...prev, [result.id]: "" }));
     show("Баннер добавлен", "success");
@@ -108,7 +111,7 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
       <div className="flex justify-between items-center mb-5">
         <p className="text-sm text-gray-500">
           Баннеров: {banners.length}
-          {saving && <span className="ml-2 text-gray-400">Сохранение...</span>}
+          {saving && <span className="ml-2 text-gray-500">Сохранение...</span>}
         </p>
         <input ref={fileRef} type="file" accept="image/*" onChange={onFileChange} className="hidden" />
         <Button
@@ -130,10 +133,10 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
           if (f) handleFile(f);
         }}
         onClick={() => !uploading && fileRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-green-500 hover:text-green-600 transition-colors hover:cursor-pointer select-none py-10 mb-5"
+        className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-600 hover:text-green-700 transition-colors hover:cursor-pointer select-none py-10 mb-5"
       >
         {uploading ? (
-          <Loader2Icon className="size-8 animate-spin text-green-600" />
+          <Loader2Icon className="size-8 animate-spin text-green-700" />
         ) : (
           <>
             <ImagePlusIcon className="size-8" />
@@ -165,7 +168,7 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
                   : "border-gray-100 bg-gray-50"
             }`}
           >
-            <GripVerticalIcon className="size-4 text-gray-400 shrink-0 cursor-grab active:cursor-grabbing" />
+            <GripVerticalIcon className="size-4 text-gray-500 shrink-0 cursor-grab active:cursor-grabbing" />
             <div
               className={`relative shrink-0 bg-gray-100 rounded-lg overflow-hidden ${type === "mobile" ? "w-16 aspect-5/2" : "w-40 aspect-4/1 lg:aspect-6/1"}`}
             >
@@ -179,32 +182,50 @@ export default function AdminBanners({ banners: initial, type }: { banners: Bann
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-700 mb-1">Баннер {i + 1}</p>
-              <p className="text-xs text-gray-400 mb-1.5">{b.active ? "Активен" : "Скрыт"}</p>
+              <p className="text-xs text-gray-500 mb-1.5">{b.active ? "Активен" : "Скрыт"}</p>
               <div className="flex gap-1.5">
-                <input
-                  type="url"
-                  placeholder="Ссылка (необязательно)"
-                  value={links[b.id] ?? ""}
-                  onChange={(e) => setLinks((prev) => ({ ...prev, [b.id]: e.target.value }))}
-                  className="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-green-500"
-                />
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <input
+                    type="url"
+                    placeholder="Ссылка (необязательно)"
+                    aria-label={`Ссылка баннера ${i + 1}`}
+                    value={links[b.id] ?? ""}
+                    onChange={(e) => setLinks((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                    className="w-full min-w-0 text-xs border border-gray-500 rounded-lg px-2 py-1 focus:outline-none focus:border-green-700"
+                  />
+                  <input
+                    type="text"
+                    maxLength={200}
+                    placeholder="Что на баннере и куда ведёт — для тех, кто не видит картинку"
+                    aria-label={`Описание баннера ${i + 1} для скринридера`}
+                    value={alts[b.id] ?? ""}
+                    onChange={(e) => setAlts((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                    className="w-full min-w-0 text-xs border border-gray-500 rounded-lg px-2 py-1 focus:outline-none focus:border-green-700"
+                  />
+                </div>
                 <Button
                   variant="icon"
                   disabled={savingLink[b.id]}
                   onClick={async () => {
                     const link = (links[b.id] ?? "").trim() || null;
+                    const alt = (alts[b.id] ?? "").trim() || null;
                     setSavingLink((prev) => ({ ...prev, [b.id]: true }));
-                    const result = await upsertBanner(toBannerInput(b, { link }));
+                    const result = await upsertBanner(toBannerInput(b, { link, alt }));
                     setSavingLink((prev) => ({ ...prev, [b.id]: false }));
                     if (result.ok) {
-                      setBanners((prev) => prev.map((x) => (x.id === b.id ? { ...x, link } : x)));
-                      show("Ссылка сохранена", "success");
+                      setBanners((prev) => prev.map((x) => (x.id === b.id ? { ...x, link, alt } : x)));
+                      show("Сохранено", "success");
                     } else {
                       show(result.error, "error");
                     }
                   }}
-                  className={`shrink-0 ${(links[b.id] ?? "") !== (b.link ?? "") ? "text-green-600 hover:bg-green-50" : "hover:bg-gray-100"}`}
-                  title="Сохранить ссылку"
+                  className={`shrink-0 self-start ${
+                    (links[b.id] ?? "") !== (b.link ?? "") || (alts[b.id] ?? "") !== (b.alt ?? "")
+                      ? "text-green-700 hover:bg-green-50"
+                      : "hover:bg-gray-100"
+                  }`}
+                  title="Сохранить ссылку и описание"
+                  aria-label="Сохранить ссылку и описание"
                 >
                   {savingLink[b.id] ? (
                     <Loader2Icon className="size-4 animate-spin" />

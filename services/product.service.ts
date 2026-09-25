@@ -1,20 +1,15 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import { strict } from "@/lib/db";
+import { loadAllPages } from "@/lib/db";
+import type { SortValue } from "@/lib/page-params";
 import type { ProductListItem, ProductListRow } from "@/types";
 import { withBrandName } from "@/types";
 import type { Database } from "@/types/database";
 
-/**
- * The only columns a product card needs. Selecting `*` here pulls `description` and `seo_text`
- * — long free text — into every grid, carousel and RSC payload on the site.
- */
-const LIST_COLUMNS = "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, brands(name)";
+// Never "*": description/seo_text would bloat every grid payload and cache entry.
+const LIST_COLUMNS =
+  "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, purchase_count, created_at, rating_sum, rating_count, brands(name)";
 
-/**
- * Stays "exact": these totals are user-visible ("Смотреть все N") and on the homepage
- * `total > 0` decides whether a carousel renders at all — a planner estimate can be 0 for a
- * non-empty set. Where the total equals the number of rows returned, we skip the count instead.
- */
+// Must stay "exact": the homepage hides a carousel when total is 0, and an estimate can be 0.
 const COUNT: { count: "exact" } = { count: "exact" };
 
 function toList(
@@ -25,27 +20,12 @@ function toList(
   return { products: withBrandName((data ?? []) as ProductListRow[]), total: count ?? 0 };
 }
 
-/**
- * `%` and `_` are LIKE wildcards and PostgREST additionally rewrites `*` to `%`, so an
- * unescaped search term of `%` or `*` matches the entire catalogue — a full sequential scan
- * plus an exact COUNT over every row.
- */
+// PostgREST rewrites * to %, so an unescaped "%" or "*" matches the whole catalogue.
 export function escapeLike(value: string): string {
   return value.replace(/\*/g, "").replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-/**
- * An admin search term made only of digits also names a product id.
- *
- * Returned separately rather than switched on inside the query so the caller can *add* an exact-id
- * match without taking anything away: searching "500" must still find "500 мл". The id is returned
- * as the validated string because it goes straight into a PostgREST `.or()` filter — that filter is
- * a parsed expression, not a bound parameter (see escapeOrFilterValue in order.service.ts for what
- * happens when user text reaches one), and digits are the one input that needs no escaping at all.
- *
- * Capped at 15 digits: anything wider than bigint makes Postgres reject the whole query rather than
- * simply match nothing.
- */
+// Digits only (max 15, or Postgres rejects the query): the result goes unescaped into a PostgREST .or().
 export function parseProductId(q: string): string | null {
   const value = q.trim();
   return /^\d{1,15}$/.test(value) ? value : null;
@@ -56,10 +36,8 @@ function range(page: number, pageSize: number): [number, number] {
   return [from, from + pageSize - 1];
 }
 
-/** Upper bound for the admin list's "показать все" mode. */
 const ADMIN_ALL_CAP = 5000;
 
-export type SortValue = "name" | "price_asc" | "price_desc";
 export type AdminProductsSort = "id-desc" | "name-asc" | "price-asc" | "price-desc" | "purchase-count-desc";
 
 export async function getProductsByLabel(supabase: SupabaseClient<Database>, label: "new" | "sale", limit = 10) {
@@ -101,12 +79,6 @@ export async function getPopularProductsPaginated(
   return toList("popular-paginated", res);
 }
 
-/**
- * One limited query per top-level category, run in parallel. The previous version fetched every
- * published product in every category in a single unbounded query and sliced to ten in JS —
- * effectively `select * from products` on each homepage revalidation, silently truncated by
- * PostgREST's max-rows (which also made `total` wrong).
- */
 export async function getHomePageCategoryProducts(
   supabase: SupabaseClient<Database>,
   groups: Array<{ topId: number; allIds: number[] }>,
@@ -129,21 +101,13 @@ export async function getHomePageCategoryProducts(
 }
 
 export async function getProduct(supabase: SupabaseClient<Database>, id: number) {
-  // maybeSingle, not single: "no rows" is an ordinary miss here, and single() reports it with the
-  // same PGRST116 code it uses for "more than one row" — which would hide a duplicate id.
+  // maybeSingle, not single: single reports zero rows and duplicates with the same PGRST116 code.
   return supabase.from("products").select("*, brands(name, slug)").eq("id", id).eq("published", true).maybeSingle();
 }
 
-/** How many "Похожие товары" the product page shows. */
 export const RELATED_PRODUCTS_LIMIT = 4;
 
-/**
- * The pool "Похожие товары" is drawn from — a whole category's first few products, with the product
- * being viewed still in it. Excluding it here instead would put its id in the cache key, and the
- * caller caches this: one entry per product (2400+) rather than one per category (~90), each
- * rewritten on every expiry. The caller drops itself from the pool, which is why this fetches one
- * more row than it shows — so a product inside its own pool still has four neighbours left.
- */
+// Keep excludeId out of the cached key (one entry per product); fetches limit + 1 and the caller drops itself.
 export async function getRelatedProducts(
   supabase: SupabaseClient<Database>,
   categoryId: number,
@@ -160,36 +124,26 @@ export async function getRelatedProducts(
   return withBrandName((res.data ?? []) as ProductListRow[]);
 }
 
-/**
- * Products for a whole top-level category in one query, keyed by category id.
- *
- * The category page used to call a per-subcategory variant of this inside a Promise.all — one
- * round trip per subcategory, fifteen for a large category. Since every section is rendered on
- * the same page anyway, a single `in` over the union costs one query and lets the caller bucket
- * the rows. Still deliberately unbounded: the page renders all sections in one virtualized
- * scroll, so a cap would silently hide products. With the narrow column list the payload for the
- * largest category measures ~90 KB, well inside the 2 MB data-cache entry limit.
- */
+// Unbounded on purpose, paged through loadAllPages: a cap would silently hide products.
 export async function getCategoryProducts(
   supabase: SupabaseClient<Database>,
   categoryIds: number[],
-  sort: SortValue,
 ): Promise<Map<number, ProductListItem[]>> {
   const byCategory = new Map<number, ProductListItem[]>();
   if (categoryIds.length === 0) return byCategory;
 
-  const orderCol = sort === "price_asc" || sort === "price_desc" ? "price" : "name";
-  const ascending = sort !== "price_desc";
-
-  // Deliberately no brand filter here. The caller caches this, and `unstable_cache` folds every
-  // argument into the key — so a brand facet on the category page would mint a ~90 KB entry per
-  // subset of brands, the same explosion `excludeId` used to cause for related products. When the
-  // filter is wanted, it belongs on the cached result, not in the query.
-  const query = supabase.from("products").select(LIST_COLUMNS).eq("published", true).in("category_id", categoryIds);
-
-  // strict: the category page calls notFound() when no section has products, so swallowing an
-  // error here would turn an outage into a 404 that then gets cached for 60 seconds.
-  const data = strict("category-products", await query.order(orderCol, { ascending }).order("id"));
+  // No brand/sort/price arguments: each becomes an unstable_cache key. Filter the cached result instead.
+  // Must throw on failure: an empty result would become a cached notFound().
+  const data = await loadAllPages("category-products", (from, to) =>
+    supabase
+      .from("products")
+      .select(LIST_COLUMNS)
+      .eq("published", true)
+      .in("category_id", categoryIds)
+      .order("name")
+      .order("id")
+      .range(from, to),
+  );
 
   for (const row of withBrandName(data as ProductListRow[])) {
     const bucket = byCategory.get(row.category_id);
@@ -199,44 +153,44 @@ export async function getCategoryProducts(
   return byCategory;
 }
 
+// Filters in SQL on purpose: uncached, and the page count comes from this COUNT.
 export async function searchProducts(
   supabase: SupabaseClient<Database>,
   query: string,
-  options: { brandIds?: number[]; page: number; pageSize?: number },
+  options: {
+    brandIds?: number[];
+    page: number;
+    pageSize?: number;
+    priceMin?: number | null;
+    priceMax?: number | null;
+    sort?: SortValue;
+  },
 ) {
-  const { brandIds = [], page, pageSize = 24 } = options;
+  const { brandIds = [], page, pageSize = 24, priceMin = null, priceMax = null, sort = "name" } = options;
   const from = (page - 1) * pageSize;
 
   let q = supabase
     .from("products")
     .select(LIST_COLUMNS, COUNT)
     .eq("published", true)
-    .ilike("name", `%${escapeLike(query)}%`)
-    .order("name")
-    .order("id")
-    .range(from, from + pageSize - 1);
+    .ilike("name", `%${escapeLike(query)}%`);
 
   if (brandIds.length > 0) q = q.in("brand_id", brandIds);
+  if (priceMin != null) q = q.gte("price", priceMin);
+  if (priceMax != null) q = q.lte("price", priceMax);
 
-  const res = await q;
+  // id last in every order as a tiebreak, so pages never overlap or skip.
+  if (sort === "price_asc" || sort === "price_desc") q = q.order("price", { ascending: sort === "price_asc" });
+  else if (sort === "popular") q = q.order("purchase_count", { ascending: false });
+  else if (sort === "newest") q = q.order("created_at", { ascending: false });
+  else q = q.order("name");
+
+  const res = await q.order("id").range(from, from + pageSize - 1);
   return toList("search", res);
 }
 
-/**
- * How many pages of matches the brand facet will scan. PostgREST caps a request at 1000 rows, and
- * a flat `.limit(1000)` meant a broad search silently dropped every brand whose products happened
- * to sort past the first thousand — the filter then had no way to reach them and nothing said so.
- * Five pages covers twice the current catalogue; past that the facet is approximate rather than
- * wrong in a way the UI cannot see, which is the trade a full scan on an unrated public route
- * cannot justify.
- */
 const BRAND_FACET_MAX_PAGES = 5;
 
-/**
- * Brand ids present in a search's results. Returns ids rather than joined rows: `brands(id, name)`
- * made every page of this carry a join purely to recover names the caller already holds from
- * `getCachedBrands()`, and the names are what the caller sorts and renders anyway.
- */
 export async function getBrandIdsForSearch(supabase: SupabaseClient<Database>, query: string): Promise<number[]> {
   const pageSize = 1000;
   const ids = new Set<number>();
@@ -324,16 +278,11 @@ export async function getAdminProducts(
 ) {
   const { q = "", label = "", published = "", categoryId, sort = "id-desc", page = 1, pageSize = 20 } = options;
 
-  // Stays `select("*")` — the edit drawer needs description/seo_text/published.
+  // select("*") on purpose: the edit drawer needs description/seo_text/published.
   let query = supabase.from("products").select("*", { count: "exact" });
-  // A digits-only term matches the id as well as the name, so pasting an id from a report or a URL
-  // finds the row. Additive on purpose — nothing that matched before stops matching.
   const idTerm = parseProductId(q);
   if (idTerm) query = query.or(`id.eq.${idTerm},name.ilike.%${idTerm}%`);
   else if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
-  // "none" mirrors the label filter: the products orphaned by the category FK's old
-  // ON DELETE SET NULL are otherwise unreachable — nothing else in the admin can single out a
-  // row whose category is missing, and they cannot be published until one is assigned.
   if (categoryId === "none") query = query.is("category_id", null);
   else if (categoryId) query = query.eq("category_id", categoryId);
   if (label === "none") query = query.is("label", null);
@@ -346,8 +295,6 @@ export async function getAdminProducts(
   else if (sort === "purchase-count-desc") query = query.order("purchase_count", { ascending: false });
   else query = query.order("created_at", { ascending: false }).order("id", { ascending: false });
 
-  // "all" still gets an upper bound — the bulk-edit view would otherwise select every column
-  // of every product in one response.
   query = pageSize === "all" ? query.range(0, ADMIN_ALL_CAP - 1) : query.range(...range(page, pageSize));
 
   const { data, count, error } = await query;
@@ -355,11 +302,7 @@ export async function getAdminProducts(
   return { products: data ?? [], total: count ?? 0 };
 }
 
-/**
- * Distinct id lookups, paged past PostgREST's max-rows. Without paging these silently returned
- * only the first 1000 products' worth of ids, and the admin UI used the result to decide whether
- * a category or brand was safe to delete — so an in-use one could be reported as unused.
- */
+// Paged past the 1000-row cap: the result decides whether a category/brand is safe to delete.
 async function distinctIds(supabase: SupabaseClient<Database>, column: "category_id" | "brand_id"): Promise<number[]> {
   const pageSize = 1000;
   const ids = new Set<number>();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import Currency from "@/components/Currency";
 import MainContainer from "@/components/MainContainer";
 import MobileHeader from "@/components/MobileHeader";
 import QuantityStepper from "@/components/QuantityStepper";
+import Sheet from "@/components/Sheet";
 import Title from "@/components/Title";
 import { useIsClient } from "@/hooks/useIsClient";
 import { MIN_ORDER_TOTAL } from "@/lib/constants";
@@ -20,9 +22,9 @@ export default function CartPage() {
   const decrement = useCart((s) => s.decrement);
   const total = useCart((s) => s.total);
   const clear = useCart((s) => s.clear);
+  const [confirming, setConfirming] = useState(false);
   const isClient = useIsClient();
-  // The cart store rehydrates from localStorage synchronously, so the server's empty-cart
-  // markup never matches the first client render. Hold a placeholder until we're on the client.
+  // The cart rehydrates from localStorage synchronously; hold a placeholder until on the client to avoid a hydration mismatch.
   if (!isClient) {
     return (
       <>
@@ -39,7 +41,7 @@ export default function CartPage() {
         <MobileHeader title="Корзина" />
         <MainContainer className="text-center py-16 pt-28">
           <p className="text-gray-500 text-lg">Корзина пуста</p>
-          <Link href="/catalog" className="text-green-600 text-sm mt-2 inline-block hover:underline">
+          <Link href="/catalog" className="text-green-700 text-sm mt-2 inline-block hover:underline">
             Перейти в каталог
           </Link>
         </MainContainer>
@@ -51,7 +53,7 @@ export default function CartPage() {
   return (
     <>
       <MobileHeader title="Корзина">
-        <Button variant="ghost" size="md" onClick={clear} className="absolute right-4">
+        <Button variant="ghost" size="md" onClick={() => setConfirming(true)} className="absolute right-4">
           Очистить
         </Button>
       </MobileHeader>
@@ -72,7 +74,7 @@ export default function CartPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium line-clamp-3 mb-1">{item.name}</p>
                 <div className="flex justify-between items-center">
-                  <p className="text-sm text-green-600 font-medium md:font-bold">
+                  <p className="text-sm text-green-700 font-medium md:font-bold">
                     {item.price} <Currency />
                   </p>
                   <QuantityStepper
@@ -88,9 +90,6 @@ export default function CartPage() {
             </div>
           ))}
         </div>
-        {/* Gated on the cart's own localStorage prices, which is what "Итого" above shows too — so
-            the button matches the number on screen. Checkout re-quotes on the server and refuses
-            there as well; this only saves the trip. */}
         {shortfall > 0 && (
           <p className="mt-4 text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-amber-900">
             Минимальная сумма заказа — {MIN_ORDER_TOTAL} <Currency />. Добавьте ещё на{" "}
@@ -106,12 +105,12 @@ export default function CartPage() {
         <div className="mt-6 md:border-t md:pt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-gray-500 text-sm">Итого:</p>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-green-700">
               {total()} <Currency />
             </p>
           </div>
           <div className="hidden md:flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={clear} className="min-w-40 flex-1 shrink-0">
+            <Button variant="secondary" onClick={() => setConfirming(true)} className="min-w-40 flex-1 shrink-0">
               Очистить
             </Button>
             <Button
@@ -136,6 +135,31 @@ export default function CartPage() {
           </div>
         </div>
       </MainContainer>
+      {confirming && (
+        <Sheet heading="Очистить корзину?" onClose={() => setConfirming(false)} width="max-w-md">
+          <div className="px-4 pb-6 flex flex-col gap-4">
+            <p className="text-sm text-gray-600">
+              Из корзины будут убраны все товары — {items.length}{" "}
+              {items.length === 1 ? "позиция" : items.length < 5 ? "позиции" : "позиций"}. Отменить это будет нельзя.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setConfirming(false)} className="flex-1">
+                Оставить
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  clear();
+                  setConfirming(false);
+                }}
+                className="flex-1 bg-red-700 hover:bg-red-800 disabled:hover:bg-red-700"
+              >
+                Очистить
+              </Button>
+            </div>
+          </div>
+        </Sheet>
+      )}
     </>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Button from "./Button";
 
@@ -7,17 +8,13 @@ type Props = {
   quantity: number;
   onDecrement: () => void;
   onIncrement: () => void;
-  /** Product name, used for the buttons' accessible names. */
   label: string;
   size?: "sm" | "md" | "lg";
-  /** Cart page uses a filled pill; the product card sits on plain background. */
   variant?: "plain" | "pill";
+  // Only for when this replaces the pressed button; elsewhere it would steal focus on page load.
+  focusIncrementOnMount?: boolean;
 };
 
-/**
- * Shared −/quantity/+ control. At quantity 1 the decrement button becomes a delete, which is why
- * the two former copies (AddToCart and the cart page) had to agree on the same small rule.
- */
 export default function QuantityStepper({
   quantity,
   onDecrement,
@@ -25,8 +22,16 @@ export default function QuantityStepper({
   label,
   size = "md",
   variant = "plain",
+  focusIncrementOnMount = false,
 }: Props) {
+  const incrementRef = useRef<HTMLButtonElement>(null);
   const atMinimum = quantity === 1;
+
+  // Mount only: re-running would pull focus back on every quantity change.
+  useEffect(() => {
+    if (focusIncrementOnMount) incrementRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const rounded = variant === "pill" ? "rounded-full" : "border border-gray-300 rounded-lg";
 
   return (
@@ -54,6 +59,7 @@ export default function QuantityStepper({
       </span>
 
       <Button
+        ref={incrementRef}
         variant="icon"
         size={size}
         onClick={onIncrement}

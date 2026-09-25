@@ -30,7 +30,7 @@ function getWindows(current: number, total: number): (number | null)[] {
 const btnCls = (active: boolean, disabled = false) =>
   `px-2.5 py-1.5 text-sm border rounded-lg transition-colors hover:cursor-pointer flex items-center justify-center ${
     active
-      ? "bg-green-600 text-white border-green-600"
+      ? "bg-green-700 text-white border-green-600"
       : disabled
         ? "border-gray-300 text-gray-300 cursor-not-allowed"
         : "border-gray-300 hover:bg-gray-50 text-gray-700"
@@ -60,7 +60,6 @@ export default function Pagination({ page, totalPages, ...rest }: Props) {
 
   return (
     <nav aria-label="Пагинация" className="flex items-center gap-1 flex-wrap justify-center mt-6">
-      {/* Prev */}
       {toHref ? (
         prevDisabled ? (
           <span aria-disabled="true" className={btnCls(false, true)}>
@@ -84,7 +83,7 @@ export default function Pagination({ page, totalPages, ...rest }: Props) {
 
       {windows.map((p, i) =>
         p === null ? (
-          <span key={`e-${i}`} className="px-2 py-1.5 text-sm text-gray-400 select-none">
+          <span key={`e-${i}`} className="px-2 py-1.5 text-sm text-gray-500 select-none">
             …
           </span>
         ) : toHref ? (
@@ -103,7 +102,6 @@ export default function Pagination({ page, totalPages, ...rest }: Props) {
         ),
       )}
 
-      {/* Next */}
       {toHref ? (
         nextDisabled ? (
           <span aria-disabled="true" className={btnCls(false, true)}>

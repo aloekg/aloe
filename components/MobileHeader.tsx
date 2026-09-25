@@ -23,7 +23,7 @@ export default function MobileHeader({
         <button
           onClick={() => router.back()}
           aria-label="Назад"
-          className={"md:hidden absolute flex items-center bg-white rounded-full text-green-600 transition-colors p-2"}
+          className={"md:hidden absolute flex items-center bg-white rounded-full text-green-700 transition-colors p-2"}
         >
           <ArrowLeft className="size-5" />
         </button>
@@ -33,7 +33,8 @@ export default function MobileHeader({
           <ArrowLeft className="size-5" />
         </Link>
       ) : null}
-      {title ? <p className="flex-1 text-center text-xl font-medium">{title}</p> : null}
+      {/* An <h1>: pages pair it with a `hidden md:block` Title, so this is the only heading on a phone. */}
+      {title ? <h1 className="flex-1 text-center text-xl font-medium">{title}</h1> : null}
       {children}
     </div>
   );

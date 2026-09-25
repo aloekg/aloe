@@ -27,11 +27,9 @@ import { useAdminListNav } from "./useAdminListNav";
 type Props = {
   report: AnalyticsReport;
   insights: AnalyticsInsights;
-  /** The same numbers for the period before this one; null for "всё время" or a truncated fetch. */
   previous: PeriodSummary | null;
   period: PeriodId;
   includeCancelled: boolean;
-  /** The range held more orders than one request may pull — the numbers cover only the newest. */
   truncated: boolean;
 };
 
@@ -52,10 +50,7 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
   const navigate = useAdminListNav({ period: "30" });
   const { customers, freeDelivery } = report;
 
-  // Changing a filter re-renders the page on the server, and a year of orders takes a moment to
-  // aggregate. The filters switch at once (optimistically), the report dims under a loader until
-  // the new one arrives, and `loading.tsx` stays out of it — it only covers entering the route, not
-  // a search-param change within it.
+  // loading.tsx only covers entering the route, so a search-param change runs in a transition instead.
   const [isPending, startTransition] = useTransition();
   const [filters, setFilters] = useOptimistic({ period, includeCancelled });
 
@@ -69,8 +64,7 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
     });
   }
 
-  // Every order in the period, cancelled ones included — "нет заказов" and "все отменены" are
-  // different answers, and `report.orders` counts only what the money is computed over.
+  // Cancelled included on purpose: `report.orders` counts only what the money is computed over.
   const periodOrders = report.statuses.reduce((sum, status) => sum + status.orders, 0);
   const topProductRevenue = report.topProducts[0]?.revenue ?? 0;
   const deliveryOrders = report.delivery[0]?.orders ?? 0;
@@ -87,8 +81,7 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
             key={option.id}
             type="button"
             onClick={() => option.id !== filters.period && applyFilters({ period: option.id })}
-            // Disabled until the report lands: a second click mid-flight would start another
-            // aggregation and could leave the button and the numbers describing different periods.
+            // Disabled until the report lands, so the button and the numbers cannot describe different periods.
             disabled={isPending}
             aria-pressed={option.id === filters.period}
             className={cn(
@@ -119,13 +112,11 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
       </div>
 
       <div aria-busy={isPending}>
-        {/* Fixed to the viewport rather than to the report, so it is in the middle of the screen
-            however far down the page the filter was changed from — and outside the dimmed block,
-            since opacity is inherited and a half-transparent spinner reads as disabled. */}
+        {/* Fixed and outside the dimmed block: opacity is inherited. */}
         {isPending && (
           <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
             <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-gray-600 shadow-lg ring-1 ring-gray-200">
-              <Loader2Icon className="size-4 animate-spin text-green-600" />
+              <Loader2Icon className="size-4 animate-spin text-green-700" />
               Считаем…
             </div>
           </div>
@@ -180,7 +171,6 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
               <p className="rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
                 За выбранный период заказов нет.
               </p>
-              {/* Still worth showing with no sales: it is the list of what did not sell. */}
               <UnsoldCard insights={insights} />
             </div>
           ) : (
@@ -224,8 +214,6 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
                               <span
                                 className="line-clamp-2 text-gray-700"
                                 style={{
-                                  // A thin share bar behind the name, so the ranking reads without
-                                  // comparing five-digit numbers.
                                   backgroundImage: `linear-gradient(to right, #dcfce7 ${
                                     topProductRevenue ? (product.revenue / topProductRevenue) * 100 : 0
                                   }%, transparent 0)`,
@@ -257,7 +245,6 @@ export default function AdminAnalytics({ report, insights, previous, period, inc
                   <BarList
                     rows={report.delivery.map((zone) => ({
                       key: zone.id,
-                      // The tariff's own labels are whole sentences; the short name is enough here.
                       label: SHORT_ZONE[zone.id] ?? zone.label,
                       value: `${zone.orders} зак. · ${money(zone.revenue)} с`,
                       share: deliveryOrders ? zone.orders / deliveryOrders : 0,

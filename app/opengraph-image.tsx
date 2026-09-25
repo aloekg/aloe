@@ -1,8 +1,5 @@
 import { ImageResponse } from "next/og";
 
-// Shared social preview for every route that doesn't set its own (the product page does).
-// Without it, links shared on WhatsApp and Telegram — the dominant channels for this market —
-// render as a bare grey text row.
 export const alt = "Aloe.kg — бытовая химия и косметика с доставкой по Бишкеку";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

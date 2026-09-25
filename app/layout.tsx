@@ -3,15 +3,16 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Lobster } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
-import { AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
+import { AuthModal, AuthSync, CategoryNav, Footer, Header, JsonLd, MobileBottomNav, Toaster } from "@/components";
 import { getCachedCategories } from "@/lib/cached-queries";
 import { BRAND_COLOR, SITE_URL, WHATSAPP_LINK, WHATSAPP_NUMBER } from "@/lib/constants";
 import { IS_CANONICAL_HOST } from "@/lib/deploy-origin";
 import "./globals.css";
 
-const geist = Geist({ subsets: ["latin"] });
+// `cyrillic` named so next/font preloads it; `variable` is what Tailwind's font-sans resolves to.
+const geist = Geist({ subsets: ["latin", "cyrillic"], variable: "--font-geist-sans" });
 const lobster = Lobster({
-  subsets: ["latin", "cyrillic"],
+  subsets: ["cyrillic"],
   weight: "400",
   variable: "--font-lobster",
 });
@@ -20,16 +21,9 @@ const SITE_DESCRIPTION = "Интернет-магазин бытовой хим�
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  // Everything below addresses the canonical domain even when this build is served elsewhere (a
-  // preview deployment) — the URLs have to be the real ones wherever the page is rendered. The
-  // cost is that a non-canonical host serves pages advertising someone else's URLs, so it gets an
-  // explicit noindex as well as the `disallow: /` in app/robots.ts. Two signals rather than one:
-  // robots.txt alone still allows a URL-only index entry for a link discovered elsewhere.
+  // A non-canonical host gets noindex in addition to the disallow in app/robots.ts.
   ...(IS_CANONICAL_HOST ? {} : { robots: { index: false, follow: false } }),
-  // Search Console verified aloe.kg by this tag in the old JoomShopping template. The cutover left
-  // the tag behind on old.aloe.kg, and Google re-checks periodically — without it here the property
-  // (and the search history it holds for this domain) would eventually be lost. A DNS TXT
-  // "Domain" property is the durable form of this, and is not set up.
+  // Search Console ownership tag for aloe.kg; removing it loses the property.
   verification: { google: "d0YIirmB5tX_do99ES_OLfJoMkW9gltVw4WnyeRQ8n8" },
   title: { default: "Aloe.kg — бытовая химия и косметика в Бишкеке", template: "%s — Aloe.kg" },
   description: SITE_DESCRIPTION,
@@ -46,15 +40,10 @@ export const metadata: Metadata = {
     title: "Aloe.kg",
     description: SITE_DESCRIPTION,
   },
-  // Gives iOS the standalone launch mode and the home screen label. `black-translucent` is
-  // deliberately not used: it pulls content up under the status bar, which every page would then
-  // have to pad around.
   appleWebApp: { capable: true, title: "Aloe.kg", statusBarStyle: "default" },
 };
 
-// themeColor belongs here rather than in `metadata`, where it has been deprecated since Next 14.
-// `viewport-fit: cover` lets the floating bottom nav sit against the screen edge on a notched
-// phone; app/globals.css pays for it with safe-area insets on body and on the nav itself.
+// viewport-fit cover relies on the safe-area insets in app/globals.css.
 export const viewport: Viewport = {
   themeColor: BRAND_COLOR,
   width: "device-width",
@@ -74,10 +63,6 @@ const websiteJsonLd = {
   },
 };
 
-// Only what the shop can actually back up: there is no storefront address or opening hours to
-// publish, so this stays an Organization rather than claiming LocalBusiness/Store — those are
-// judged on an address, and Google discounts the markup when it cannot be corroborated. Add
-// `address` + `openingHours` here and the type can be upgraded, which is what earns a map listing.
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -101,7 +86,10 @@ export default async function RootLayout({ children, modal }: { children: React.
 
   return (
     <html lang="ru">
-      <body className={`${geist.className} ${lobster.variable} min-h-screen flex flex-col`} suppressHydrationWarning>
+      <body
+        className={`${geist.className} ${geist.variable} ${lobster.variable} min-h-screen flex flex-col`}
+        suppressHydrationWarning
+      >
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg focus:outline-2 focus:outline-green-600"
@@ -118,18 +106,8 @@ export default async function RootLayout({ children, modal }: { children: React.
         <Footer />
         <MobileBottomNav />
         <Toaster />
+        <AuthModal />
         {modal}
-        {/* Core Web Vitals and page views from real visits, reported to Vercel. Both are
-            measurement only — they set no cookie and store no identity: a visitor is a daily
-            rotating hash of IP + user agent, which cannot be joined across days or sites, so
-            neither needs a consent banner. Mounted last: they load their scripts after hydration
-            and must not delay anything above.
-
-            Analytics bills per event and a page view is one event, so what it can answer is capped
-            by the plan, not by this file: on Hobby it is 50K events a month kept for 30 days, and
-            custom events (track()) are Pro-only. Hence no attempt to instrument add-to-cart or
-            checkout here — that funnel is already in Supabase `orders`, exactly, forever, and this
-            only answers where visitors come from and what they browse. */}
         <SpeedInsights />
         <Analytics />
       </body>

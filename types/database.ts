@@ -42,6 +42,7 @@ export type Database = {
       banners: {
         Row: {
           active: boolean
+          alt: string | null
           created_at: string | null
           id: number
           image_url: string
@@ -51,6 +52,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          alt?: string | null
           created_at?: string | null
           id?: number
           image_url: string
@@ -60,6 +62,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          alt?: string | null
           created_at?: string | null
           id?: number
           image_url?: string
@@ -144,7 +147,15 @@ export type Database = {
           slug?: string
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       favorites: {
         Row: {
@@ -187,6 +198,7 @@ export type Database = {
           id: number
           items: Json
           notified_at: string | null
+          review_token: string
           status: string
           total: number
           user_id: string | null
@@ -202,6 +214,7 @@ export type Database = {
           id?: number
           items: Json
           notified_at?: string | null
+          review_token?: string
           status?: string
           total: number
           user_id?: string | null
@@ -217,6 +230,7 @@ export type Database = {
           id?: number
           items?: Json
           notified_at?: string | null
+          review_token?: string
           status?: string
           total?: number
           user_id?: string | null
@@ -240,6 +254,8 @@ export type Database = {
           product_url: string | null
           published: boolean
           purchase_count: number
+          rating_count: number
+          rating_sum: number
           seo_text: string | null
           thumbnail_url: string | null
         }
@@ -259,6 +275,8 @@ export type Database = {
           product_url?: string | null
           published?: boolean
           purchase_count?: number
+          rating_count?: number
+          rating_sum?: number
           seo_text?: string | null
           thumbnail_url?: string | null
         }
@@ -278,6 +296,8 @@ export type Database = {
           product_url?: string | null
           published?: boolean
           purchase_count?: number
+          rating_count?: number
+          rating_sum?: number
           seo_text?: string | null
           thumbnail_url?: string | null
         }
@@ -342,6 +362,57 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
+      }
+      reviews: {
+        Row: {
+          author_name: string | null
+          body: string | null
+          created_at: string
+          id: number
+          order_id: number
+          product_id: number
+          rating: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          author_name?: string | null
+          body?: string | null
+          created_at?: string
+          id?: never
+          order_id: number
+          product_id: number
+          rating: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          author_name?: string | null
+          body?: string | null
+          created_at?: string
+          id?: never
+          order_id?: number
+          product_id?: number
+          rating?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

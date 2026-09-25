@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AddToCart, Currency, FavoriteButton, ProductDescription } from "@/components";
-import ProductModal from "@/components/ProductModal";
+import { AddToCart, Currency, FavoriteButton, OldPrice, ProductDescription } from "@/components";
 import { getCachedProduct } from "@/lib/cached-queries";
 import { LABEL_MAP } from "@/lib/constants";
 import type { ProductRow } from "@/types";
@@ -23,12 +22,11 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
       ? Math.round(((product.old_price - product.price) / product.old_price) * 100)
       : null;
   const productHref = `/product/${product.id}`;
-  // The modal itself shows the large image; cart rows are ~64px.
   const cartImage = product.thumbnail_url || product.image_url;
 
   return (
-    <ProductModal>
-      <div className="grid sm:grid-cols-2 gap-6 px-4 pb-4 md:px-6 md:pb-6">
+    <>
+      <div className="grow content-start grid sm:grid-cols-2 gap-6 px-4 pb-4 md:px-6 md:pb-6">
         <div className="relative md:sticky md:top-0 aspect-square bg-gray-50 rounded-xl overflow-hidden">
           <Image
             src={product.image_url}
@@ -39,12 +37,12 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           />
           {label && (
             <div className="absolute top-3 left-3">
-              <span className={`${label.cls} text-white text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
+              <span className={`${label.cls} text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
             </div>
           )}
           {discount && (
             <div className="absolute top-3 right-12">
-              <span className="bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded">−{discount}%</span>
+              <span className="bg-red-700 text-white text-xs font-semibold px-2 py-1 rounded">−{discount}%</span>
             </div>
           )}
           <FavoriteButton productId={product.id} />
@@ -61,11 +59,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
             <span className="text-2xl font-bold">
               {product.price} <Currency />
             </span>
-            {product.old_price && (
-              <span className="text-lg text-gray-400 line-through">
-                {product.old_price} <Currency />
-              </span>
-            )}
+            {product.old_price && <OldPrice value={product.old_price} className="text-lg text-gray-500" />}
           </div>
 
           <div className="mb-6 hidden sm:block">
@@ -82,7 +76,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
 
           {product.description && <ProductDescription text={product.description} />}
 
-          <a href={productHref} className="text-sm text-green-600 hover:underline mt-auto pt-4 w-fit">
+          <a href={productHref} className="text-sm text-green-700 hover:underline mt-auto pt-4 w-fit">
             Открыть страницу товара →
           </a>
         </div>
@@ -95,9 +89,7 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-400 line-through whitespace-nowrap">
-                {product.old_price} <Currency />
-              </span>
+              <OldPrice value={product.old_price} className="text-xs text-gray-500 whitespace-nowrap" />
             )}
           </div>
           <div className="grow">
@@ -113,6 +105,6 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           </div>
         </div>
       </div>
-    </ProductModal>
+    </>
   );
 }

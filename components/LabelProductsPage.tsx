@@ -26,8 +26,7 @@ export default async function LabelProductsPage({
     label === "popular"
       ? await getCachedPopularProductsPaginated(page, PAGE_SIZE)
       : await getCachedProductsByLabelPaginated(label, page, PAGE_SIZE);
-  // A page past the end is a 404, not an empty 200. Left as a 200 it is indexable, and every one
-  // of them also costs a Data Cache and an ISR entry — see MAX_PAGE in lib/page-params.ts.
+  // A page past the end is a 404, not an empty 200: see MAX_PAGE in lib/page-params.ts.
   if (page > 1 && products.length === 0) notFound();
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -37,7 +36,7 @@ export default async function LabelProductsPage({
       <h1 className="text-lg font-semibold mb-4 text-center md:text-left">{title}</h1>
 
       {products.length === 0 ? (
-        <p className="text-gray-400 text-sm">{emptyText}</p>
+        <p className="text-gray-500 text-sm">{emptyText}</p>
       ) : (
         <>
           <ProductGrid>

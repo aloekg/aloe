@@ -5,7 +5,6 @@ import { addFavorite, loadFavoriteIds, removeFavorite } from "@/services/favorit
 type FavoritesStore = {
   ids: number[];
   userId: string | null;
-  /** False until the first auth event has been handled, so the UI can avoid guessing. */
   initialized: boolean;
   add: (id: number) => void;
   remove: (id: number) => void;
@@ -17,25 +16,13 @@ async function getSupabase() {
   return createClient();
 }
 
-/**
- * Mirrors the cart's fire-and-forget writes. Failures are swallowed rather than left to reject
- * unhandled offline; the next successful `setUser` load is what reconciles the two sides.
- */
 function sync(run: (supabase: Awaited<ReturnType<typeof getSupabase>>) => Promise<unknown>) {
   void getSupabase()
     .then(run)
     .catch((e) => console.error("[favorites] sync failed:", e));
 }
 
-/**
- * Persisted so a returning customer's hearts are already right on first paint, instead of rendering
- * empty until `loadFavoriteIds` answers — and staying empty if it never does. `userId` rides along
- * because those ids belong to one account: without it, the next person to sign in on this browser
- * would briefly see someone else's favourites.
- *
- * Unlike the cart there is nothing to keep for a guest — FavoriteButton sends them to /auth rather
- * than storing anything — so signing out drops the lot.
- */
+// userId is persisted with ids so another account signing in on this browser never sees them.
 export const useFavorites = create<FavoritesStore>()(
   persist(
     (set, get) => ({
@@ -65,20 +52,16 @@ export const useFavorites = create<FavoritesStore>()(
           return;
         }
 
-        // onAuthStateChange fires for INITIAL_SESSION, SIGNED_IN, hourly TOKEN_REFRESHED and on tab
-        // focus; reloading the same user's favourites on each of those is pure waste. A failed load
-        // leaves `initialized` false, which is also what lets the next of those events retry.
+        // A failed load leaves initialized false, which is what lets the next auth event retry.
         if (get().userId === userId && get().initialized) return;
 
-        // Rehydrated ids are only worth showing to the account that saved them.
         set(get().userId === userId ? { userId } : { userId, ids: [] });
 
         try {
           const supabase = await getSupabase();
           set({ ids: await loadFavoriteIds(supabase, userId), initialized: true });
         } catch (e) {
-          // Settling on an empty list would grey out every heart the customer had already set, so
-          // keep showing the persisted ones and try again on the next auth event.
+          // Keep the persisted ids: settling on [] would un-heart everything.
           console.error("[favorites] load failed:", e);
         }
       },

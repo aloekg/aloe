@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import type { ProductListItem } from "@/types";
 import Button from "./Button";
 import ProductCard from "./ProductCard";
 import SeeAllProducts from "./SeeAllProducts";
+
+// Tailwind's `md`, where the arrows appear.
+const DESKTOP = "(min-width: 48rem)";
 
 export default function ProductCarousel({
   title,
@@ -21,6 +25,7 @@ export default function ProductCarousel({
   totalCount?: number;
   visibleCount?: number;
 }) {
+  const desktop = useMediaQuery(DESKTOP);
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
     dragFree: true,
@@ -49,6 +54,9 @@ export default function ProductCarousel({
 
   const hiddenCount = Math.max(0, (totalCount ?? products.length) - visibleCount);
 
+  // Embla's ref is withheld below md on purpose: the phone scrolls natively.
+  // No card is preloaded: the home page stacks many carousels and each preload would jump the LCP banner.
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
@@ -57,14 +65,7 @@ export default function ProductCarousel({
       </div>
 
       <div className="relative">
-        <div ref={emblaRef} className="overflow-hidden">
-          {/*
-            No card is preloaded here, deliberately. The homepage stacks fourteen of these, so
-            `preload` on the first card of each emitted fourteen <link rel=preload>s into <head> —
-            190 KB of off-screen thumbnails that the browser fetched ahead of the stylesheet, the
-            JS chunks and the banner that actually is the LCP element. The one card near the fold
-            gains nothing from a preload anyway: it is in the viewport, so it loads on layout.
-          */}
+        <div ref={desktop ? emblaRef : undefined} className="overflow-x-auto md:overflow-hidden scrollbar-hide">
           <div className="grid grid-flow-col auto-cols-[minmax(160px,220px)] gap-3">
             {products.map((p) => (
               <div key={p.id}>

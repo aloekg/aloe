@@ -2,17 +2,7 @@
 
 import { cn } from "@/lib/cn";
 
-/**
- * One series of columns — revenue per day, or orders per basket size. Deliberately never a second
- * axis: two scales on one plot invent a correlation, so whatever else a bar has to say (the order
- * count behind a revenue spike) rides in its tooltip instead.
- *
- * Plain divs rather than SVG: the bars are rectangles, the labels are text, and CSS already does
- * both without a viewBox to keep in sync with the container's width.
- */
-
 const PLOT_HEIGHT = 176;
-/** How many x labels fit before they collide — the rest of the buckets keep their bar, not their tick. */
 const MAX_TICKS = 7;
 
 function compact(value: number): string {
@@ -23,36 +13,21 @@ function compact(value: number): string {
 
 export type BarPoint = {
   key: string;
-  /** Axis tick and tooltip heading. */
   label: string;
   value: number;
-  /** The tooltip's second line, and the bar's accessible name together with `label`. */
   detail: string;
-  /**
-   * De-emphasised bar — for a chart whose point is one side of a line (the baskets that reached the
-   * free-delivery threshold), not a second series with a meaning of its own.
-   */
   muted?: boolean;
 };
 
-export default function AnalyticsBarChart({
-  points: series,
-  tickEvery,
-}: {
-  points: BarPoint[];
-  /** Label every n-th bar instead of spacing ticks automatically. */
-  tickEvery?: number;
-}) {
+export default function AnalyticsBarChart({ points: series, tickEvery }: { points: BarPoint[]; tickEvery?: number }) {
   const max = Math.max(...series.map((p) => p.value), 0);
   const tickStep = tickEvery ?? Math.max(1, Math.ceil(series.length / MAX_TICKS));
-  // Anchor the ticks to the last bucket: the newest one is the one a reader looks for by name.
   const isTick = (index: number) => (series.length - 1 - index) % tickStep === 0;
 
   return (
     <div className="flex gap-2">
-      {/* y axis: three labels, enough to read a bar's height off the grid without a ruler */}
       <div
-        className="relative w-12 shrink-0 text-[10px] text-gray-400 text-right tabular-nums"
+        className="relative w-12 shrink-0 text-[10px] text-gray-500 text-right tabular-nums"
         style={{ height: PLOT_HEIGHT }}
       >
         {[1, 0.5, 0].map((fraction) => (
@@ -69,7 +44,6 @@ export default function AnalyticsBarChart({
       <div className="min-w-0 flex-1 overflow-x-auto">
         <div className="min-w-[440px]">
           <div className="relative" style={{ height: PLOT_HEIGHT }}>
-            {/* Hairline grid, solid — a dashed rule reads as a threshold the data doesn't have. */}
             {[0, 0.5, 1].map((fraction) => (
               <div
                 key={fraction}
@@ -85,13 +59,11 @@ export default function AnalyticsBarChart({
                 return (
                   <div
                     key={point.key}
-                    // Focusable, because the tooltip is the only place the exact value lives and a
-                    // hover is something neither a keyboard nor a phone has.
+                    // Focusable: the tooltip is the only place the exact value lives.
                     tabIndex={0}
                     aria-label={`${point.label}: ${point.detail}`}
                     className="group relative flex h-full flex-1 items-end outline-none"
                   >
-                    {/* The whole column is the hit target, not just the bar — a 3px bar is unhoverable. */}
                     <div
                       className={cn(
                         "w-full rounded-t transition-colors",
@@ -99,7 +71,7 @@ export default function AnalyticsBarChart({
                           ? "bg-gray-200"
                           : point.muted
                             ? "bg-gray-300 group-hover:bg-gray-400"
-                            : "bg-green-600/80 group-hover:bg-green-600",
+                            : "bg-green-700/80 group-hover:bg-green-700",
                       )}
                       style={{ height: point.value > 0 ? `max(2px, ${height}%)` : 2 }}
                     />
@@ -125,8 +97,7 @@ export default function AnalyticsBarChart({
               <div
                 key={point.key}
                 className={cn(
-                  "min-w-0 flex-1 text-[10px] whitespace-nowrap text-gray-400",
-                  // A centred label on the first or last bar hangs half of itself off the plot.
+                  "min-w-0 flex-1 text-[10px] whitespace-nowrap text-gray-500",
                   index === 0 ? "text-left" : index === series.length - 1 ? "text-right" : "text-center",
                 )}
               >

@@ -2,8 +2,6 @@ import type { AnalyticsInsights, NamedStat } from "@/lib/analytics-insights";
 import { BarList, Card, EmptyNote, money, percent, ProductTable, SHORT_ZONE } from "./analytics-ui";
 import AnalyticsBarChart from "./AnalyticsBarChart";
 
-/** The cards built from `buildInsights` — one per question the dashboard answers beyond the totals. */
-
 function NamedBarList({ stats }: { stats: NamedStat[] }) {
   if (stats.length === 0) return <EmptyNote>Продаж нет</EmptyNote>;
   const top = stats[0].revenue;
@@ -46,10 +44,9 @@ export function PromoCard({ insights: { promo } }: { insights: AnalyticsInsights
       </div>
       <p className="text-xs text-gray-500">выручки от товаров пришлось на акционные</p>
 
-      {/* Two parts of one whole, so a single split bar rather than a two-slice pie. */}
       <div className="mt-3 flex h-2 gap-[2px] overflow-hidden rounded-full">
         <div
-          className="rounded-l-full bg-green-600"
+          className="rounded-l-full bg-green-700"
           style={{ width: promo.goodsRevenue ? `${(promo.promoRevenue / promo.goodsRevenue) * 100}%` : 0 }}
         />
         <div className="flex-1 rounded-r-full bg-gray-200" />
@@ -131,7 +128,7 @@ export function ThresholdCard({ insights: { threshold } }: { insights: Analytics
               <span className="size-2.5 rounded-sm bg-gray-300" /> платная доставка
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-green-600/80" /> бесплатная
+              <span className="size-2.5 rounded-sm bg-green-700/80" /> бесплатная
             </span>
             <span className="ml-auto">тыс. сом</span>
           </div>

@@ -6,7 +6,6 @@ export async function getBrands(supabase: SupabaseClient<Database>) {
   return soft("brands", await supabase.from("brands").select("id, name, slug").order("name"), []);
 }
 
-/** `maybe`: an unknown slug is a legitimate 404, a failed query is not. */
 export async function getBrandBySlug(supabase: SupabaseClient<Database>, slug: string) {
   return maybe("brand-by-slug", await supabase.from("brands").select("id, name, slug").eq("slug", slug).maybeSingle());
 }

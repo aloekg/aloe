@@ -8,9 +8,7 @@ import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import { useIsClient } from "@/hooks/useIsClient";
 import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD, MIN_ORDER_TOTAL } from "@/lib/constants";
-// Types come straight from the pricing module, not from ./actions: every export of a
-// "use server" file is registered as a server reference, and a re-exported type has nothing
-// behind it at runtime — which crashed the whole action module on evaluation.
+// Import types from lib/order-pricing, never from ./actions: a type re-export from "use server" crashes it.
 import { minOrderShortfall } from "@/lib/order-pricing";
 import type { Quote, RejectedLine } from "@/lib/order-pricing";
 import { useCart } from "@/store/cart";
@@ -37,7 +35,6 @@ export default function CheckoutForm({ initial }: Props) {
   const [deliveryType, setDeliveryType] = useState<string>(DELIVERY_OPTIONS[0].id);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  /** Server-computed money. The client never totals the cart itself — its prices can be stale. */
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoting, setQuoting] = useState(true);
   const [rejected, setRejected] = useState<RejectedLine[]>([]);
@@ -49,8 +46,6 @@ export default function CheckoutForm({ initial }: Props) {
   const lines = items.map((i) => ({ id: i.id, quantity: i.quantity }));
   const linesKey = JSON.stringify(lines);
 
-  // Re-quote whenever the cart or the delivery option changes. Prices, and therefore the
-  // free-delivery threshold, are only ever decided by the server.
   useEffect(() => {
     if (items.length === 0) return;
     let cancelled = false;
@@ -67,9 +62,6 @@ export default function CheckoutForm({ initial }: Props) {
           setError(result.error);
         }
       } catch {
-        // A thrown action (a deploy mid-session, a dropped connection) used to leave the promise
-        // rejected and `quoting` stuck true, so the submit button read "Считаем..." forever with
-        // nothing on screen explaining why.
         if (cancelled) return;
         setError("Не удалось рассчитать заказ. Обновите страницу и попробуйте ещё раз.");
       }
@@ -88,8 +80,7 @@ export default function CheckoutForm({ initial }: Props) {
     setError("");
   }
 
-  // The cart store rehydrates from localStorage synchronously, so the server's empty-cart
-  // markup never matches the first client render. Hold a placeholder until we're on the client.
+  // The cart rehydrates from localStorage, so render a placeholder until mounted to avoid a hydration mismatch.
   if (!isClient) {
     return <div className="py-16 h-96" aria-busy="true" />;
   }
@@ -98,7 +89,7 @@ export default function CheckoutForm({ initial }: Props) {
     return (
       <div className="text-center py-16 text-gray-500">
         <p className="text-lg">Корзина пуста</p>
-        <Link href="/" className="text-green-600 text-sm mt-2 inline-block hover:underline">
+        <Link href="/" className="text-green-700 text-sm mt-2 inline-block hover:underline">
           Перейти в каталог
         </Link>
       </div>
@@ -114,9 +105,6 @@ export default function CheckoutForm({ initial }: Props) {
     setLoading(true);
     setError("");
     try {
-      // Only ids and quantities go to the server. `quotedTotal` is what the customer was shown —
-      // if it no longer matches, the server refuses and returns the new quote instead of
-      // silently charging a different amount.
       const result = await createOrder({
         name: name.trim(),
         phone: phone.trim(),
@@ -133,10 +121,9 @@ export default function CheckoutForm({ initial }: Props) {
         return;
       }
       clear();
-      router.push(`/checkout/success?id=${result.orderId}`);
+      router.push(`/checkout/success?id=${result.orderId}&t=${result.token}`);
     } catch {
-      // The order may well have been created — never invite a blind retry.
-      // Guests have no order history to check, so don't send them to an auth-gated page.
+      // The order may exist: never invite a blind retry, and do not send guests to an auth-gated page.
       setError("Не удалось получить подтверждение. Заказ мог быть создан — свяжитесь с нами перед повторной попыткой.");
     } finally {
       setLoading(false);
@@ -147,13 +134,11 @@ export default function CheckoutForm({ initial }: Props) {
   const deliveryCost = quote?.deliveryCost ?? 0;
   const orderTotal = quote?.total ?? 0;
   const priceById = new Map((quote?.items ?? []).map((i) => [i.id, i.price]));
-  // Measured on the server's quote, never on the cart's own prices — the same function
-  // `createOrder` refuses with, so the disabled button and the server's answer always agree.
+  // From the server quote, never the cart's prices, so it agrees with createOrder.
   const shortfall = quote ? minOrderShortfall(itemsTotal) : 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Cart summary */}
       <div className="md:border md:border-gray-300 md:rounded-lg md:p-4 md:bg-gray-50">
         <h2 className="font-semibold mb-3">Ваш заказ</h2>
         <div className="space-y-2">
@@ -190,21 +175,21 @@ export default function CheckoutForm({ initial }: Props) {
                 {deliveryCost} <Currency />
               </>
             ) : (
-              <span className="text-green-600 font-medium">бесплатно</span>
+              <span className="text-green-700 font-medium">бесплатно</span>
             )}
           </span>
         </div>
         <div className="border-t border-gray-300 mt-3 pt-3 flex justify-between font-bold">
           <span>Итого:</span>
-          <span className="text-green-600">
+          <span className="text-green-700">
             {orderTotal} <Currency />
           </span>
         </div>
       </div>
 
-      {/* Delivery type */}
-      <div className="space-y-3">
-        <h2 className="font-semibold">Способ доставки</h2>
+      {/* min-w-0: a fieldset's default min-inline-size overflows a narrow column. */}
+      <fieldset className="space-y-3 min-w-0">
+        <legend className="font-semibold">Способ доставки</legend>
         <div className="space-y-2">
           {DELIVERY_OPTIONS.map((option) => {
             const free = option.freeOverThreshold && itemsTotal >= FREE_DELIVERY_THRESHOLD;
@@ -212,7 +197,7 @@ export default function CheckoutForm({ initial }: Props) {
               <label
                 key={option.id}
                 className={`flex items-start gap-3 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${
-                  deliveryType === option.id ? "border-green-500 bg-green-50" : "border-gray-300"
+                  deliveryType === option.id ? "border-green-600 bg-green-50" : "border-gray-300"
                 }`}
               >
                 <input
@@ -227,8 +212,8 @@ export default function CheckoutForm({ initial }: Props) {
                   {option.label}{" "}
                   {free ? (
                     <span className="whitespace-nowrap">
-                      (<span className="line-through text-gray-400">{option.cost} сом</span>{" "}
-                      <span className="text-green-600 font-medium">
+                      (<span className="line-through text-gray-500">{option.cost} сом</span>{" "}
+                      <span className="text-green-700 font-medium">
                         бесплатно, заказ свыше {FREE_DELIVERY_THRESHOLD} сом
                       </span>
                       )
@@ -243,9 +228,8 @@ export default function CheckoutForm({ initial }: Props) {
             );
           })}
         </div>
-      </div>
+      </fieldset>
 
-      {/* Delivery info */}
       <div className="space-y-4">
         <h2 className="font-semibold">Данные для доставки</h2>
 
@@ -259,7 +243,7 @@ export default function CheckoutForm({ initial }: Props) {
             onChange={(e) => setName(e.target.value)}
             autoComplete="name"
             required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
             placeholder="Ваше имя"
           />
         </div>
@@ -275,8 +259,8 @@ export default function CheckoutForm({ initial }: Props) {
             type="tel"
             autoComplete="tel"
             required
-            // text-base, not text-bas: below 16px iOS Safari zooms the viewport on focus.
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            // text-base below md: under 16px iOS Safari zooms the viewport on focus.
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
             placeholder="+996 700 000 000"
           />
         </div>
@@ -291,7 +275,7 @@ export default function CheckoutForm({ initial }: Props) {
             onChange={(e) => setAddress(e.target.value)}
             autoComplete="street-address"
             required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
             placeholder="Улица, дом, квартира"
           />
         </div>
@@ -304,7 +288,7 @@ export default function CheckoutForm({ initial }: Props) {
             id={commentId}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+            className="w-full border border-gray-500 rounded-lg px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-green-700 resize-none"
             rows={2}
             placeholder="Дополнительная информация, ориентиры..."
           />
@@ -342,7 +326,7 @@ export default function CheckoutForm({ initial }: Props) {
       )}
 
       {error && rejected.length === 0 && (
-        <p role="alert" className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <p role="alert" className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           {error}
         </p>
       )}

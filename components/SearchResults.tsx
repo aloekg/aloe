@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedBrands } from "@/lib/cached-queries";
+import { hasPriceRange, type PriceRange, type SortValue } from "@/lib/page-params";
 import { supabase } from "@/lib/supabase";
 import { getBrandIdsForSearch, searchProducts } from "@/services/product.service";
 import MainContainer from "./MainContainer";
 import ManufacturerFilter from "./ManufacturerFilter";
 import Pagination from "./Pagination";
 import ProductCard from "./ProductCard";
+import ProductFilterBar from "./ProductFilterBar";
 import ProductGrid from "./ProductGrid";
 import Title from "./Title";
 
@@ -16,61 +18,83 @@ type Props = {
   q: string;
   page: number;
   brandIds: number[];
-  /** Which route rendered this, so pagination links and the empty state point back correctly. */
+  sort: SortValue;
+  priceRange: PriceRange;
   basePath: string;
   emptyHref?: string;
   emptyLabel?: string;
   className?: string;
 };
 
-/**
- * The search result body, shared by /search and /catalog?q= — the two used to carry ~60 lines of
- * identical markup and query plumbing, which meant two crawlable URLs rendering the same result
- * set from two copies of the same code.
- */
 export default async function SearchResults({
   q,
   page,
   brandIds,
+  sort,
+  priceRange,
   basePath,
   emptyHref = "/catalog",
   emptyLabel = "Вернуться в каталог",
   className = "mb-4",
 }: Props) {
-  // The facet query returns ids; the names come from the brand list that is cached for an hour
-  // anyway, so a broad search no longer carries a join on every page of matches. `getCachedBrands`
-  // is already ordered by name, which is the order the filter renders in.
+  // The brand facet ignores the price range on purpose: recomputing it per range is a costly scan.
   const [{ products, total }, facetBrandIds, allBrands] = await Promise.all([
-    searchProducts(supabase, q, { brandIds, page, pageSize: SEARCH_PAGE_SIZE }),
+    searchProducts(supabase, q, {
+      brandIds,
+      page,
+      pageSize: SEARCH_PAGE_SIZE,
+      priceMin: priceRange.min,
+      priceMax: priceRange.max,
+      sort,
+    }),
     getBrandIdsForSearch(supabase, q),
     getCachedBrands(),
   ]);
   const facet = new Set(facetBrandIds);
   const brands = allBrands.filter((b) => facet.has(b.id));
 
-  // Same reasoning as LabelProductsPage: page 1 with no matches is a legitimate "ничего не
-  // найдено", a page past the end is not.
+  // A page past the end must 404, or every ?page= mints an indexable cache entry.
   if (page > 1 && products.length === 0) notFound();
 
   const totalPages = Math.ceil(total / SEARCH_PAGE_SIZE);
 
+  const filtered = hasPriceRange(priceRange) || brandIds.length > 0;
+
+  // Pagination must carry every active filter, or page 2 shows a different result set.
   return (
     <MainContainer>
       <div className={className}>
         <Title>
-          Результаты поиска: <span className="text-green-600">«{q}»</span>
+          Результаты поиска: <span className="text-green-700">«{q}»</span>
         </Title>
         <p className="text-sm text-gray-500 mt-1">Найдено: {total} товаров</p>
       </div>
+
+      <ProductFilterBar variant="icons" sort={sort} range={priceRange} className={className} />
+      <ProductFilterBar variant="inline" sort={sort} range={priceRange} className={className} />
 
       <ManufacturerFilter manufacturers={brands} className={className} />
 
       {products.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
-          <p className="text-lg">Ничего не найдено</p>
-          <Link href={emptyHref} className="text-green-600 text-sm mt-2 inline-block hover:underline">
-            {emptyLabel}
-          </Link>
+          {filtered ? (
+            <>
+              <p className="text-lg">По выбранным фильтрам ничего не найдено</p>
+              <Link
+                href={`${basePath}?q=${encodeURIComponent(q)}`}
+                className="text-green-700 text-sm mt-2 inline-block hover:underline"
+              >
+                Сбросить фильтры
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-lg">Ничего не найдено</p>
+              <Link href={emptyHref} className="text-green-700 text-sm mt-2 inline-block hover:underline">
+                {emptyLabel}
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -83,7 +107,13 @@ export default async function SearchResults({
             page={page}
             totalPages={totalPages}
             basePath={basePath}
-            query={brandIds.length > 0 ? { q, brand: brandIds.map(String) } : { q }}
+            query={{
+              q,
+              ...(brandIds.length > 0 && { brand: brandIds.map(String) }),
+              ...(sort !== "name" && { sort }),
+              ...(priceRange.min != null && { price_min: String(priceRange.min) }),
+              ...(priceRange.max != null && { price_max: String(priceRange.max) }),
+            }}
           />
         </>
       )}

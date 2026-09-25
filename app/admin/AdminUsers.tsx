@@ -26,8 +26,6 @@ export default function AdminUsers({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  // Filtering in the browser rather than through the URL like the other admin lists: the Auth
-  // admin API has no search of its own, so the whole list is already here.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return users;
@@ -101,25 +99,20 @@ export default function AdminUsers({
                       {isSuper ? "Супер-админ" : "Админ"}
                     </span>
                   )}
-                  {isSelf && <span className="shrink-0 text-xs text-gray-400">это вы</span>}
+                  {isSelf && <span className="shrink-0 text-xs text-gray-500">это вы</span>}
                 </div>
-                <p className="text-xs text-gray-400 truncate">
+                <p className="text-xs text-gray-500 truncate">
                   {[user.name, user.phone].filter(Boolean).join(" · ") || "профиль не заполнен"}
                 </p>
               </div>
 
-              <div className="text-xs text-gray-400 text-right">
+              <div className="text-xs text-gray-500 text-right">
                 <p>Регистрация: {formatDate(user.createdAt)}</p>
                 <p>Последний вход: {formatDate(user.lastSignInAt)}</p>
               </div>
 
-              {/*
-                The super-admin's own row has no control at all — the action refuses to write that
-                role in either direction, so a button here could only ever produce an error. It is
-                changed in Supabase, not here.
-              */}
               {isSuper ? (
-                <span className="text-xs text-gray-400 shrink-0">меняется в Supabase</span>
+                <span className="text-xs text-gray-500 shrink-0">меняется в Supabase</span>
               ) : (
                 <Button
                   variant="secondary"
@@ -136,7 +129,7 @@ export default function AdminUsers({
           );
         })}
 
-        {filtered.length === 0 && <p className="text-sm text-gray-400 px-3 py-6">Никого не нашлось</p>}
+        {filtered.length === 0 && <p className="text-sm text-gray-500 px-3 py-6">Никого не нашлось</p>}
       </div>
     </>
   );

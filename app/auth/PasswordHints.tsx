@@ -4,11 +4,6 @@ import { Check, Circle } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { passwordRules, passwordStrength } from "./validation";
 
-/**
- * The strength bar and requirement checklist shown under a password field while one is being
- * chosen. Rendered wherever a password is *set* — registration, a reset, a change from the
- * profile — so the three screens show the same rules in the same words.
- */
 export default function PasswordHints({ password }: { password: string }) {
   if (!password) return null;
 
@@ -27,7 +22,7 @@ export default function PasswordHints({ password }: { password: string }) {
         {rules.map((rule) => (
           <li
             key={rule.label}
-            className={cn("flex items-center gap-1.5 text-xs", rule.ok ? "text-green-600" : "text-gray-500")}
+            className={cn("flex items-center gap-1.5 text-xs", rule.ok ? "text-green-700" : "text-gray-500")}
           >
             {rule.ok ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Circle className="w-3.5 h-3.5 shrink-0" />}
             {rule.label}

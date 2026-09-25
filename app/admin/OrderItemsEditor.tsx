@@ -10,11 +10,7 @@ import { MAX_ITEM_NAME, money, parsePriceInput, type OrderItemInput } from "@/li
 import type { OrderItem } from "@/types";
 import { updateOrderItems } from "./actions";
 
-/**
- * The price is held as the raw string, not a number: "", "12." and "12,5" are all states a field
- * passes through while being typed, and every one of them is NaN as a number — which is how a
- * half-typed price used to blank the line's subtotal.
- */
+// Price is held as the raw string: mid-typing states like "12." are NaN as numbers.
 type Draft = { id: number; name: string; price: string; quantity: number; image_url: string | null };
 
 type Props = {
@@ -39,7 +35,7 @@ const toDraft = (item: {
 });
 
 const inputClass =
-  "border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+  "border border-gray-500 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-700";
 
 export default function OrderItemsEditor({ orderId, items: initial, onCancel, onSaved }: Props) {
   const [items, setItems] = useState<Draft[]>(() => initial.map(toDraft));
@@ -79,7 +75,6 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
     setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  // Only the lines that currently parse; a price mid-keystroke contributes nothing rather than NaN.
   const itemsTotal = money(items.reduce((sum, i) => sum + (parsePriceInput(i.price) ?? 0) * i.quantity, 0));
 
   async function handleSave() {
@@ -105,7 +100,6 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
       setError(result.error);
       return;
     }
-    // The server's normalized items, not the draft: trimmed names and rounded prices.
     onSaved(result.items, result.total, result.deliveryCost);
   }
 
@@ -154,9 +148,8 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
                     <Plus className="w-3 h-3" />
                   </Button>
                 </div>
-                <span className="text-gray-400">×</span>
-                {/* Not type="number": it scrolls under the wheel, rejects the ru-RU comma, and in
-                    some browsers hands back "" for "12." — the very NaN this editor avoids. */}
+                <span className="text-gray-500">×</span>
+                {/* Not type="number": it rejects the ru-RU comma and can return "" for "12.". */}
                 <input
                   type="text"
                   inputMode="decimal"
@@ -182,14 +175,14 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
       </div>
 
       <div ref={boxRef} className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setDismissedFor(null)}
           placeholder="Добавить товар..."
-          className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-gray-500 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
         />
         {open && results.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-sm max-h-56 overflow-y-auto">
@@ -215,7 +208,7 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
           Товары: <span className="font-medium text-gray-800">{itemsTotal}</span> <Currency />
         </p>
         <div className="flex gap-2">
-          {error && <span className="text-xs text-red-500 self-center">{error}</span>}
+          {error && <span className="text-xs text-red-600 self-center">{error}</span>}
           <Button
             type="button"
             onClick={onCancel}
@@ -227,7 +220,7 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="text-xs px-3 py-1.5 bg-green-700 text-white rounded-lg hover:bg-green-800"
           >
             {saving ? "Сохраняем..." : "Сохранить"}
           </Button>

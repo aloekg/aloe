@@ -30,10 +30,6 @@ export default async function ProductsPage({
 
   const totalPages = pageSize === "all" ? 1 : Math.ceil(total / pageSize);
 
-  // Products may only be assigned to "leaf" categories (a subcategory or sub-subcategory with
-  // no children of its own) — top-level categories and categories that have sub-subcategories
-  // are just organizational nodes, not something a product should link to directly. They're still
-  // included in the select (disabled) so the tree structure is visible via indentation.
   function buildCategoryTree(
     parentId: number | null,
     depth: number,
@@ -41,11 +37,7 @@ export default async function ProductsPage({
     return allCategories
       .filter((c) => c.parent_id === parentId)
       .flatMap((c) => {
-        // `depth > 0` is what the comment above always claimed and the code did not enforce: a
-        // top-level category with no children is a leaf by the children test alone, so it was
-        // offered here — and a product assigned to one renders nowhere, because
-        // /catalog/[slug] builds its sections from subcategory ids only and then calls
-        // notFound(). The sitemap meanwhile counted the category as non-empty and submitted it.
+        // `depth > 0`: a childless top-level category is a leaf too, and products there render nowhere.
         const selectable = depth > 0 && !allCategories.some((child) => child.parent_id === c.id);
         return [{ id: c.id, name: c.name, depth, selectable }, ...buildCategoryTree(c.id, depth + 1)];
       });

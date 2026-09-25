@@ -21,13 +21,13 @@ export default async function FavoritesPage() {
         <Title className="hidden md:block mb-6">Избранное</Title>
 
         {products.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
+          <div className="text-center py-20 text-gray-500">
             <p className="mb-4">
               <Heart className="size-6 mx-auto" />
             </p>
             <p className="text-lg font-medium text-gray-600">Здесь пока пусто</p>
             <p className="text-sm mt-1 mb-6">Добавляйте товары в избранное, нажимая на сердечко</p>
-            <Link href="/" className="text-green-600 hover:underline text-sm">
+            <Link href="/" className="text-green-700 hover:underline text-sm">
               Перейти в каталог
             </Link>
           </div>

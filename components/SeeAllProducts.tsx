@@ -14,7 +14,7 @@ export default function SeeAllProducts({
   return (
     <Link
       href={href}
-      className={cn("flex items-center gap-1 text-sm text-gray-500 hover:text-green-600 transition-colors", className)}
+      className={cn("flex items-center gap-1 text-sm text-gray-500 hover:text-green-700 transition-colors", className)}
     >
       {count > 0 ? <>+{count} ещё</> : <>Перейти в раздел</>}
       <ChevronRightIcon className="w-4 h-4" />

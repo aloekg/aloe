@@ -9,21 +9,28 @@ import {
   FavoriteButton,
   JsonLd,
   MainContainer,
+  OldPrice,
   ProductCard,
   ProductDescription,
+  ProductReviews,
+  RatingSummary,
   Title,
 } from "@/components";
-import { getCachedCategoriesWithSlug, getCachedProduct, getCachedRelatedProducts } from "@/lib/cached-queries";
+import {
+  getCachedCategoriesWithSlug,
+  getCachedProduct,
+  getCachedProductReviews,
+  getCachedRelatedProducts,
+} from "@/lib/cached-queries";
 import { LABEL_MAP, SITE_URL } from "@/lib/constants";
+import { averageRating } from "@/lib/reviews";
 import { MERCHANT_RETURN_POLICY, OFFER_SHIPPING_DETAILS } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
 import { RELATED_PRODUCTS_LIMIT } from "@/services/product.service";
 import type { ProductRow } from "@/types";
 import { withBrandName } from "@/types";
 
-// Matches CATALOGUE_TTL in lib/cached-queries.ts: this page's own ISR entry and the data-cache
-// entries it reads expire together, so a stale page is not rebuilt only to reread stale data —
-// and on Vercel's Hobby plan both count against the same 200K/month ISR-write budget.
+// Must match CATALOGUE_TTL in lib/cached-queries.ts.
 export const revalidate = 600;
 
 export async function generateStaticParams() {
@@ -40,8 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const product = await getCachedProduct(Number(id));
   if (!product) return {};
-  // `absolute` skips the root layout's "%s — Aloe.kg" template, which used to append a second
-  // brand onto a title that already carries one: "… | Aloe.kg — Aloe.kg".
+  // `absolute` skips the layout's "%s — Aloe.kg" template: the title already carries the brand.
   const title = `${product.name} — купить в Бишкеке | Aloe.kg`;
   const description =
     product.seo_text || product.description || `${product.name} — цена ${product.price} с. Доставка по Бишкеку.`;
@@ -68,17 +74,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const brandInfo = (rawProduct as unknown as { brands?: { name: string; slug: string } | null }).brands;
   const product = withBrandName([rawProduct as unknown as ProductRow])[0];
 
-  const [relatedPool, allCategories] = await Promise.all([
+  const [relatedPool, allCategories, reviews] = await Promise.all([
     getCachedRelatedProducts(product.category_id),
     getCachedCategoriesWithSlug(),
+    getCachedProductReviews(product.id),
   ]);
 
-  // The pool is cached per category and still contains this product — see getRelatedProducts.
+  const average = averageRating(product.rating_sum, product.rating_count);
+
+  // The pool is cached per category and still contains this product.
   const related = relatedPool.filter((p) => p.id !== product.id).slice(0, RELATED_PRODUCTS_LIMIT);
 
-  // product.category_id may point at a subcategory (2 levels) or a sub-subcategory (3 levels,
-  // no page of its own) — walk up to find the top-level category and the subcategory whose
-  // section it belongs to on the /catalog/[slug] page (jumped to via the `sub` query param).
   const productCategory = allCategories?.find((c) => c.id === product.category_id);
   const productParent = productCategory?.parent_id
     ? allCategories?.find((c) => c.id === productCategory.parent_id)
@@ -90,8 +96,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const topCategory = productGrandparent ?? productParent;
   const subcategory = productGrandparent ? productParent : productCategory;
 
-  // Falls back to the catalog index — `/catalog/[slug]` resolves by slug, so a raw
-  // category_id there would 404.
   const catalogHref = topCategory && subcategory ? `/catalog/${topCategory.slug}?sub=${subcategory.slug}` : "/catalog";
 
   const breadcrumbs =
@@ -116,7 +120,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     product.old_price && product.old_price > product.price
       ? Math.round(((product.old_price - product.price) / product.old_price) * 100)
       : null;
-  // This page shows the large image; cart rows are ~64px.
   const cartImage = product.thumbnail_url || product.image_url;
 
   const productJsonLd = {
@@ -127,6 +130,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     description: product.description || product.seo_text || product.name,
     ...(brandInfo && { brand: { "@type": "Brand", name: brandInfo.name } }),
     sku: String(product.id),
+    // Omitted rather than empty when unrated: Google forbids invented ratings.
+    ...(average != null && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: average,
+        reviewCount: product.rating_count,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
     offers: {
       "@type": "Offer",
       url: `${SITE_URL}/product/${product.id}`,
@@ -134,9 +147,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       price: product.price,
       availability: "https://schema.org/InStock",
       itemCondition: "https://schema.org/NewCondition",
-      // No priceValidUntil: Google only warns about its absence, and every way to produce one
-      // here is either impure in render or a date we cannot actually stand behind. Add it once
-      // the schema carries a real price validity or stock field.
       shippingDetails: OFFER_SHIPPING_DETAILS,
       hasMerchantReturnPolicy: MERCHANT_RETURN_POLICY,
     },
@@ -171,42 +181,40 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           />
           {label && (
             <div className="absolute top-3 left-3">
-              <span className={`${label.cls} text-white text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
+              <span className={`${label.cls} text-xs font-semibold px-2 py-1 rounded`}>{label.text}</span>
             </div>
           )}
           {discount && (
             <div className="absolute top-3 right-12">
-              <span className="bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded">−{discount}%</span>
+              <span className="bg-red-700 text-white text-xs font-semibold px-2 py-1 rounded">−{discount}%</span>
             </div>
           )}
           <FavoriteButton productId={product.id} />
         </div>
 
         <div className="flex flex-col">
-          <Link href={catalogHref} className="text-sm text-green-600 hover:underline mb-2 w-fit">
+          <Link href={catalogHref} className="text-sm text-green-700 hover:underline mb-2 w-fit">
             {product.category}
           </Link>
 
           <Title className="mb-2">{product.name}</Title>
 
           {brandInfo && (
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-2">
               Производитель:{" "}
-              <Link href={`/brands/${brandInfo.slug}`} className="text-green-600 hover:underline">
+              <Link href={`/brands/${brandInfo.slug}`} className="text-green-700 hover:underline">
                 {brandInfo.name}
               </Link>
             </p>
           )}
 
+          <RatingSummary ratingSum={product.rating_sum} ratingCount={product.rating_count} className="mb-4" />
+
           <div className="flex items-baseline gap-3 mb-6">
             <span className="text-2xl md:text-3xl font-bold">
               {product.price} <Currency />
             </span>
-            {product.old_price && (
-              <span className="text-lg text-gray-400 line-through">
-                {product.old_price} <Currency />
-              </span>
-            )}
+            {product.old_price && <OldPrice value={product.old_price} className="text-lg text-gray-500" />}
           </div>
 
           <div className="mb-6 hidden md:block">
@@ -232,9 +240,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {product.price} <Currency />
             </span>
             {product.old_price && (
-              <span className="text-xs text-gray-400 line-through whitespace-nowrap">
-                {product.old_price} <Currency />
-              </span>
+              <OldPrice value={product.old_price} className="text-xs text-gray-500 whitespace-nowrap" />
             )}
           </div>
           <div className="flex-1">
@@ -250,6 +256,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      <ProductReviews reviews={reviews} ratingSum={product.rating_sum} ratingCount={product.rating_count} />
 
       {related && related.length > 0 && (
         <section>

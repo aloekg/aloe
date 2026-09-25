@@ -18,14 +18,7 @@ import {
   getCachedProductsByLabel,
 } from "@/lib/cached-queries";
 
-/**
- * The category carousels depend on the category list, so they cannot join the Promise.all above.
- * Wrapping just this section keeps the banners and the popular/new/sale rows from waiting on it.
- *
- * Deliberately not an app/loading.tsx: that file is the fallback for *every* route without its
- * own, which makes the whole app stream — and once the response has started, auth redirects stop
- * being 307s and notFound() cannot set 404.
- */
+// Deliberately not app/loading.tsx: that streams every route, so redirects stop being 307s and 404s become 200s.
 async function CategoryCarousels({
   allCategories,
 }: {
@@ -54,14 +47,11 @@ async function CategoryCarousels({
       {topCategories.map((cat, i) => {
         const { products, total } = results[i];
         if (total === 0) return null;
+        // One Suspense per carousel, no fallback: each row hydrates as its own interruptible task.
         return (
-          <ProductCarousel
-            key={cat.id}
-            title={cat.name}
-            href={`/catalog/${cat.slug}`}
-            products={products}
-            totalCount={total}
-          />
+          <Suspense key={cat.id}>
+            <ProductCarousel title={cat.name} href={`/catalog/${cat.slug}`} products={products} totalCount={total} />
+          </Suspense>
         );
       })}
     </>
@@ -87,16 +77,9 @@ export default async function HomePage() {
 
   return (
     <>
-      <Header className="block md:hidden" />
+      <Header className="block md:hidden" logoOnly />
       <MainContainer className="flex flex-col gap-4 md:gap-8">
-        {/* The carousels below are h2s; without this the site's most important page had no h1. */}
         <Title className="sr-only">Бытовая химия и косметика с доставкой по Бишкеку</Title>
-        {/*
-          The mobile header above carries only the logo, and every other mobile route has its own
-          MobileHeader field — this was the one place a phone could not search from. The field is
-          transparent and borderless below md (see SearchInput), so the tinted pill is what makes
-          it read as a field on the page's white background.
-        */}
         <HeaderSearchInput className="rounded-xl bg-green-50 md:hidden" />
         <div className="block md:hidden">
           <BannerCarousel banners={mobileBanners} media="mobile" />
@@ -104,19 +87,26 @@ export default async function HomePage() {
         <div className="hidden md:block">
           <BannerCarousel banners={desktopBanners} media="desktop" />
         </div>
+        {/* Suspense per row with no fallback: each row hydrates as its own task. */}
         {popular.total > 0 && (
-          <ProductCarousel
-            title="Популярные товары"
-            href="/popular"
-            products={popular.products}
-            totalCount={popular.total}
-          />
+          <Suspense>
+            <ProductCarousel
+              title="Популярные товары"
+              href="/popular"
+              products={popular.products}
+              totalCount={popular.total}
+            />
+          </Suspense>
         )}
         {newest.total > 0 && (
-          <ProductCarousel title="Новинки" href="/new" products={newest.products} totalCount={newest.total} />
+          <Suspense>
+            <ProductCarousel title="Новинки" href="/new" products={newest.products} totalCount={newest.total} />
+          </Suspense>
         )}
         {onSale.total > 0 && (
-          <ProductCarousel title="Акции" href="/sale" products={onSale.products} totalCount={onSale.total} />
+          <Suspense>
+            <ProductCarousel title="Акции" href="/sale" products={onSale.products} totalCount={onSale.total} />
+          </Suspense>
         )}
         <Suspense
           fallback={Array.from({ length: 3 }, (_, i) => (

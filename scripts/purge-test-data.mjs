@@ -15,8 +15,9 @@
 //
 // Three couplings this exists to handle:
 //
-//   1. purchase_count does not follow the order. checkout increments it through
-//      increment_product_purchase_counts, and deleting the order leaves the count behind — so
+//   1. purchase_count does not follow the order. app/admin/actions.ts moves it when a status
+//      crosses into or out of confirmed/processing/delivered, and deleting the order leaves the
+//      count behind — so
 //      /popular and the homepage carousel would keep ranking by test purchases forever. With
 //      --reset-counts the counts are recomputed from the orders that remain (zero for a full
 //      purge, which correctly hides the section until a real order arrives).
@@ -27,7 +28,11 @@
 //      supabase/migrations/20260911120600_orders_user_fk_set_null.sql — after it an account can be
 //      deleted without erasing the sale.
 //
-//   3. backups/backup-db.mjs is the only copy of an order that exists anywhere; the old site has
+//   3. an order that carries a review cannot be deleted at all: reviews.order_id is ON DELETE
+//      RESTRICT, because deleting an order must not silently erase what a customer wrote about the
+//      product. Such an order is reported and skipped rather than forced.
+//
+//   4. backups/backup-db.mjs is the only copy of an order that exists anywhere; the old site has
 //      the catalogue, but not this. The script refuses to run without a dump containing orders.
 //
 // An account with role=admin is never deleted — losing the last admin locks everyone out of
@@ -126,7 +131,7 @@ if (RESET_COUNTS) {
   const { data: counted } = await db.from("products").select("id, name, purchase_count").gt("purchase_count", 0);
   const remaining = orders.filter((o) => !orderIds.includes(o.id));
   console.log(
-    `\nPURCHASE COUNTS: ${counted?.length ?? 0} product(s) carry a count, recomputed from the ${remaining.length} order(s) that remain`,
+    `\nPURCHASE COUNTS: ${counted?.length ?? 0} product(s) carry a count, recomputed from the confirmed/processing/delivered orders among the ${remaining.length} that remain`,
   );
 }
 
@@ -166,7 +171,13 @@ if (doomedOrders.length > 0) {
 }
 
 if (RESET_COUNTS) {
-  const { data: remaining, error } = await db.from("orders").select("items");
+  // Only the statuses that count as a purchase — the same rule `purchaseCountDelta` applies in
+  // lib/constants.ts, and the same set the 20260923120000 migration backfills from. Recomputing
+  // over every surviving order would quietly restore the cancelled ones this whole change removes.
+  const { data: remaining, error } = await db
+    .from("orders")
+    .select("items")
+    .in("status", ["confirmed", "processing", "delivered"]);
   if (error) {
     console.error("order reload failed:", error.message);
     process.exit(1);
@@ -189,7 +200,7 @@ if (RESET_COUNTS) {
     const { error: setError } = await db.from("products").update({ purchase_count: qty }).eq("id", id);
     if (setError) console.error(`  purchase_count for #${id} failed: ${setError.message}`);
   }
-  console.log(`Recomputed purchase_count: ${totals.size} product(s) with a surviving order.`);
+  console.log(`Recomputed purchase_count: ${totals.size} product(s) with a surviving confirmed order.`);
 }
 
 for (const u of deletableUsers) {

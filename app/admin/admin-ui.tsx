@@ -1,5 +1,9 @@
+"use client";
+
+import { useId } from "react";
+
 export const adminInputCls =
-  "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+  "w-full border border-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-700";
 
 export function Field({
   label,
@@ -7,17 +11,26 @@ export function Field({
   children,
 }: {
   label: string;
-  /** Optional control rendered on the label row, right-aligned — e.g. an "insert image" button. */
   action?: React.ReactNode;
-  children: React.ReactNode;
+  children: React.ReactNode | ((id: string) => React.ReactNode);
 }) {
+  const id = useId();
+  const captionCls = "block text-xs font-medium text-gray-600";
+  const labelled = typeof children === "function";
+
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-1">
-        <label className="block text-xs font-medium text-gray-600">{label}</label>
+        {labelled ? (
+          <label htmlFor={id} className={captionCls}>
+            {label}
+          </label>
+        ) : (
+          <span className={captionCls}>{label}</span>
+        )}
         {action}
       </div>
-      {children}
+      {labelled ? children(id) : children}
     </div>
   );
 }
