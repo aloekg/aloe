@@ -47,8 +47,8 @@ function MobileTile({
           </span>
         </>
       ) : (
-        <span className="absolute inset-0 flex items-center justify-center p-2 text-center text-xs font-medium text-gray-700 leading-tight hyphens-auto break-words">
-          <span className="line-clamp-4">{label}</span>
+        <span className="absolute top-1.5 left-1.5 right-1.5 text-xs font-medium text-gray-700 leading-tight line-clamp-4 hyphens-auto break-words">
+          {label}
         </span>
       )}
     </Link>
