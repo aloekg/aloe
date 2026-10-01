@@ -271,12 +271,22 @@ export async function getAdminProducts(
     label?: string;
     published?: string;
     categoryId?: number | "none";
+    brandId?: number | "none";
     sort?: AdminProductsSort;
     page?: number;
     pageSize?: number | "all";
   },
 ) {
-  const { q = "", label = "", published = "", categoryId, sort = "id-desc", page = 1, pageSize = 20 } = options;
+  const {
+    q = "",
+    label = "",
+    published = "",
+    categoryId,
+    brandId,
+    sort = "id-desc",
+    page = 1,
+    pageSize = 20,
+  } = options;
 
   // select("*") on purpose: the edit drawer needs description/seo_text/published.
   let query = supabase.from("products").select("*", { count: "exact" });
@@ -285,6 +295,8 @@ export async function getAdminProducts(
   else if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
   if (categoryId === "none") query = query.is("category_id", null);
   else if (categoryId) query = query.eq("category_id", categoryId);
+  if (brandId === "none") query = query.is("brand_id", null);
+  else if (brandId) query = query.eq("brand_id", brandId);
   if (label === "none") query = query.is("label", null);
   else if (label) query = query.eq("label", label);
   if (published === "yes") query = query.eq("published", true);
