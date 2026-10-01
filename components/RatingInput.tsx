@@ -1,0 +1,65 @@
+"use client";
+
+import { useState } from "react";
+import { Star } from "lucide-react";
+import { MAX_RATING, MIN_RATING } from "@/lib/reviews";
+
+const LABELS = ["Ужасно", "Плохо", "Нормально", "Хорошо", "Отлично"];
+
+export default function RatingInput({
+  value,
+  onChange,
+  name,
+  disabled,
+  required = false,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  name: string;
+  disabled?: boolean;
+  required?: boolean;
+}) {
+  const [hovered, setHovered] = useState(0);
+  const shown = hovered || value;
+
+  return (
+    <div className="flex items-center gap-3">
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
+      <div
+        role="radiogroup"
+        aria-label="Оценка"
+        aria-required={required || undefined}
+        className="flex items-center gap-1"
+        onMouseLeave={() => setHovered(0)}
+      >
+        {Array.from({ length: MAX_RATING - MIN_RATING + 1 }, (_, i) => i + MIN_RATING).map((star) => (
+          <label
+            key={star}
+            className={disabled ? "cursor-not-allowed" : "cursor-pointer"}
+            onMouseEnter={() => !disabled && setHovered(star)}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={star}
+              checked={value === star}
+              disabled={disabled}
+              onChange={() => onChange(star)}
+              className="sr-only peer"
+            />
+            <Star
+              className={`size-8 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-green-700 rounded ${
+                star <= shown ? "text-yellow-500 fill-yellow-500" : "text-gray-300"
+              }`}
+              aria-hidden
+            />
+            <span className="sr-only">{`${star} из ${MAX_RATING} — ${LABELS[star - 1]}`}</span>
+          </label>
+        ))}
+      </div>
+      <span className="text-sm text-gray-500 min-w-20" aria-live="polite">
+        {shown ? LABELS[shown - 1] : ""}
+      </span>
+    </div>
+  );
+}

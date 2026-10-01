@@ -124,6 +124,28 @@ describe("buildQuote", () => {
     expect(quote.items[0].image_url).toBe("");
   });
 
+  it("freezes the thumbnail into the line, and the full image only where there is none", async () => {
+    const rows: PricedProduct[] = [
+      {
+        id: 1,
+        name: "С превью",
+        price: 100,
+        image_url: "https://x.test/1.webp",
+        thumbnail_url: "https://x.test/thumb/1.webp",
+      },
+      { id: 2, name: "Без превью", price: 100, image_url: "https://x.test/2.webp", thumbnail_url: null },
+    ];
+    const quote = await buildQuote(
+      lookup(rows),
+      [
+        { id: 1, quantity: 1 },
+        { id: 2, quantity: 1 },
+      ],
+      "center",
+    );
+    expect(quote.items.map((i) => i.image_url)).toEqual(["https://x.test/thumb/1.webp", "https://x.test/2.webp"]);
+  });
+
   describe("delivery", () => {
     it("charges the city rate below the free threshold", async () => {
       const quote = await buildQuote(lookup([product(1, 9999)]), [{ id: 1, quantity: 1 }], "center");
@@ -206,6 +228,10 @@ describe("validateOrderItems", () => {
     expect(validateOrderItems([line(), line({ id: 2 })])).toBeNull();
   });
 
+  it("accepts a missing image — the row falls back to a placeholder", () => {
+    expect(validateOrderItems([line({ image_url: null }), line({ id: 2, image_url: "" })])).toBeNull();
+  });
+
   it("accepts a zero price — the admin writing off a line is not a broken row", () => {
     expect(validateOrderItems([line({ price: 0 })])).toBeNull();
   });
@@ -232,6 +258,23 @@ describe("validateOrderItems", () => {
     ["a zero quantity", [line({ quantity: 0 })], "Количество должно быть целым положительным числом"],
     ["a fractional quantity", [line({ quantity: 1.5 })], "Количество должно быть целым положительным числом"],
     ["a quantity over the cap", [line({ quantity: MAX_QUANTITY + 1 })], "Количество не может превышать 999"],
+    // The admin supplies this field and the list renders it as <img src>, so it is bounded like the rest.
+    [
+      "a javascript: image url",
+      [line({ image_url: "javascript:alert(1)" })],
+      "Ссылка на изображение должна быть адресом http(s)",
+    ],
+    ["a relative image url", [line({ image_url: "/x.webp" })], "Ссылка на изображение должна быть адресом http(s)"],
+    [
+      "a non-string image url",
+      [line({ image_url: 7 as unknown as string })],
+      "Ссылка на изображение должна быть адресом http(s)",
+    ],
+    [
+      "an over-long image url",
+      [line({ image_url: `https://x.test/${"a".repeat(2100)}` })],
+      "Ссылка на изображение должна быть адресом http(s)",
+    ],
   ])("rejects %s", (_case, items, message) => {
     expect(validateOrderItems(items)).toBe(message);
   });

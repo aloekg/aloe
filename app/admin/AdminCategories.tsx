@@ -43,8 +43,6 @@ export default function AdminCategories({
   const show = useToast((s) => s.show);
   const drag = useDragReorder();
 
-  // One pass over the tree instead of three nested scans plus a recursive full-array walk per
-  // rendered row — all of which re-ran on every keystroke in the edit drawer.
   const { parents, subs, childrenOf, lockedIds } = useMemo(() => {
     const childrenOf = new Map<number, Category[]>();
     const parents: Category[] = [];
@@ -57,7 +55,6 @@ export default function AdminCategories({
     }
     const subs = parents.flatMap((p) => childrenOf.get(p.id) ?? []);
 
-    // A category is locked when it, or anything beneath it, holds a product.
     const used = new Set(usedIds);
     const lockedIds = new Set<number>();
     const walk = (c: Category): boolean => {
@@ -211,7 +208,7 @@ export default function AdminCategories({
                 )}
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">{parent.name}</span>
-                  <span className="text-xs text-gray-400 ml-2">{parent.slug}</span>
+                  <span className="text-xs text-gray-500 ml-2">{parent.slug}</span>
                 </div>
                 <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
                   <Button
@@ -252,7 +249,7 @@ export default function AdminCategories({
                       <GripVerticalIcon className="size-4 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
                       <div className="flex-1 min-w-0">
                         <span className="text-sm text-gray-700">{sub.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">{sub.slug}</span>
+                        <span className="text-xs text-gray-500 ml-2">{sub.slug}</span>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
@@ -291,7 +288,7 @@ export default function AdminCategories({
                         <GripVerticalIcon className="size-4 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-gray-600">{subsub.name}</span>
-                          <span className="text-xs text-gray-400 ml-2">{subsub.slug}</span>
+                          <span className="text-xs text-gray-500 ml-2">{subsub.slug}</span>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="icon" size="sm" onClick={() => openEdit(subsub)}>
@@ -322,53 +319,70 @@ export default function AdminCategories({
           error={error}
         >
           <Field label="Slug *">
-            <input
-              value={editing.slug}
-              onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-              className={inp}
-              placeholder="bytovaya-khimiya"
-            />
-            <p className="text-xs text-gray-400 mt-1">Используется в URL: /catalog/slug</p>
+            {(id) => (
+              <>
+                <input
+                  aria-describedby={`${id}-hint`}
+                  id={id}
+                  value={editing.slug}
+                  onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                  className={inp}
+                  placeholder="bytovaya-khimiya"
+                />
+                <p id={`${id}-hint`} className="text-xs text-gray-500 mt-1">
+                  Используется в URL: /catalog/slug
+                </p>
+              </>
+            )}
           </Field>
 
           <Field label="Название *">
-            <input
-              value={editing.name}
-              onChange={(e) => set("name", e.target.value)}
-              className={inp}
-              placeholder="Бытовая химия"
-            />
+            {(id) => (
+              <input
+                id={id}
+                value={editing.name}
+                onChange={(e) => set("name", e.target.value)}
+                className={inp}
+                placeholder="Бытовая химия"
+              />
+            )}
           </Field>
 
           <Field label="Родительская категория">
-            <select
-              value={editing.parent_id ?? ""}
-              onChange={(e) => set("parent_id", e.target.value ? parseInt(e.target.value) : null)}
-              className={inp}
-            >
-              <option value="">— Верхний уровень</option>
-              {parents
-                .filter((p) => p.id !== editing.id)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              {subs
-                .filter((s) => s.id !== editing.id && s.parent_id !== editing.id)
-                .map((s) => {
-                  const parentName = parents.find((p) => p.id === s.parent_id)?.name;
-                  return (
-                    <option key={s.id} value={s.id}>
-                      {parentName ? `${parentName} — ${s.name}` : s.name}
-                    </option>
-                  );
-                })}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Выберите подкатегорию, чтобы создать под-подкатегорию (используется только для группировки товаров на
-              странице подкатегории, отдельной страницы у неё не будет)
-            </p>
+            {(id) => (
+              <>
+                <select
+                  aria-describedby={`${id}-hint`}
+                  id={id}
+                  value={editing.parent_id ?? ""}
+                  onChange={(e) => set("parent_id", e.target.value ? parseInt(e.target.value) : null)}
+                  className={inp}
+                >
+                  <option value="">— Верхний уровень</option>
+                  {parents
+                    .filter((p) => p.id !== editing.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  {subs
+                    .filter((s) => s.id !== editing.id && s.parent_id !== editing.id)
+                    .map((s) => {
+                      const parentName = parents.find((p) => p.id === s.parent_id)?.name;
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {parentName ? `${parentName} — ${s.name}` : s.name}
+                        </option>
+                      );
+                    })}
+                </select>
+                <p id={`${id}-hint`} className="text-xs text-gray-500 mt-1">
+                  Выберите подкатегорию, чтобы создать под-подкатегорию (используется только для группировки товаров на
+                  странице подкатегории, отдельной страницы у неё не будет)
+                </p>
+              </>
+            )}
           </Field>
 
           {!editing.parent_id && (
@@ -417,10 +431,10 @@ export default function AdminCategories({
                     const file = e.dataTransfer.files?.[0];
                     if (file && file.type.startsWith("image/")) handleImageFile(file);
                   }}
-                  className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-green-500 hover:text-green-600 transition-colors cursor-pointer select-none py-8"
+                  className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-green-600 hover:text-green-700 transition-colors cursor-pointer select-none py-8"
                 >
                   {uploading ? (
-                    <Loader2Icon className="size-6 animate-spin text-green-600" />
+                    <Loader2Icon className="size-6 animate-spin text-green-700" />
                   ) : (
                     <>
                       <ImagePlusIcon className="size-6" />

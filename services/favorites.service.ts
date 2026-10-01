@@ -4,15 +4,11 @@ import type { ProductListRow } from "@/types";
 import { withBrandName } from "@/types";
 import type { Database } from "@/types/database";
 
-/** Mirrors LIST_COLUMNS in product.service.ts — the favorites grid renders the same card. */
+// Mirrors LIST_COLUMNS in product.service.ts.
 const FAVORITE_PRODUCT_COLUMNS =
   "id, name, price, old_price, image_url, thumbnail_url, category_id, label, brand_id, brands(name)";
 
-/**
- * Throws rather than returning an empty list: the store treats the result as the full set of
- * favourites, so a failed request used to render every heart as un-favourited — and the next click
- * then tried to insert a row that already existed.
- */
+// Throws rather than returning []: the store treats the result as the full set of favourites.
 export async function loadFavoriteIds(supabase: SupabaseClient<Database>, userId: string) {
   const res = await supabase.from("favorites").select("product_id").eq("user_id", userId);
   return strict("favorites/load", res)

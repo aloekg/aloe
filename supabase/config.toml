@@ -255,7 +255,11 @@ double_confirm_changes = true
 # would disable email confirmation in production on a `config push`.
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+# On: app/profile/PasswordChangeForm.tsx re-checks the current password with signInWithPassword
+# first, but that is a UI step — with this off, a stolen session could call updateUser({ password })
+# against GoTrue directly and take the account over. Mirror it in the dashboard (Auth → Providers →
+# Email → "Secure password change"); config.toml is not what production reads.
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 # Surfaced in the dashboard as SMTP "Minimum interval per user". The resend countdown on the
 # registration screen is driven by RESEND_COOLDOWN_SECONDS in app/auth/validation.ts to match —

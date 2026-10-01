@@ -30,8 +30,6 @@ export default async function AnalyticsPage({
   const { fromDay, toDay } = periodRange(period);
   const previous = previousRange(period, fromDay);
 
-  // One fetch covers both periods — they are adjacent, so splitting by day is cheaper than a second
-  // round of paging.
   const [{ rows: allRows, truncated }, history, catalogue, favoriteCounts] = await Promise.all([
     loadAnalyticsOrders(supabase, { fromDay: previous?.fromDay ?? fromDay, toDay }),
     loadCustomerHistory(supabase),
@@ -64,8 +62,7 @@ export default async function AnalyticsPage({
     <AdminAnalytics
       report={report}
       insights={insights}
-      // A truncated fetch drops the oldest rows first, which are exactly the previous period's — a
-      // comparison against a partial period would show growth that is not there.
+      // A truncated fetch drops the previous period's rows first, so no comparison then.
       previous={previous && !truncated ? summarizePeriod(previousRows, includeCancelled) : null}
       period={period}
       includeCancelled={includeCancelled}

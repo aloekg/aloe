@@ -4,10 +4,6 @@ import { useRef, useState } from "react";
 
 type DragPos = { group: string | number; index: number };
 
-/**
- * Drag-to-reorder within one or more groups (e.g. subcategories per parent). Only one item
- * can be dragged at a time; dropping into a different group than the drag started in is a no-op.
- */
 export function useDragReorder() {
   const [dragOver, setDragOver] = useState<DragPos | null>(null);
   const dragRef = useRef<DragPos | null>(null);

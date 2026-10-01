@@ -2,7 +2,7 @@
 
 ## Tech Stack
 
-- **Framework:** Next.js 16.2.9 (App Router, Server Components, Server Actions, React 19)
+- **Framework:** Next.js 16.3.5 (App Router, Server Components, Server Actions, React 19)
 - **Language:** TypeScript 6.0.3 (strict mode, path alias `@/*` → root)
 - **Database:** Supabase (PostgreSQL + Auth + Storage + RLS)
 - **State:** Zustand 5.0.14 (cart and favorites use `persist`/localStorage; toast doesn't — both cart and favorites also rehydrate from Supabase on auth)
@@ -25,7 +25,7 @@
 ├── supabase/               # migrations/ (source of truth for the schema), sql/audit-rls.sql
 ├── public/                 # Manifest PNG icons (generated, see scripts/generate-app-icons.mjs)
 ├── scripts/                # Maintenance: images, orphan categories, staging seed (see below)
-├── proxy.ts                # Middleware — Supabase auth cookie management
+├── proxy.ts                # Middleware — Supabase auth cookie refresh, only on routes that read the session
 ├── next.config.ts          # Image optimization disabled (unoptimized: true), devIndicators off
 └── .env.local              # Supabase keys, SMTP, DEPLOY_ORIGIN (see below)
 ```
@@ -47,6 +47,8 @@
 /checkout/success           # Order confirmation
 /profile                    # User profile, orders, favorites (auth required)
 /favorites                  # Saved items
+/review/[token]             # Оставить отзыв по ссылке из WhatsApp — см. «Product reviews» ниже
+/order/[token]              # Привязать гостевой заказ к аккаунту (и посмотреть статус без входа)
 /delivery                   # Delivery info
 /about                      # About page (static)
 /contacts                   # Contacts page (static)
@@ -59,6 +61,7 @@
 /admin/products             # Product CRUD
 /admin/categories           # Category management (drag-to-reorder)
 /admin/brands               # Brand management
+/admin/reviews              # Модерация отзывов (pending / approved / rejected)
 /admin/banners              # Banner carousel management (desktop/mobile tabs)
 /admin/users                # Accounts list; grant/revoke the admin role (role: superadmin only)
 
@@ -67,11 +70,56 @@
 
 Note: the `discount` label/route from earlier iterations has been removed — `Product["label"]` is now only `"new" | "sale" | null`.
 
-Note: "popular" is no longer a manually-set admin label. `products.purchase_count` is incremented atomically (via the `increment_product_purchase_counts` Postgres RPC) in `app/checkout/actions.ts` when an order is placed, and `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`). Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been placed.
+Note: "popular" is no longer a manually-set admin label. `products.purchase_count` counts **confirmed** orders, not placed ones: `updateOrderStatus` in `app/admin/actions.ts` applies the order's quantities through the `increment_product_purchase_counts` RPC whenever a status change crosses into or out of `confirmed`/`processing`/`delivered` — in either direction, since a confirmed order can still be cancelled. `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`), and the "По популярности" sort orders by the same column. Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been confirmed.
 
-**Quick-view modal:** `/product/[id]` also renders as a modal overlay via a parallel route — `app/@modal/(.)product/[id]/page.tsx` intercepts client-side navigation from `ProductCard`'s `<Link>` and renders `components/ProductModal.tsx` (closes on `Esc`/backdrop click via `router.back()`). A direct/hard navigation still renders the full `/product/[id]` page. `app/@modal/default.tsx` renders `null` when no intercept matches.
+Checkout deliberately does **not** touch it. There is no payment gate here, so a placed order is an intent someone then verifies by phone, and a fifth of production orders are cancelled. While the count was applied at checkout and never taken back, 10.6% of every counted unit came from a cancelled order, eleven products held a place in "Популярные" on cancelled orders alone, and the second product on the home page had all 23 of its "purchases" cancelled. The rule lives in one pure function — `purchaseCountDelta(prev, next)` in `lib/constants.ts`, tested in `tests/purchase-count.test.ts` — stated symmetrically rather than as "increment on confirm, decrement on cancel", which makes it idempotent for free: the same status twice compares equal and does nothing. The write is a compare-and-swap on the status just read, so two admins pressing at once cannot both apply the delta. Its cost is the other side of the same coin: an order left sitting at `new` counts for nothing, so the shelf depends on the admin moving statuses — 88.6% of production orders are moved off `new`, which is what makes that affordable. See `supabase/migrations/20260923120000_purchase_count_on_confirmation.sql` for the symmetric `qty` bound, the `greatest(0, …)` floor and the backfill.
+
+**Quick-view modal:** `/product/[id]` also renders as a modal overlay via a parallel route — `app/@modal/(.)product/[id]/page.tsx` intercepts client-side navigation from `ProductCard`'s `<Link>` and renders it inside `components/ProductModal.tsx` (closes on `Esc`/backdrop click via `router.back()`). A direct/hard navigation still renders the full `/product/[id]` page. `app/@modal/default.tsx` renders `null` when no intercept matches. The shell lives in `app/@modal/(.)product/[id]/layout.tsx`, not in the page: `page`/`loading`/`error` swap places inside a Suspense boundary, and wrapping each of them would remount the sheet and replay its open animation when the product data lands. That is also why the sheet has a fixed height rather than a `max-h` — it must not resize when the skeleton is replaced — and why the folder has its own `not-found.tsx`.
+
+Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `AutocompleteDropdown`). The modal is `position: fixed`, which Next's post-navigation scroll handler skips (`shouldSkipElement` in `layout-router`), so with nothing left to consider it falls back to `documentElement.scrollTop = 0` — opening a quick view sent the grid behind it to the top, which showed up on closing and reset the category page's sticky subcategory bar out of its scrolled layout.
 
 **Category page (`/catalog/[slug]`):** renders every subcategory of the top-level category as its own section in one `VirtualCategoryContent` window-virtualized scroll (`@tanstack/react-virtual`). `SubcategoryFilter` renders a pill per subcategory; clicking one calls `scrollToSection` (`lib/section-scroll.ts`) to jump to it, and the pill that's currently scrolled into view is tracked via `lib/active-section.ts` pub/sub and highlighted (`useActiveSectionSync`). As the active section changes, `SubcategoryFilter` mirrors it into the URL as `?sub=<subcategorySlug>` via `history.replaceState` directly (not `router.replace`) so the address bar stays shareable/bookmarkable without forcing a server re-render on every scroll tick. Landing on `/catalog/[slug]?sub=<slug>` (a shared link, a reload, or the breadcrumb/sitemap links below) resolves that slug to a subcategory id server-side and passes it to `VirtualCategoryContent` as `initialSectionId`, which scrolls to it on mount — reasserting the scroll position for the first ~20 frames to win a race against the App Router's own post-navigation scroll handling, which otherwise snaps it back to the top a couple of frames after mount.
+
+**Filters on the category page:** `CategoryBrowser` wraps the filter bar, `SubcategoryFilter` and
+`VirtualCategoryContent` so the three agree on one set of sections. The server already sent every
+product of the category, so **narrowing and reordering happen on the client and cost nothing** — no
+server round trip, no Data Cache lookup — and the result is mirrored into `?sort=`/`?price_min=`/
+`?price_max=` through `history.replaceState`, the same mechanism and the same reason as `?sub=`.
+`hooks/useFilterNav.ts` owns that merge for the whole storefront, including the rule that any filter
+change resets `?page=`; it reads `window.location.search` at call time rather than closing over
+`useSearchParams()`, because two writers share the query string here and a cached copy would have
+each silently drop the other's key. **Sorting by price orders within each section, never across
+them** — a flat list would break the pills, `section-scroll.ts`, `active-section.ts`, the `?sub=`
+contract and the `/catalog/[topSlug]?sub=[subSlug]` links — so the UI says "в каждом разделе". No
+filter control renders a link (`SortSelect` is a `<select>`, `PriceFilter` two inputs), which is
+what keeps faceted URLs uncrawlable; `Pagination` is the only `<a href>` carrying query parameters,
+and it carries every active filter so page 2 shows the same result set.
+
+`ProductFilterBar` has two variants and each carries its own breakpoint visibility, so the two can
+sit in different places: `inline` is the `md`-and-up row above the pills, `icons` the phone's two
+triggers, which the category page passes into `SubcategoryFilter`'s `leading` slot so they ride as
+the **first items of the sticky pill row** and scroll sideways with it. That is the mobile first
+rule applied — the phone gets no filter row of its own, because a permanent one above the pills
+would spend vertical space on every visit to serve the few visitors who filter. The row itself is
+sticky, so they stay reachable at any scroll depth down the page. (The scroller carries `relative`
+so it is the pills' `offsetParent`: `useActiveSectionSync` compares `offsetLeft` against
+`scrollLeft`, and the two have to be measured in the same coordinate space.) Sort and price are **two icons, not one "Фильтры"
+button**: they are different questions, one a single tap and the other typing, and folding them into
+one sheet made the common case pay for the rare one. Each icon lights up on its own when its
+control is off default.
+
+The price sheet stages its state and commits on "Показать" — on /search every change is a
+navigation, and applying per keystroke would send three requests to set one range; its button names
+how many products the candidate range would leave, which only a page holding the whole set can
+answer (`countFor`), so /search just says "Показать". The sort sheet does not stage, since one tap
+is the whole interaction. That staged copy is the only cost of the sheets, and the reason the inline
+variant deliberately has none.
+
+Below `md` the subcategory pills are **always one scrollable row**. They used to wrap until the page
+was scrolled (`useWindowScrolled`) and then collapse to one line, which on a phone opened a category
+with up to three rows of pills between the header and the first product and shifted the layout the
+moment you moved — in the direction that hides the goods. From `md` up the width is there, so the
+wrap-until-scrolled behaviour stays.
 
 **Sub-subcategories (3rd level):** `categories.parent_id` is self-referential, so a category can be nested one level deeper than a normal subcategory (category → subcategory → sub-subcategory). Sub-subcategories have **no page of their own** — `products.category_id` may point directly at one (instead of at the subcategory), and `/catalog/[slug]` groups that subcategory's products into per-sub-subcategory sections within its section rather than routing to a new URL. `getCategoryProducts` (cached as `getCachedCategoryProducts`) takes every category id under the top-level one in one query and returns the rows bucketed by `category_id`, so products assigned at either level arrive together; `buildCategorySection()` in `lib/subcategory-sections.ts` then splits each subcategory's bucket into per-sub-subcategory groups. `sitemap.ts`, the homepage carousel grouping (`app/page.tsx`), and the product-detail breadcrumbs (`app/product/[id]/page.tsx`) all walk up to 2 `parent_id` hops to resolve the real top-level/subcategory pair, and link to the subcategory as `/catalog/[topSlug]?sub=[subSlug]`. Admin: `AdminCategories.tsx` renders 3 tiers and only allows a subcategory (not a sub-subcategory) as a parent, capping the tree at 3 levels; the product editor's category `<select>` only offers leaf categories **below the top level** — a subcategory or sub-subcategory with no children of its own, labeled with its full breadcrumb path. A childless top-level category is a leaf by that test alone and used to be offered; a product assigned to one renders nowhere, because `/catalog/[slug]` builds its sections from subcategory ids and then calls `notFound()`.
 
@@ -142,14 +190,15 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### banners
 
-| column     | type    | notes                 |
-| ---------- | ------- | --------------------- |
-| id         | int     | PK                    |
-| image_url  | text    |                       |
-| sort_order | int     |                       |
-| active     | boolean |                       |
-| link       | text    | nullable              |
-| type       | text    | `desktop` \| `mobile` |
+| column     | type    | notes                                                                                                                    |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| id         | int     | PK                                                                                                                       |
+| image_url  | text    |                                                                                                                          |
+| sort_order | int     |                                                                                                                          |
+| active     | boolean |                                                                                                                          |
+| link       | text    | nullable                                                                                                                 |
+| alt        | text    | nullable, ≤ 200 — what the banner says and where it leads, read by screen readers; the carousel falls back to «Баннер N» |
+| type       | text    | `desktop` \| `mobile`                                                                                                    |
 
 ### profiles
 
@@ -163,21 +212,21 @@ legacy 301s match with a leading wildcard no btree can serve.
 
 ### orders
 
-| column           | type        | notes                                                                                                                         |
-| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| id               | int         | PK                                                                                                                            |
-| user_id          | uuid        | nullable FK → auth.users (guest checkout allowed)                                                                             |
-| customer_name    | text        |                                                                                                                               |
-| customer_phone   | text        |                                                                                                                               |
-| customer_address | text        |                                                                                                                               |
-| comment          | text        | nullable                                                                                                                      |
-| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs)                                                                    |
-| total            | numeric     | goods + delivery                                                                                                              |
-| delivery_type    | text        | nullable                                                                                                                      |
-| delivery_cost    | numeric     | not null, default 0                                                                                                           |
-| status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` — CHECK-constrained to those five, matching `ORDER_STATUS` |
-| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never                                                              |
-| created_at       | timestamptz |                                                                                                                               |
+| column           | type        | notes                                                                                                                                        |
+| ---------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| id               | int         | PK                                                                                                                                           |
+| user_id          | uuid        | nullable FK → auth.users (guest checkout allowed)                                                                                            |
+| customer_name    | text        |                                                                                                                                              |
+| customer_phone   | text        |                                                                                                                                              |
+| customer_address | text        |                                                                                                                                              |
+| comment          | text        | nullable                                                                                                                                     |
+| items            | jsonb       | array of cart items (frozen at checkout, incl. image URLs — the ≤500px thumbnail where one exists, since every consumer draws it at 40–64px) |
+| total            | numeric     | goods + delivery                                                                                                                             |
+| delivery_type    | text        | nullable                                                                                                                                     |
+| delivery_cost    | numeric     | not null, default 0                                                                                                                          |
+| status           | text        | `new` \| `confirmed` \| `processing` \| `delivered` \| `cancelled` — CHECK-constrained to those five, matching `ORDER_STATUS`                |
+| notified_at      | timestamptz | nullable — when the admin email was confirmed sent; NULL = never                                                                             |
+| created_at       | timestamptz |                                                                                                                                              |
 
 ### cart_items
 
@@ -218,10 +267,11 @@ service role touches it, through the `rate_limit_hit(bucket, key, limit, window)
 **Storage buckets:** `product-images` (product photos), `banners` (banner images), `categories`
 (category images) — all three public, created by `supabase/migrations/20260915090000_storage_buckets.sql`.
 Their `file_size_limit` / `allowed_mime_types` are not the same as the checks in
-`app/admin/actions.ts` and are not meant to be: product and banner uploads are re-encoded by `sharp`
-first, so the action accepts a 15 MB phone original while the bucket only ever sees the WebP
-derivative. Category images are the exception — `uploadImage()` stores them as uploaded, so there
-the bucket's 2 MB is the real limit.
+`app/admin/actions.ts` and are not meant to be: every upload is re-encoded by `sharp` first
+(`uploadEncoded()`), so the action accepts a 15 MB phone original while the bucket only ever sees a
+WebP derivative. Category images used to be the exception, stored as uploaded under the MIME type
+the browser _claimed_ — the one path where a non-image could land in a public bucket with an image
+Content-Type — and now go through the same encoder at ≤800px.
 
 ## TypeScript Types (`/types/index.ts`)
 
@@ -264,6 +314,8 @@ type ProductListItem = {
   label?: "new" | "sale" | null;
   brand_id?: number | null;
   brand_name?: string | null;
+  purchase_count: number; // for "Популярные"
+  created_at: string; // for "Новые"
 };
 
 type ProductListRow = Omit<ProductListItem, "brand_name"> & { brands: { name: string } | null };
@@ -288,51 +340,54 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 
 ## Services (`/services/`)
 
-| file                   | purpose                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------ |
-| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing      |
-| `brand.service.ts`     | Brand queries (public + admin)                                                       |
-| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                      |
-| `order.service.ts`     | Order creation & listing, admin listing + status counts                              |
-| `profile.service.ts`   | User profile read/write                                                              |
-| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                        |
-| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list              |
-| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                                 |
-| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only          |
-| `analytics.service.ts` | Rows the admin dashboard aggregates — orders, customer history, catalogue, favorites |
+| file                   | purpose                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `product.service.ts`   | Product CRUD, label/category/brand queries, search, autocomplete, admin listing          |
+| `brand.service.ts`     | Brand queries (public + admin)                                                           |
+| `category.service.ts`  | Category tree queries (public + admin, ordered by `sort_order`)                          |
+| `order.service.ts`     | Order creation & listing, admin listing + status counts                                  |
+| `profile.service.ts`   | User profile read/write                                                                  |
+| `cart.service.ts`      | DB cart sync (auth users): load/upsert/delete/clear/reconcile                            |
+| `favorites.service.ts` | DB favorites sync (auth users): load ids, add/remove, full product list                  |
+| `banner.service.ts`    | Banner queries, split by `type` (`desktop`/`mobile`)                                     |
+| `user.service.ts`      | Account list for the admin — Auth admin API + `profiles`, service-role only              |
+| `analytics.service.ts` | Rows the admin dashboard aggregates — orders, customer history, catalogue, favorites     |
+| `review.service.ts`    | Отзывы: публичные по товару, очередь модерации, разбор токена, привязка гостевого заказа |
 
 ## Lib Utilities (`/lib/`)
 
-| file                      | purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`/`SPECIALS_BASE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()`, and `MIN_ORDER_TOTAL` (the smallest basket checkout accepts)                                                                                                                                                                     |
-| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()` — URL helpers. `MAX_PAGE` is 500, not a runaway guard: every distinct `?page=` mints an ISR **and** a Data Cache entry (see "Cache budget"), and a page past the end 404s rather than serving an indexable empty 200                                                                                                                                                                                                        |
-| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                                                                                                                                                                                                                                                                              |
-| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                                                                                                                                                                                                                                                                   |
-| `db.ts`                   | `soft()` / `strict()` / `maybe()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`, `maybe()` for a `.maybeSingle()` lookup where "not found" is ordinary). Also `loadAllPages()` / `PAGE_ROWS` — reads a whole list through PostgREST's 1000-row ceiling and throws on a failed page, because a half-loaded list is indistinguishable from a short one (`app/sitemap.ts`, `analytics.service.ts`) |
-| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                                                                                                                                                                                                                                                                                |
-| `safe-redirect.ts`        | `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                                                                                                                                                                                                                                                      |
-| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                                                                                                                                                                                                                                                                        |
-| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                                                                                                                                                                                                                                                                                 |
-| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                                                                                                                                                                                                                                                                           |
-| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                                                                                                                                                                                                                                                                   |
-| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                                                                                                                                                                                                                                                        |
-| `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `minOrderShortfall()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below)                                                            |
-| `analytics.ts`            | Pure aggregation behind `/admin/analytics`: shop-day/period helpers and `buildReport()` — kept free of the database so `tests/analytics.test.ts` can exercise the arithmetic                                                                                                                                                                                                                                                                                                     |
-| `analytics-insights.ts`   | `buildInsights()` — the dashboard's catalogue- and history-dependent sections (categories, brands, heatmap, promo, free-delivery threshold, cancellations, repeat purchases, favorites vs sales, unsold products); pure, tested in `tests/analytics-insights.test.ts`                                                                                                                                                                                                            |
-| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                                                                                       |
-| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                                                                              |
-| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; read by `proxy.ts`                                                                                                                                                                                                                                                                                                                                                             |
-| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                                                                                                      |
-| `csp.ts`                  | `buildContentSecurityPolicy()` — the CSP `next.config.ts` serves, assembled at **build** time from `NEXT_PUBLIC_SUPABASE_URL` (see the security-headers note below)                                                                                                                                                                                                                                                                                                              |
-| `text.ts`                 | `CONTACT_LIMITS`, `normalizeText()` — the caps on the customer contact fields, shared by checkout and the profile form, because a server action's argument types are erased at runtime                                                                                                                                                                                                                                                                                           |
-| `whatsapp.ts`             | `toWhatsAppNumber()`, `whatsAppLink()`, `orderStatusMessage()` — prefilled `wa.me` links for the admin order list; nothing is sent automatically (see "WhatsApp" below)                                                                                                                                                                                                                                                                                                          |
+| file                      | purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase-server.ts`      | `createClient()` — SSR Supabase with cookies                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `supabase-browser.ts`     | `createClient()` — client-side Supabase                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `supabase.ts`             | Direct anon-key client (used by `unstable_cache()` wrappers)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `cn.ts`                   | `cn(...classes)` — clsx + tailwind-merge                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `cached-queries.ts`       | ISR-cached wrappers via `unstable_cache()`                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `auth.ts`                 | `requireAuth()` — server-side auth guard, redirects to `/auth`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `constants.ts`            | `SITE_URL`/`LEGACY_SITE_URL`/`SPECIALS_BASE_URL`, `LABEL_MAP` (badge text/color for `new`/`sale`), `ORDER_STATUS` (label/color), `countsAsPurchase()` / `purchaseCountDelta()` (which statuses move `purchase_count`, and by how much), the delivery tariff: `DELIVERY_OPTIONS`, `FREE_DELIVERY_THRESHOLD`, `getDeliveryCost()`, `deliveryFreeNote()`, and `MIN_ORDER_TOTAL` (the smallest basket checkout accepts)                                                                                   |
+| `page-params.ts`          | `parsePage()`, `parseSortParam()`, `parseBrandIds()`, `parsePriceRange()` — URL helpers, and the single declaration of `SortValue`. An inverted `?price_min=500&price_max=100` drops **both** bounds rather than swapping them, so the filter UI never shows a range the customer did not type. `MAX_PAGE` is 500, not a runaway guard: every distinct `?page=` mints an ISR **and** a Data Cache entry (see "Cache budget"), and a page past the end 404s rather than serving an indexable empty 200 |
+| `price-filter.ts`         | `filterByPrice()`, `sortProducts()`, `applyProductFilters()`, `filterCategorySections()`, `priceBounds()` — the storefront's sort and price filter, as pure array operations so the server and the client can apply the identical transform (`tests/price-filter.test.ts`)                                                                                                                                                                                                                            |
+| `section-scroll.ts`       | Module-level singleton: `registerSectionScroller` / `scrollToSection` — lets `SubcategoryFilter` imperatively scroll `VirtualCategoryContent` without prop drilling                                                                                                                                                                                                                                                                                                                                   |
+| `active-section.ts`       | Pub/sub for the currently-visible section ID: `setActiveSection` / `subscribeActiveSection` — `VirtualCategoryContent` fires updates on scroll, `SubcategoryFilter` highlights the active pill                                                                                                                                                                                                                                                                                                        |
+| `db.ts`                   | `soft()` / `strict()` / `maybe()` — unwrap a Supabase response so a failed query stops looking like an empty one (`strict` where the result decides `notFound()`, `maybe()` for a `.maybeSingle()` lookup where "not found" is ordinary). Also `loadAllPages()` / `PAGE_ROWS` — reads a whole list through PostgREST's 1000-row ceiling and throws on a failed page, because a half-loaded list is indistinguishable from a short one (`app/sitemap.ts`, `analytics.service.ts`)                      |
+| `supabase-admin.ts`       | `createAdminClient()` — service-role client, bypasses RLS; never construct without an admin check right before it                                                                                                                                                                                                                                                                                                                                                                                     |
+| `safe-redirect.ts`        | `safeNextPath()` (a relative path or the fallback — the client-side check, since `/auth` hands `?next=` straight to `router.push`), `safeRedirect()` (same-origin `?next=` only) and `resolveOrigin()` (honours `x-forwarded-host` for allow-listed hosts only)                                                                                                                                                                                                                                       |
+| `deploy-origin.ts`        | `DEPLOY_ORIGIN` / `IS_CANONICAL_HOST` — the origin this deployment actually serves on, as opposed to `SITE_URL`; drives the noindex guard and admin links in email. Unset on production since the cutover                                                                                                                                                                                                                                                                                             |
+| `rate-limit.ts`           | `rateLimit()` — fixed-window limiter for public server actions, backed by the `rate_limit_hit` Postgres function; fails **open**                                                                                                                                                                                                                                                                                                                                                                      |
+| `roles.ts`                | `adminRole()` / `isSuperAdmin()` — the only readers of `app_metadata.role`; see the Auth section below                                                                                                                                                                                                                                                                                                                                                                                                |
+| `mailer.ts`               | Admin order notification over SMTP (`nodemailer`), with a narrowed TLS name check for the hoster's certificate                                                                                                                                                                                                                                                                                                                                                                                        |
+| `invoice.ts`              | Order PDF (`pdfkit` + bundled Roboto in `lib/fonts/`), attached to the notification email                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `order-pricing.ts`        | `parseLines()`, `buildQuote()`, `publishedPriceLookup()`, `minOrderShortfall()`, `money()` — the one place order money is computed; kept out of the action file so it can be tested without a database (`tests/order-pricing.test.ts`). Admin order edits share it: `validateOrderItems()`, `normalizeOrderItems()`, `priceOrder()`, `isManualDeliveryCost()`, `parsePriceInput()` (see the admin-editing note below)                                                                                 |
+| `analytics.ts`            | Pure aggregation behind `/admin/analytics`: shop-day/period helpers and `buildReport()` — kept free of the database so `tests/analytics.test.ts` can exercise the arithmetic                                                                                                                                                                                                                                                                                                                          |
+| `analytics-insights.ts`   | `buildInsights()` — the dashboard's catalogue- and history-dependent sections (categories, brands, heatmap, promo, free-delivery threshold, cancellations, repeat purchases, favorites vs sales, unsold products); pure, tested in `tests/analytics-insights.test.ts`                                                                                                                                                                                                                                 |
+| `reviews.ts`              | `validateReview()`, `orderCanBeReviewed()`, `reviewableItems()`, `averageRating()`, `starFill()`, `isReviewToken()` — правила отзывов без базы (`tests/reviews.test.ts`)                                                                                                                                                                                                                                                                                                                              |
+| `subcategory-sections.ts` | `buildCategorySection()` — groups a subcategory's products by sub-subcategory for `VirtualCategoryContent`                                                                                                                                                                                                                                                                                                                                                                                            |
+| `legacy-redirect.ts`      | `redirectLegacyProduct()` — resolves an old JoomShopping product URL against `products.product_url` at request time                                                                                                                                                                                                                                                                                                                                                                                   |
+| `legacy-redirects.ts`     | Generated static map of the old site's non-product URLs (brands, categories, nav) → current ones; fed into `redirects()` in `next.config.ts`                                                                                                                                                                                                                                                                                                                                                          |
+| `seo.ts`                  | `pageMetadata({ title, description, path })` — one page's title, description, canonical and Open Graph block together, since a page that sets only some of them inherits the home page's for the rest; also `OFFER_SHIPPING_DETAILS` / `MERCHANT_RETURN_POLICY`, the two blocks every product Offer carries                                                                                                                                                                                           |
+| `csp.ts`                  | `buildContentSecurityPolicy()` — the CSP `next.config.ts` serves, assembled at **build** time from `NEXT_PUBLIC_SUPABASE_URL` (see the security-headers note below)                                                                                                                                                                                                                                                                                                                                   |
+| `text.ts`                 | `CONTACT_LIMITS`, `normalizeText()` — the caps on the customer contact fields, shared by checkout and the profile form, because a server action's argument types are erased at runtime                                                                                                                                                                                                                                                                                                                |
+| `whatsapp.ts`             | `toWhatsAppNumber()`, `whatsAppLink()`, `orderStatusMessage()` — prefilled `wa.me` links for the admin order list; nothing is sent automatically (see "WhatsApp" below)                                                                                                                                                                                                                                                                                                                               |
 
 ### Cached Queries (ISR tags & TTLs)
 
@@ -348,10 +403,21 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedPopularProducts(limit?)`                  | 10 min | `products` `products-popular` |
 | `getCachedPopularProductsPaginated(page, pageSize)` | 10 min | `products` `products-popular` |
 | `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
-| `getCachedCategoryProducts(categoryIds, sort)`      | 10 min | `products`                    |
+| `getCachedCategoryProducts(categoryIds)`            | 10 min | `products`                    |
 | `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
-| `getCachedProduct(id)`                              | 10 min | `products`                    |
-| `getCachedRelatedProducts(categoryId)`              | 10 min | `products`                    |
+| `getCachedProduct(id)`                              | 10 min | `products` `product-<id>`     |
+| `getCachedProductReviews(id)`                       | 10 min | `product-<id>`                |
+| `getCachedRelatedProducts(categoryId)`              | 10 min | `products` `category-<id>`    |
+
+The two per-entity tags are built by `lib/cache-tags.ts` (`productTag()`, `categoryTag()`), and
+their readers construct the `unstable_cache` wrapper **per call** rather than once per module —
+that is the only way its tags can carry an argument. Both sides of the bargain are in the admin:
+`setReviewModeration` and `removeReview` expire one product, and `upsertProduct` expires its
+product's tag always but `products` only when `touchesListings()` says a card or a list order
+changed (price, name, photo, label, brand, category, publication). Editing a description, the
+common edit, used to expire 2400 products and their pages. The trade is stated in
+`getCachedProductReviews`: after an approval the stars on that product's **card** catch up within
+`CATALOGUE_TTL`, while its page shows the review at once.
 
 The two TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min) and `REFERENCE_TTL`
 (1 hour). Neither is what keeps the site fresh: every write path invalidates by tag
@@ -363,9 +429,19 @@ Vercel's Hobby plan meters those against 200K ISR writes a month. See "Cache bud
 `getCachedCategoryProducts` returns tuples rather than the `Map` the service produces — a `Map`
 cannot cross the `unstable_cache` boundary, so the caller rebuilds it. The extra `products-popular`
 tag lets checkout expire the two purchase-count-ranked queries without dropping the whole catalogue
-cache. It deliberately takes no brand filter: a facet on the category page would fold the chosen
-subset of brands into the key and mint a ~90 KB entry per subset, so filtering belongs on the cached
-result rather than in the query. Callers also sort the ids — `[1,2]` and `[2,1]` are otherwise two
+cache. It deliberately takes no brand filter, **no sort order and no price range**: each would fold
+the chosen subset into the key and mint a ~90 KB entry per combination, so filtering belongs on the
+cached result rather than in the query. `sort` was in this key until the storefront gained a control
+for it — up to three entries per category for a feature no page exposed — and now lives in
+`lib/price-filter.ts`, applied by `app/catalog/[slug]/page.tsx` and again by `CategoryBrowser` on the
+client. The storefront offers five orders — name, «Популярные» (`purchase_count`), «Новые»
+(`created_at`), and the two price directions — and the last two are why `ProductListItem` carries
+those columns at all: sorting a cached result needs them on every row, which costs ~45 bytes a row,
+about 21 KB on the largest category page. That is the price of not minting a cache entry per sort
+order, and it is the cheaper side by a wide margin. All four non-name orders break ties by `id`,
+which matters most for «Популярные»: four published products in five have a `purchase_count` of 0,
+so almost the whole catalogue is a single tie and an unstable sort would reshuffle it between the
+server render and hydration. Callers also sort the ids — `[1,2]` and `[2,1]` are otherwise two
 entries for one payload, and the natural `sort_order` walk is re-permuted by an admin drag-reorder.
 
 `getCachedRelatedProducts` is keyed by **category alone**. Its `excludeId` used to be in the key,
@@ -379,15 +455,17 @@ still has four neighbours to show. The rendered result is identical to the old q
 - **cart store** (`store/cart.ts`) — cart items array, persisted to localStorage (key `"cart"`, only `items` is persisted); syncs with DB when user logs in (local items win on conflict, DB-only items appended, `reconcileCartItems` pushes local-only items back).
 - **favorites store** (`store/favorites.ts`) — product IDs; syncs with DB on auth. Persisted to localStorage (key `"favorites"`, `ids` + `userId`) so a returning customer's hearts are right on first paint and survive an offline reload; `userId` rides along because the ids belong to one account, and they are dropped whenever a different user signs in or the current one signs out. Unlike the cart there is nothing to keep for a guest — `FavoriteButton` sends them to `/auth` rather than storing anything. A failed load leaves `initialized` false, which both keeps the button disabled and lets the next auth event retry.
 - **toast store** (`store/toast.ts`) — notification queue, auto-dismiss after 3.5s, keeps at most 3 toasts.
+- **auth modal store** (`store/auth-modal.ts`) — whether the sign-in sheet is open, plus the product a guest was trying to favourite when it opened. Not persisted, like the toast store. `FavoriteButton` opens it instead of navigating to `/auth`, and `AuthModal` presses that heart once `favorites` reports the account's list loaded — adding any earlier writes into a store the `setUser` load is about to replace. A Google sign-in leaves the site, so that pending heart does not survive it; the sheet passes the current path as `next` so the customer at least comes back where they were.
 
 ## Server Actions
 
-| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart, increments `purchase_count` and emails the admin with a PDF invoice                                                                                                                                                                                                                                  |
-| `app/profile/actions.ts`        | `saveProfile()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client |
+| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                                                                                                       |
+| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `app/order/[token]/actions.ts`  | `claimOrder()` — привязать гостевой заказ к аккаунту по кнопке (см. «Product reviews»); GET страницы ничего не меняет                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client. Writes copy an explicit column list (`pick()`), never the client's object |
 
 ## Auth
 
@@ -489,7 +567,7 @@ from `NEXT_PUBLIC_SUPABASE_URL` would leave staging with four broken tiles and g
 The old store stays reachable at `LEGACY_SITE_URL` (`https://old.aloe.kg`), linked from the footer
 with `rel="nofollow"`; old JoomShopping product URLs on the main domain are 301d to `/product/[id]`
 by `app/catalog/product/view/[...path]/route.ts`. Those redirects send a **relative** `Location`
-(`lib/legacy-redirect.ts`, `proxy.ts`), so they land on whichever host was asked — production,
+(`lib/legacy-redirect.ts`, `redirects()` in `next.config.ts`), so they land on whichever host was asked — production,
 staging or localhost. An absolute one would be wrong either way: built from `SITE_URL` it bounces
 staging traffic into the live shop, and built from the request it bakes the first caller's host into
 a response the route caches for a day (`revalidate = 86400`).
@@ -617,7 +695,108 @@ until it lands, because `loading.tsx` only covers entering the route, not a sear
 
 **Drag-to-reorder** for admin categories and banners shares one hook, `useDragReorder()` — tracks drag/drop indices per group and hands back a reordered array; the caller persists the new `sort_order` via a server action (`reorderSubcategories()` / `reorderBanners()`).
 
+**One sheet component.** `components/Sheet.tsx` is the bottom sheet on a phone and the centred dialog from `md` up, with the scroll lock, focus trap, `Esc` handling and the enter/exit animation in one place. It renders through a **portal into `document.body`**, which is load-bearing rather than tidy: `z-50` only ranks it against its siblings inside the nearest stacking context, and a `position: sticky` ancestor carrying a `z-index` creates one — so a sheet opened from the category page's sticky subcategory bar (`z-10`) was trapped under `MobileBottomNav` at `z-40`, which drew its icons across the open panel. The portal is the only fix that keeps working wherever a caller mounts it, and it is why the component renders nothing until `useIsClient` flips. Its content also carries `safe-area-pb`, since the panel is flush with the bottom edge on a phone. The header row overlays the scrolling content rather than sitting above it, which is what pins the close button as the panel scrolls — so a title belongs on that line, and `heading` puts it there. A caller passes `heading` **or** `label` and the type enforces it: `heading` names the dialog itself, while `label` is the hidden name for a panel carrying its own title inside, which the quick view and the sign-in sheet do; `ProductModal` and `AuthModal` are thin wrappers over it. Mounted means open — the panel animates in on mount and out through its own `close()`, and `onClose` runs only after the exit, which is what lets the quick view defer `router.back()` until the sheet is off screen. `requestClose` is for dismissing it from outside (the sign-in sheet closes itself once the session lands) rather than unmounting it mid-animation. It transitions `translate`/`scale`, **not** `transform`: Tailwind 4 compiles those utilities to the standalone CSS properties, so a `transition-[transform,…]` names a property nothing animates and the sheet appears without moving.
+
+**The sign-in form is shared, not duplicated.** `app/auth/AuthForm.tsx` holds the login/register/reset form with no page chrome; `/auth` wraps it in `MainContainer` and supplies the confirmation banners (it owns the `useSearchParams` read, so the form can be used where there is no Suspense boundary), and `AuthModal` wraps it in a sheet, passes `onAuthenticated` so a successful sign-in closes the sheet instead of pushing to `/`, and loads it with `next/dynamic` — it is mounted in the root layout on every page but only ever opened by a guest.
+
 **Product quick-view modal:** `ProductCard` links to `/product/[id]` normally; the `@modal` parallel route (`app/@modal/(.)product/[id]/page.tsx`) intercepts that soft navigation and renders it inside `ProductModal` instead, so browsing stays on the originating grid/carousel while the URL still updates. See "Quick-view modal" note under App Routes.
+
+**Product reviews.** Rated 1..5, moderated before anything is shown, and the whole design turns on
+one question: **who may write one.** The only anti-spam that costs nothing is "you may review what
+you received", and that is hard to ask here — 24 of 25 delivered orders on production were placed by
+a guest, so `orders.user_id` is null and a later sign-up has nothing to match against. Matching on
+the phone instead would let anyone who knows a number claim that person's orders, and their
+addresses with them, since checkout never verifies a phone.
+
+So the proof of purchase is `orders.review_token`, and it travels over the one channel the shop
+already has: the WhatsApp message the admin sends by hand when an order is delivered
+(`lib/whatsapp.ts` appends `SITE_URL/review/<token>` to the `delivered` template). Delivery to the
+customer's own number _is_ the verification. `/review/[token]` 404s for an unknown token and for an
+order that is not `delivered` — the same answer for both, since confirming a token exists is already
+more than a guessed link should reveal — and `isReviewToken()` rejects a malformed uuid before the
+query, because Postgres answers a bad cast with an error and that surfaced as a 500.
+
+Posting requires signing in, which is the point: a valid token also lets `app/review/actions.ts`
+**claim the guest order for the account** (`orders.user_id`, only where it is still null). The token
+proves ownership, so this is safe without an OTP — and the order history it unlocks is the real
+reason to register, rather than the review itself. `/checkout/success` therefore offers an account,
+not a review: nothing has arrived yet.
+
+The same token is the order's **access token**, and `/order/[token]` is its other door. `createOrder`
+returns it so the success page can send a guest through `/auth?next=/order/<token>`; signed in, the
+page shows the order and a **button** that attaches it to the account (`claimOrder` in
+`app/order/[token]/actions.ts`) and lands on `/profile`. Without it the card on the success page
+promised something the code could not do — checkout stores `user_id = null` for a guest, registering
+afterwards matched nothing, and the customer arrived at an empty profile. The claim used to happen
+on the GET itself, which made the link the action: a guest order's link sent to any signed-in
+stranger landed in their history, and forwarding one's own link gave the order away. It is
+conditional on `user_id is null` in the query itself, so an order that already belongs to someone
+never changes hands however the link travelled afterwards; a signed-out visitor sees the order's
+status and an invitation instead, which is guest order tracking by the same door. `/order/:path*`
+and `/checkout/success` (where the token is first shown) get `no-referrer`, and `/order` a robots
+`disallow`, for the same reason `/review/:path*` does.
+
+Every check lives in the server action rather than in RLS, because the last of them cannot be
+written as a policy — "was this product in that order" reads `orders.items`, a jsonb document.
+RLS on `reviews` is one public `select` of approved rows only; writes are revoked and go through the
+service role. Moderation is in `/admin/reviews`; rejecting keeps the row, so the unique
+`(user_id, product_id)` stops a repost, while deleting gives that back and is for content that must
+not stay stored.
+
+That constraint is **per customer per product, not per order**, and it started out the other way.
+This shop sells consumables, so buying the same thing again is the normal case: under the old rule
+one customer accumulated a review per order on the same product — their name and avatar repeated
+down the page, their opinion weighted several times in an average built from a handful of reviews,
+and the whole thing shaped exactly like the review manipulation Google's policy is about. A repeat
+purchase earns an **edit**, which is what the profile tab is for. `order_id` stays on the row as the
+proof of purchase and the moderator's context; it is simply not part of what must be unique.
+
+The rating is **denormalised onto `products` as `rating_sum` + `rating_count`**, maintained by a
+trigger and counting approved reviews only — a card cannot join an aggregate when list queries are
+cached whole (see "Cache budget"). Sum rather than an average, since an average cannot be updated
+incrementally without drift; `averageRating()` divides once, at render. Approving expires the
+product's own tag (`productTag(id)`, see "Cached Queries"), so its page shows the review at once and
+its card's stars follow within the catalogue TTL; `submitReview` expires nothing, because nothing it
+writes is public yet.
+
+Two deliberate silences: `aggregateRating` appears in the product JSON-LD **only when there is
+something to aggregate** (Google's policy forbids inventing ratings, and this closes one of the
+merchant-listing gaps in `lib/seo.ts` honestly), and neither the card nor the product page renders
+anything at all for an unrated product — 5% of the catalogue has ever been delivered, and a row of
+grey stars on the other 95% reads as "rated badly" rather than "new". Reviews are signed with a
+first name and the initial of a surname — "Айгерим С." — shortened by `displayAuthorName()` **before
+it is stored**, because `anon` may read every column it is granted of an approved review — and since
+`20260924100000_reviews_column_grants.sql` that grant is column-level: `user_id` and `order_id` are
+not readable by `anon` or `authenticated` at all, so no PostgREST query with the public key can
+string one customer's reviews together or pair a review with an order. A full name against a
+purchase is more than this shop asked permission to publish. The
+avatar is a generated initial in a deterministic colour, not a photo: 13 of 14 accounts signed up by
+email and have none, and the one Google avatar lives on `googleusercontent.com`, which `img-src`
+does not allow — widening the CSP and calling Google from every product page, for one user in
+fourteen, buys less than a coloured circle. A review written before the column existed, or by
+someone whose profile has no name, renders as "Покупатель".
+
+The profile has an **"Отзывы" tab**: everything the customer has written, moderation state included,
+each one editable. Seeing their own pending and rejected rows is what the single select policy
+allows (`status = 'approved' or user_id = auth.uid()`, widened rather than paired with a second
+policy so that "what may anon see" has one answer). The list itself is read through the **service
+role** with the id `requireAuth()` took from the session — it used to use the user's client so that
+the policy, not the call site, decided whose drafts came back, but filtering on `user_id` needs the
+right to read it, and that right is exactly what leaked every other customer's id (see above).
+
+**A published review is final.** Only `pending` and `rejected` may be edited (`canEditReview`), and
+`updateOwnReview` filters on the status in the same statement as the write, so a second tab cannot
+slip an edit through between the approval and the save. Editing used to send an approved review back
+to moderation, which worked but meant a live review could vanish from a product page at any moment
+and left the bypass open in principle — post something bland, wait for approval, rewrite the page.
+`rejected` stays editable on purpose: the unique `(user_id, product_id)` means it cannot be replaced
+either, so freezing it too would leave the customer unable ever to rate that product. There is no
+update policy at all — the edit goes through a server action on the service role, and a direct
+`PATCH` from a signed-in customer is refused with a 403.
+
+`reviews.order_id` is `on delete restrict`: deleting an order must not silently erase what a
+customer wrote. `scripts/purge-test-data.mjs` therefore cannot force such an order away, and
+`seed-staging-orders.mjs --reset` deletes its own reviews before its own orders.
 
 **Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
 both for regenerating an ISR page and for filling a Data Cache entry — `unstable_cache` included.
@@ -631,6 +810,10 @@ should be weighed before any of them is changed:
   data it reads expire together — a shorter page TTL just rebuilds a page around unchanged data.
 - **A cache key must not carry anything per-product that the query does not need.** `excludeId` on
   related products was the whole difference between ~90 entries and 2400.
+- **An admin write expires the narrowest tag that is still correct.** `updateTag("products")` marks
+  every list, product and product page stale, and each is rewritten on its next view — three writes
+  per product. Fine for a price change; for one approved review or one corrected description it
+  spends the catalogue to deliver a letter, so those go through `product-<id>` (`lib/cache-tags.ts`).
 - **A public server action's arguments are a cache key an anonymous caller writes.**
   `loadMoreBrandProducts` took `pageSize` and passed it straight into `getCachedProductsByBrand`:
   clamping it to 1..48 bounded each response but not the number of keys, so the 48 × 10 000 grid was
@@ -640,22 +823,29 @@ should be weighed before any of them is changed:
 - **A page past the end is a 404, not an empty 200.** `LabelProductsPage` and `SearchResults` call
   `notFound()` when `page > 1` comes back empty, and `MAX_PAGE` (`lib/page-params.ts`) is 500 —
   otherwise anyone could mint an ISR and a Data Cache entry per `?page=`, each one indexable.
+- **A filter runs on the cached result, not in the cached query.** Sorting and the price range never
+  enter a cache key: `/catalog/[slug]` gets the whole category in one entry and narrows it with
+  `lib/price-filter.ts`, on the server for the first render and on the client for every interaction
+  after it. `/search` is the exception and filters in SQL, because it is not cached at all and its
+  `COUNT` is what decides how many pages exist. **An empty filter result is a 200, not a 404** — the
+  `notFound()` on `/catalog/[slug]` is decided on the unfiltered sections, since a price range
+  matching nothing is not a missing category.
 
 None of it costs freshness, because tag invalidation, not the TTL, is what publishes an admin edit.
 
 **Image optimization is intentionally disabled** — `next.config.ts` sets `images.unoptimized: true` (Vercel Hobby plan quota on Image Optimization source images). Do not re-enable without checking the plan/hosting situation first. Because nothing resizes at request time, **the browser downloads exactly the bytes that were uploaded**, so every product photo is stored at two sizes instead:
 
-| column          | size    | rendered by                                                                        |
-| --------------- | ------- | ---------------------------------------------------------------------------------- |
-| `thumbnail_url` | ≤ 500px | `ProductCard` (grids, carousels, brand pages), cart rows, autocomplete, admin list |
-| `image_url`     | ≤1200px | `/product/[id]`, the quick-view modal, OG/JSON-LD metadata, order snapshots        |
+| column          | size    | rendered by                                                                                         |
+| --------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `thumbnail_url` | ≤ 500px | `ProductCard` (grids, carousels, brand pages), cart rows, autocomplete, admin list, order snapshots |
+| `image_url`     | ≤1200px | `/product/[id]`, the quick-view modal, OG/JSON-LD metadata                                          |
 
 Both are WebP (q76 / q82). `uploadProductImage()` produces the pair with `sharp` from a single admin upload — it stores `thumb/<name>.webp` alongside `<name>.webp` and returns both URLs, so the two columns are always written together. Consumers read `thumbnail_url || image_url`; the fallback covers rows predating the backfill. Because uploads are re-encoded server-side, the action accepts originals up to 15 MB, which is also why `experimental.serverActions.bodySizeLimit` is raised — the 1 MB default rejected phone photos before the action ever ran.
 
 Banners are re-encoded the same way: `uploadBannerImage(formData, type)` takes the `desktop`/`mobile`
 tab it was uploaded from and writes a single WebP — ≤1600px q82 for desktop, ≤1000px q80 for mobile —
 because the homepage renders the two sets as separate carousels, so neither file has to cover the
-other's breakpoint. Category images are still stored as uploaded (`uploadImage()`).
+other's breakpoint. Category tiles are one WebP at ≤800px q80.
 
 **Which banner the browser actually fetches** is decided by `<picture>`, not by CSS. The homepage
 keeps both carousels in the DOM and hides one with `display:none`, and a hidden `<img>` is still
@@ -671,16 +861,26 @@ of them, and `preload` on the first card of each put fourteen `<link rel=preload
 stylesheet, the JS chunks and the LCP banner. Grids elsewhere still preload their first card —
 there the card is the LCP element. (`preload` is what Next 16 renamed `priority` to.)
 
+**`ProductCarousel` is Embla only from `md` up.** The arrows are `hidden md:flex`, so on a phone
+Embla only reimplemented the swipe the browser does natively — a pointer listener, a resize observer
+and a measurement of every slide, once per carousel, on the device least able to afford it. Below
+`md` the row is a plain `overflow-x: auto` (`useMediaQuery`, false during hydration so the markup
+matches), and the ref that initialises Embla is withheld. The home page also wraps **each carousel
+in its own `<Suspense>`** with no fallback: nothing suspends, but a server-rendered boundary is
+hydrated by React as a separate, interruptible task, so ~170 cards hydrate row by row rather than
+in one long task and a tap on the first row is answered before the last is touched. The cost is
+one `$RC` segment per row in the prerendered HTML.
+
 **Legacy URLs from the old shop** are redirected in two places, split by whether the mapping can be
 computed or has to be looked up. The old sitemap (still submitted to Search Console from 2017)
 listed 2879 addresses, and until this was in place every one of them answered 404 on the new site:
 
-| shape                                                                                 | count | handled by                                |
-| ------------------------------------------------------------------------------------- | ----- | ----------------------------------------- |
-| `/catalog/<slug>/product/view/<cat>/<id>.html`                                        | 2415  | route handler → `redirectLegacyProduct()` |
-| `/brendy/manufacturer/view/<id>.html`                                                 | 384   | `proxy.ts` + `legacy-redirects.ts`        |
-| `/catalog/<slug>/category/view/<id>.html`                                             | 62    | same                                      |
-| `/catalog/<slug>.html`, `/catalog.html`, `/brendy.html`, `/oplata-i-dostavka.html`, … | 18    | same                                      |
+| shape                                                                                 | count | handled by                                                |
+| ------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------- |
+| `/catalog/<slug>/product/view/<cat>/<id>.html`                                        | 2415  | route handler → `redirectLegacyProduct()`                 |
+| `/brendy/manufacturer/view/<id>.html`                                                 | 384   | `next.config.ts` `redirects()` from `legacy-redirects.ts` |
+| `/catalog/<slug>/category/view/<id>.html`                                             | 62    | same                                                      |
+| `/catalog/<slug>.html`, `/catalog.html`, `/brendy.html`, `/oplata-i-dostavka.html`, … | 18    | same                                                      |
 
 Products carry their old address in `products.product_url`, so they resolve per request against the
 database and stay correct as the catalogue changes — but only on the
@@ -688,9 +888,13 @@ database and stay correct as the catalogue changes — but only on the
 a category segment, `product_url` recorded only the shorter form, and the longer one is what the
 sitemap submitted and Google indexed. Everything else has no such column, so
 `scripts/build-legacy-redirects.mjs` reads the old site once, matches its `<h1>` against `brands` /
-`categories`, and writes `lib/legacy-redirects.ts`; `proxy.ts` then answers from that map with no
-database round trip. Old JoomShopping ids never change, so the map is frozen history — regenerate it
-only if the old sitemap itself changes.
+`categories`, and writes `lib/legacy-redirects.ts`; `next.config.ts` spreads that map into
+`redirects()`, so the router answers them before any function runs — on Vercel, at the edge routing
+layer, with no invocation. They used to be answered in `proxy.ts`, which meant the proxy had to run
+on every storefront request to catch them; moving them out is what let its matcher shrink to the
+routes that read a session. `statusCode: 301`/`302` is passed explicitly, because Next's `permanent`
+flag would emit 308/307. Old JoomShopping ids never change, so the map is frozen history —
+regenerate it only if the old sitemap itself changes.
 
 `LEGACY_PERMANENT` is a 301 (an exact counterpart exists); `LEGACY_FALLBACK` is a 302 to the nearest
 listing, for the 193 brands this catalogue no longer carries and the three top-level categories the
@@ -699,11 +903,18 @@ keeps a URL from being permanently tied to a page it never had, so a brand that 
 reclaim its own address. The same reasoning applies to an unpublished product in
 `redirectLegacyProduct()`.
 
+**The proxy runs only where a session is read.** `proxy.ts` refreshes the Supabase cookie, and its
+matcher lists exactly the routes whose server code calls `createClient()` from
+`lib/supabase-server.ts` — `/admin`, `/auth`, `/checkout`, `/favorites`, `/order`, `/profile`,
+`/review`. Everything else is either prerendered or reads nothing from the session, and the browser
+client refreshes its own token; on Vercel the proxy runs _before_ the CDN cache is consulted, so
+matching the whole storefront made every ISR hit and every RSC prefetch a function invocation for
+nothing. A new route that reads the session has to be added to that list (`lib/auth.ts` says so).
+
 **Security headers live in `next.config.ts` `headers()`, not in `proxy.ts`.** Headers are matched
 before the filesystem and before the proxy, so one `/:path*` rule also covers `/_next/static`,
-`/public` and the metadata routes — every one of which the proxy's matcher deliberately excludes —
-and it costs no function invocation. The proxy would have needed the same block on each of its three
-early returns, including the anonymous-visitor fast path that is most of the storefront's traffic.
+`/public` and the metadata routes — none of which the proxy sees — and it costs no function
+invocation. The proxy would have needed the same block on each of its early returns.
 A second rule sets `Referrer-Policy: no-referrer` on `/auth/:path*`, because `/auth/confirm` reads
 `token_hash` and `code` out of the query string; where two rules set the same key, the last wins.
 
@@ -774,12 +985,12 @@ orders, and Serwist — the offline route the Next guide points at — still req
 project builds with Turbopack. `themeColor` lives in `viewport`, not `metadata`, where Next has
 deprecated it since v14.
 
-`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/auth`, `/profile`
-and after a completed order. `/auth` earns its place for a reason the card does not state: an
-installed iOS web app gets its own storage container, separate from Safari's, so a session
-started in the browser does not follow it in, and installing first means signing in once rather
-than twice. That is worth knowing here and not worth explaining to a customer, so the copy is
-the same on all three pages. iOS is handled alone because it has no install API at all — Safari offers
+`components/InstallAppIos.tsx` tells an iPhone visitor how to install it, on `/auth`, `/profile`,
+in the sign-in sheet and after a completed order. The two sign-in surfaces earn it for a reason
+the card does not state: an installed iOS web app gets its own storage container, separate from
+Safari's, so a session started in the browser does not follow it in, and installing first means
+signing in once rather than twice. That is worth knowing here and not worth explaining to a
+customer, so the copy is the same everywhere it appears. iOS is handled alone because it has no install API at all — Safari offers
 nothing to call, so a site can only describe the share sheet, while Android fires
 `beforeinstallprompt` and wants a button instead. It is also the one component that reads the user
 agent, for the same reason: "show the iOS steps" is not a capability a browser can be asked about.

@@ -13,13 +13,13 @@ export default function CartIcon() {
     <Link
       href="/cart"
       aria-label={isClient && count > 0 ? `Корзина, товаров: ${count}` : "Корзина"}
-      className="relative flex items-center gap-1 p-2 text-sm text-gray-400 hover:text-green-600"
+      className="relative flex items-center gap-1 p-2 text-sm text-gray-500 hover:text-green-700"
     >
       <ShoppingCart className="size-5" />
       {isClient && count > 0 && (
         <span
           aria-hidden="true"
-          className="absolute -top-2 -right-2 bg-green-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"
+          className="absolute -top-2 -right-2 bg-green-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"
         >
           {count}
         </span>

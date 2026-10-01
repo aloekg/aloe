@@ -8,20 +8,11 @@ import { validateNewPassword, type AuthFieldErrors } from "./validation";
 
 type Props = {
   submitLabel: string;
-  /** Returns an error message to display, or null on success. */
   onSubmit: (password: string) => Promise<string | null>;
-  /** Blocks the email-as-password rule from firing where the address is known. */
   email?: string;
-  /** Rendered above the new-password fields — the profile puts the current password here. */
   before?: React.ReactNode;
 };
 
-/**
- * The "choose a new password" pair, shared by the reset screen and the profile.
- *
- * It owns nothing but the two fields: the caller decides what "submit" means, which is what lets
- * the profile verify the current password first without this component knowing about it.
- */
 export default function NewPasswordForm({ submitLabel, onSubmit, email, before }: Props) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -29,8 +20,6 @@ export default function NewPasswordForm({ submitLabel, onSubmit, email, before }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Quiet until the first submit, then live on every keystroke — the same behaviour as the
-  // registration form, so a fixed field clears its own error immediately.
   const fieldErrors: AuthFieldErrors = submitted ? validateNewPassword({ password, confirm, email }) : {};
 
   async function handleSubmit(e: React.FormEvent) {

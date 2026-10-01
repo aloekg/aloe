@@ -8,20 +8,11 @@ import { cn } from "@/lib/cn";
 const DISMISSED_KEY = "install-hint-dismissed";
 const STANDALONE = "(display-mode: standalone)";
 
-/**
- * Chrome, Firefox and Edge on iOS do have "Добавить на экран «Домой»", but not where these steps
- * say to look, and an in-app browser (Instagram, Facebook) has no such item at all. Showing them
- * instructions that do not match what they see is worse than showing nothing.
- */
 const NOT_SAFARI = /CriOS|FxiOS|EdgiOS|OPiOS|FBAN|FBAV|Instagram|Line\//;
 
 let iosSafari: boolean | null = null;
 
-/**
- * The one place in this codebase that reads the user agent, and it is unavoidable: "show the iOS
- * instructions" is not a capability a browser can be asked about. iPadOS 13+ reports itself as a
- * Macintosh, so the touch points are what tell an iPad from a real Mac.
- */
+// iPadOS reports itself as Macintosh; maxTouchPoints tells an iPad from a Mac.
 function isIosSafari(): boolean {
   if (iosSafari === null) {
     const ua = navigator.userAgent;
@@ -31,7 +22,7 @@ function isIosSafari(): boolean {
   return iosSafari;
 }
 
-/** `display-mode` is the standard; `navigator.standalone` is what iOS actually sets. */
+// `navigator.standalone` is what iOS actually sets.
 function isInstalled(): boolean {
   const legacy = (navigator as Navigator & { standalone?: boolean }).standalone;
   return window.matchMedia(STANDALONE).matches || legacy === true;
@@ -41,7 +32,6 @@ function applies(): boolean {
   return isIosSafari() && !isInstalled();
 }
 
-/** Launching the installed app makes this true, and the hint should disappear behind it. */
 function subscribeToDisplayMode(onChange: () => void) {
   const query = window.matchMedia(STANDALONE);
   query.addEventListener("change", onChange);
@@ -55,17 +45,10 @@ const STEPS = [
   { icon: null, before: "Нажмите", strong: "«Добавить»", after: "в правом верхнем углу" },
 ];
 
-/**
- * Tells an iPhone visitor how to install the shop, because iOS has no install API at all — Safari
- * offers nothing to call, so the only thing a site can do is describe the share sheet. Android is
- * deliberately not handled here: there the browser fires `beforeinstallprompt` and the right answer
- * is a button, not a set of steps.
- */
 export default function InstallAppIos({ className }: { className?: string }) {
-  // Rendered as nothing on the server, so the hint appears only once the client has looked.
   const show = useSyncExternalStore(subscribeToDisplayMode, applies, () => false);
   const [dismissed, setDismissed] = useState(() => {
-    // The initialiser runs during SSR too, and in a private window the read itself throws.
+    // Runs during SSR too, and localStorage throws in a private window.
     if (typeof window === "undefined") return false;
     try {
       return localStorage.getItem(DISMISSED_KEY) === "1";
@@ -81,7 +64,7 @@ export default function InstallAppIos({ className }: { className?: string }) {
     try {
       localStorage.setItem(DISMISSED_KEY, "1");
     } catch {
-      // Private mode: hidden for this page, back on the next one. Better than crashing the page.
+      // Private mode: localStorage throws.
     }
   }
 
@@ -92,7 +75,7 @@ export default function InstallAppIos({ className }: { className?: string }) {
         size="sm"
         onClick={dismiss}
         aria-label="Скрыть подсказку"
-        className="absolute right-1 top-1 text-gray-400 hover:bg-green-100 hover:text-gray-600"
+        className="absolute right-1 top-1 text-gray-500 hover:bg-green-100 hover:text-gray-600"
       >
         <X className="w-4 h-4" />
       </Button>
@@ -107,7 +90,7 @@ export default function InstallAppIos({ className }: { className?: string }) {
           const Icon = step.icon;
           return (
             <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-600 text-xs font-medium text-white">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-700 text-xs font-medium text-white">
                 {i + 1}
               </span>
               <span>

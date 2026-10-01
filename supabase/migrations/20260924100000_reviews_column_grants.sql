@@ -1,0 +1,52 @@
+-- anon and authenticated may read an approved review, but not whose it is.
+--
+-- The 20260923140000 migration granted `select` on the whole table and left "what is shown" to the
+-- storefront's column list (PUBLIC_COLUMNS in services/review.service.ts). That is a UI promise, not
+-- a database one: `GET /rest/v1/reviews?select=user_id,order_id,author_name,body&status=eq.approved`
+-- with the public anon key returns every approved review's stable customer uuid and order number —
+-- enough to string together everything one person has ever written, and to pair it with an order.
+-- The whole point of storing "Айгерим С." rather than the full name was that an approved review
+-- gives away as little as possible about the buyer; the two columns below gave away more than the
+-- name did.
+--
+-- Column-level privileges are the tool Postgres has for exactly this: the grantee may reference only
+-- the listed columns anywhere in a statement — select list, filter, order — and a query naming any
+-- other one fails outright rather than returning null. `status` stays readable because
+-- getProductReviews filters on it.
+--
+-- `authenticated` loses the same two columns, which changes one caller: the profile's "Отзывы" tab
+-- used the signed-in customer's own client with `.eq("user_id", …)`, and a filter on a column you
+-- may not read is a permission error. It now reads through the service role with the id the server
+-- took from the session (app/profile/page.tsx), so the check moves from the policy to the call site
+-- — a smaller guarantee than before, traded for closing a hole any signed-up visitor could use.
+-- The own-rows branch of the select policy stays: policy expressions run with the table owner's
+-- privileges, so it keeps working, and a future user-client reader that does not need `user_id`
+-- (a count of one's own pending reviews, say) still gets exactly its own rows.
+revoke select on public.reviews from anon, authenticated;
+
+grant select (id, product_id, rating, body, author_name, status, created_at)
+  on public.reviews to anon, authenticated;
+
+-- Verification -----------------------------------------------------------------------------------
+--
+--   -- the two columns are gone for both roles (must return no rows)
+--   select grantee, column_name
+--     from information_schema.column_privileges
+--    where table_schema = 'public' and table_name = 'reviews'
+--      and grantee in ('anon', 'authenticated')
+--      and column_name in ('user_id', 'order_id');
+--
+--   -- and there is no table-wide grant left that would override them (must return no rows)
+--   select grantee, privilege_type
+--     from information_schema.role_table_grants
+--    where table_schema = 'public' and table_name = 'reviews'
+--      and grantee in ('anon', 'authenticated');
+--
+--   -- the storefront query still works
+--   set role anon;
+--   select id, product_id, rating, body, author_name, created_at from public.reviews
+--    where status = 'approved' limit 1;
+--   reset role;
+--
+--   -- and the leak is closed
+--   set role anon; select user_id from public.reviews limit 1; reset role;   -- ERROR: permission denied

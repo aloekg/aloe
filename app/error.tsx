@@ -28,7 +28,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           На главную
         </Link>
       </div>
-      {error.digest && <p className="mt-8 text-xs text-gray-400 font-mono">Код ошибки: {error.digest}</p>}
+      {error.digest && <p className="mt-8 text-xs text-gray-500 font-mono">Код ошибки: {error.digest}</p>}
     </MainContainer>
   );
 }

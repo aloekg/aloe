@@ -102,8 +102,6 @@ export default function AdminProducts({
 
   function openEdit(p: ProductRecord) {
     loadBrands();
-    // ProductInput requires these; the columns are nullable in the schema, so fall back
-    // rather than write null into a field the storefront treats as present.
     setEditing({
       id: p.id,
       name: p.name,
@@ -142,7 +140,7 @@ export default function AdminProducts({
       setError(result.error);
       return;
     }
-    // One upload, two derivatives — set both together so a card never points at the large file.
+    // Set both together so a card never points at the large file.
     setEditing((prev) => (prev ? { ...prev, image_url: result.url, thumbnail_url: result.thumbnailUrl } : prev));
   }
 
@@ -262,7 +260,7 @@ export default function AdminProducts({
         <select
           value={pageSize}
           onChange={(e) => navigate({ pageSize: e.target.value })}
-          className="border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 hover:cursor-pointer"
+          className="border border-gray-500 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-700 hover:cursor-pointer"
         >
           <option value="20">20</option>
           <option value="50">50</option>

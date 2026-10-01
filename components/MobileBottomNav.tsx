@@ -34,7 +34,7 @@ export default function MobileBottomNav() {
                 href={item.href}
                 aria-label={item.label}
                 aria-current={isActive ? "page" : undefined}
-                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 px-5 py-3 transition-colors text-green-600 rounded-full ${
+                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 px-5 py-3 transition-colors text-green-700 rounded-full ${
                   isActive ? "bg-black/10" : ""
                 }`}
               >
@@ -51,7 +51,7 @@ export default function MobileBottomNav() {
             href="/cart"
             aria-label={badge > 0 ? `Корзина, товаров: ${badge}` : "Корзина"}
             aria-current={pathname === "/cart" ? "page" : undefined}
-            className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 p-4 transition-colors text-green-600 rounded-full ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 p-4 transition-colors text-green-700 rounded-full ${
               pathname === "/cart" ? "bg-black/10" : ""
             }`}
           >

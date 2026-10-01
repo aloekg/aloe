@@ -29,11 +29,7 @@ async function getSupabase() {
   return createClient();
 }
 
-/**
- * Pushes a change to the server-side cart without blocking the UI on it. Failures are swallowed on
- * purpose — offline these are unhandled rejections otherwise, and the local cart is the source of
- * truth regardless: the next sign-in merges it back over whatever the database ended up holding.
- */
+// Failures swallowed on purpose: the local cart is the source of truth and re-merges on sign-in.
 function sync(run: (supabase: Awaited<ReturnType<typeof getSupabase>>) => Promise<unknown>) {
   void getSupabase()
     .then(run)
@@ -63,15 +59,9 @@ export const useCart = create<CartStore>()(
         }
       },
 
-      /**
-       * Bulk add for "repeat order". Calling add() per unit meant N state updates and N
-       * upserts of the same cart row — ten units of one product was ten round trips.
-       */
       addMany: (incoming) => {
         set((state) => {
-          // Replace, never mutate: AddToCart selects the item *object* and zustand compares
-          // selector results with Object.is, so an in-place bump left the counter showing the old
-          // quantity — and retroactively altered the snapshot `persist` had already written.
+          // Replace, never mutate: AddToCart selects the item object and zustand compares with Object.is.
           const merged = [...state.items];
           for (const item of incoming) {
             const i = merged.findIndex((x) => x.id === item.id);
@@ -143,9 +133,7 @@ export const useCart = create<CartStore>()(
           return;
         }
 
-        // onAuthStateChange fires on INITIAL_SESSION, SIGNED_IN, hourly TOKEN_REFRESHED and on
-        // tab focus. Re-running the merge each time cost 3-4 round trips, and two overlapping
-        // calls both read get().items before either wrote, so the merge could double-apply.
+        // onAuthStateChange refires for the same user (token refresh, focus); re-merging would double-apply.
         if (get().userId === userId) return;
 
         set({ userId });
@@ -154,7 +142,6 @@ export const useCart = create<CartStore>()(
           const supabase = await getSupabase();
           const dbItems = await loadCart(supabase, userId);
 
-          // Local items win on conflict, DB-only items are appended
           const localItems = get().items;
           const merged: CartItem[] = [...localItems];
           for (const dbItem of dbItems) {
@@ -165,14 +152,12 @@ export const useCart = create<CartStore>()(
 
           set({ items: merged });
 
-          // Reconcile local-only items back to DB
           const localOnly = localItems.filter((li) => !dbItems.find((di) => di.id === li.id));
           if (localOnly.length > 0) {
             await reconcileCartItems(supabase, userId, localOnly);
           }
         } catch (e) {
-          // Drop back to signed-out so the guard above lets the next auth event retry. Leaving
-          // `userId` set would mark the cart merged and never run it again for this session.
+          // Reset so the guard above lets the next auth event retry the merge.
           console.error("[cart] merge failed:", e);
           set({ userId: null });
         }

@@ -17,7 +17,6 @@ export default function ManufacturerFilter({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // A fresh array each render would make the useCallback below pointless.
   const selected = useMemo(() => searchParams.getAll("brand").map(Number), [searchParams]);
 
   const toggle = useCallback(
@@ -62,8 +61,8 @@ export default function ManufacturerFilter({
               aria-pressed={active}
               className={`px-3 py-1 text-xs rounded-full border transition-colors hover:cursor-pointer ${
                 active
-                  ? "bg-green-600 border-green-600 text-white"
-                  : "border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-600"
+                  ? "bg-green-700 border-green-600 text-white"
+                  : "border-gray-300 text-gray-600 hover:border-green-600 hover:text-green-700"
               }`}
             >
               {b.name}

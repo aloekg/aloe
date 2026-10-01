@@ -16,12 +16,12 @@ export default function DeliveryContent({ compact = false }: Props) {
         <H className={`${hSize} font-bold text-gray-900 mb-4`}>По центру города и микрорайонам г.Бишкек</H>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Truck className="w-5 h-5 text-gray-400 shrink-0" />
+            <Truck className="w-5 h-5 text-gray-500 shrink-0" />
             <span className="font-semibold text-gray-900 min-w-35">Доставка 200 сом</span>
             <span className="text-gray-500 text-sm">при заказе от {MIN_ORDER_TOTAL} сом</span>
           </div>
           <div className="flex items-center gap-3">
-            <Truck className="w-5 h-5 text-gray-400 shrink-0" />
+            <Truck className="w-5 h-5 text-gray-500 shrink-0" />
             <span className="font-semibold text-gray-900 min-w-35">Доставка 0 сом</span>
             <span className="text-gray-500 text-sm">при заказе от 10 000 сом</span>
           </div>
@@ -31,7 +31,7 @@ export default function DeliveryContent({ compact = false }: Props) {
       <section className={py}>
         <H className={`${hSize} font-bold text-gray-900 mb-4`}>Жил.массивы и отдалённые районы</H>
         <div className="flex items-center gap-3">
-          <Truck className="w-5 h-5 text-gray-400 shrink-0" />
+          <Truck className="w-5 h-5 text-gray-500 shrink-0" />
           <span className="font-semibold text-gray-900 min-w-35">Доставка 300 сом</span>
           <span className="text-gray-500 text-sm">при заказе от {MIN_ORDER_TOTAL} сом</span>
         </div>
@@ -60,13 +60,12 @@ export default function DeliveryContent({ compact = false }: Props) {
         </div>
       </section>
 
-      {/* id="returns" is what MERCHANT_RETURN_POLICY.merchantReturnLink points at. The wording is
-          the placeholder described on RETURN_WINDOW_DAYS — replace it together with the constant. */}
+      {/* id="returns" is the target of MERCHANT_RETURN_POLICY.merchantReturnLink. */}
       <section id="returns" className={py}>
         <H className={`${hSize} font-bold text-gray-900 mb-3`}>Возврат товара</H>
         <div className="space-y-2 text-sm text-gray-700">
           <div className="flex items-center gap-3">
-            <RotateCcw className="w-5 h-5 text-gray-400 shrink-0" />
+            <RotateCcw className="w-5 h-5 text-gray-500 shrink-0" />
             <span className="font-semibold text-gray-900">{RETURN_WINDOW_DAYS} дней на возврат</span>
           </div>
           <p>

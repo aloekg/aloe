@@ -2,11 +2,7 @@
 
 import { useRef } from "react";
 
-/**
- * Drag-to-scroll for a horizontal strip. All bookkeeping lives in refs: none of it affects
- * rendering, and holding it in state re-rendered the container and every pill on each mousedown
- * and on every mousemove that crossed the drag threshold.
- */
+// Refs, not state: state would re-render every pill on each mousemove.
 export function useDragScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const isDown = useRef(false);
@@ -33,7 +29,6 @@ export function useDragScroll<T extends HTMLElement>() {
     isDown.current = false;
   }
 
-  /** Swallows the click that ends a drag, so dragging past a pill doesn't activate it. */
   function onClickCapture(e: React.MouseEvent) {
     if (hasDragged.current) {
       e.preventDefault();

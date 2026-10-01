@@ -50,8 +50,8 @@ export default function ProductFilterBar({
               aria-pressed={label === l.value}
               className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
                 label === l.value
-                  ? "bg-green-600 text-white border-green-600"
-                  : "border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-600"
+                  ? "bg-green-700 text-white border-green-600"
+                  : "border-gray-300 text-gray-600 hover:border-green-600 hover:text-green-700"
               }`}
             >
               {l.label}
@@ -78,7 +78,7 @@ export default function ProductFilterBar({
       <select
         value={category}
         onChange={(e) => onCategoryChange(e.target.value)}
-        className="border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 hover:cursor-pointer"
+        className="border border-gray-500 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-700 hover:cursor-pointer"
       >
         <option value="">Все категории</option>
         <option value="none">⚠ Без категории</option>
@@ -91,7 +91,7 @@ export default function ProductFilterBar({
       <select
         value={sort}
         onChange={(e) => onSortChange(e.target.value)}
-        className="border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 hover:cursor-pointer"
+        className="border border-gray-500 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-700 hover:cursor-pointer"
       >
         <option value="id-desc">Сначала новые</option>
         <option value="name-asc">По алфавиту</option>

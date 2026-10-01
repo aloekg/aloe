@@ -1,21 +1,9 @@
 import { DELIVERY_OPTIONS } from "@/lib/constants";
 import type { OrderItem } from "@/types";
 
-/**
- * Sales analytics, computed in JS from `orders` rather than in SQL.
- *
- * Everything here is pure: the page hands it rows and this module hands back the numbers the
- * dashboard renders, so the arithmetic is exercised by tests/analytics.test.ts with no database.
- * That is also why the aggregation is not an RPC — a Postgres function would need a migration
- * pushed to both projects to change a single formula, and the shop's order volume is small enough
- * that a bounded range of rows is cheaper than the schema churn. `loadAnalyticsOrders` caps the
- * fetch; if that cap is ever hit in earnest, this is the module to move into SQL.
- */
+// Keep this module pure (no DB): tests/analytics.test.ts exercises it directly.
 
-/**
- * The shop is in Bishkek, `orders.created_at` is timestamptz, and a day on this dashboard has to
- * be the shop's day — bucketing in UTC moves every order placed after 18:00 local into tomorrow.
- */
+// Days are shop days; bucketing in UTC would move evening orders into tomorrow.
 export const SHOP_TIME_ZONE = "Asia/Bishkek";
 
 export const ANALYTICS_PERIODS = [
@@ -35,11 +23,7 @@ export function parsePeriod(raw: string | undefined): PeriodId {
   return match ? match.id : DEFAULT_PERIOD;
 }
 
-// ---------------------------------------------------------------------------
-// Calendar helpers — all of them work on "YYYY-MM-DD" shop days, never on local
-// Date fields, which are the server's timezone (UTC on Vercel) and not the shop's.
-// ---------------------------------------------------------------------------
-
+// Work on "YYYY-MM-DD" shop-day keys, never on local Date fields (the server runs in UTC).
 const DAY_KEY = new Intl.DateTimeFormat("en-CA", {
   timeZone: SHOP_TIME_ZONE,
   year: "numeric",
@@ -47,7 +31,6 @@ const DAY_KEY = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-/** The shop-local calendar day an instant falls on, as "YYYY-MM-DD". */
 export function shopDay(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return DAY_KEY.format(date);
@@ -64,7 +47,6 @@ const ZONE_PARTS = new Intl.DateTimeFormat("en-US", {
   second: "2-digit",
 });
 
-/** How far ahead of UTC the shop's clock runs at that instant (Asia/Bishkek: a flat +6, no DST). */
 function zoneOffsetMs(at: Date): number {
   const parts = Object.fromEntries(ZONE_PARTS.formatToParts(at).map((p) => [p.type, p.value]));
   const asUtc = Date.UTC(
@@ -78,50 +60,38 @@ function zoneOffsetMs(at: Date): number {
   return asUtc - at.getTime();
 }
 
-/** The instant a shop day begins, i.e. what to send Postgres as the range bound. */
 export function shopDayStart(day: string): Date {
   const [year, month, date] = day.split("-").map(Number);
   const utcMidnight = Date.UTC(year, month - 1, date);
   return new Date(utcMidnight - zoneOffsetMs(new Date(utcMidnight)));
 }
 
-/** The shop-local hour (0–23) an instant falls in. */
 export function shopHour(value: string | Date): number {
   const date = typeof value === "string" ? new Date(value) : value;
   const hour = ZONE_PARTS.formatToParts(date).find((p) => p.type === "hour")?.value;
   return Number(hour);
 }
 
-/** Monday = 0 … Sunday = 6, the way the shop's week is read, not JavaScript's Sunday-first one. */
+// Monday = 0 … Sunday = 6, not JavaScript's Sunday-first.
 export function weekdayOf(day: string): number {
   const [year, month, date] = day.split("-").map(Number);
   return (new Date(Date.UTC(year, month - 1, date)).getUTCDay() + 6) % 7;
 }
 
-/** Calendar arithmetic on a day key — `delta` days later (or earlier, when negative). */
 export function addDays(day: string, delta: number): string {
   const [year, month, date] = day.split("-").map(Number);
   const moved = new Date(Date.UTC(year, month - 1, date + delta));
   return moved.toISOString().slice(0, 10);
 }
 
-/**
- * The window a period covers, as shop days. `from` is null for "all time" — the caller then starts
- * the series at the first order it actually got back rather than at an arbitrary date.
- */
 export function periodRange(period: PeriodId, now: Date = new Date()): { fromDay: string | null; toDay: string } {
   const toDay = shopDay(now);
   const days = ANALYTICS_PERIODS.find((p) => p.id === period)?.days ?? null;
-  // `days` counts whole shop days ending with today, so 7 дней is today plus the six before it.
   return { fromDay: days ? addDays(toDay, -(days - 1)) : null, toDay };
 }
 
 export type Granularity = "day" | "week" | "month";
 
-/**
- * One bar per day stops being readable long before a year of them fits on screen, so a long range
- * is bucketed instead of squeezed.
- */
 export function granularityFor(fromDay: string, toDay: string): Granularity {
   const span = Math.round((shopDayStart(toDay).getTime() - shopDayStart(fromDay).getTime()) / 86_400_000) + 1;
   if (span <= 45) return "day";
@@ -129,7 +99,6 @@ export function granularityFor(fromDay: string, toDay: string): Granularity {
   return "month";
 }
 
-/** Monday of the week a day falls in. */
 function weekStart(day: string): string {
   return addDays(day, -weekdayOf(day));
 }
@@ -140,7 +109,6 @@ export function bucketOf(day: string, granularity: Granularity): string {
   return day.slice(0, 7);
 }
 
-/** The next bucket after this one — used to walk a range without skipping empty buckets. */
 function nextBucket(bucket: string, granularity: Granularity): string {
   if (granularity === "day") return addDays(bucket, 1);
   if (granularity === "week") return addDays(bucket, 7);
@@ -159,16 +127,10 @@ export function bucketLabel(bucket: string, granularity: Granularity): string {
   const dotted = (d: number, m: number) => `${d}.${String(m).padStart(2, "0")}`;
   if (granularity === "day") return dotted(date, month);
   const [, endMonth, endDate] = addDays(bucket, 6).split("-").map(Number);
-  // A week inside one month needs the month named once; one that straddles two needs it twice.
   const start = endMonth === month ? String(date) : dotted(date, month);
   return `${start}–${dotted(endDate, endMonth)}`;
 }
 
-// ---------------------------------------------------------------------------
-// Aggregation
-// ---------------------------------------------------------------------------
-
-/** The columns the dashboard reads. Deliberately not `Order` — `items` is the expensive part. */
 export type AnalyticsOrderRow = {
   id: number;
   user_id: string | null;
@@ -181,7 +143,6 @@ export type AnalyticsOrderRow = {
   items: OrderItem[];
 };
 
-/** Just enough of an order to follow a customer across all of history. */
 export type CustomerSeenRow = Pick<AnalyticsOrderRow, "user_id" | "customer_phone" | "created_at" | "status">;
 
 export type SeriesPoint = { bucket: string; label: string; revenue: number; orders: number };
@@ -190,7 +151,6 @@ export type DeliveryStat = { id: string; label: string; orders: number; revenue:
 export type StatusStat = { id: string; orders: number; revenue: number };
 
 export type AnalyticsReport = {
-  /** Everything below counts the same set of orders: the period's, cancelled ones included or not. */
   revenue: number;
   goodsRevenue: number;
   deliveryRevenue: number;
@@ -201,7 +161,7 @@ export type AnalyticsReport = {
   series: SeriesPoint[];
   topProducts: TopProduct[];
   delivery: DeliveryStat[];
-  /** Always over every order in the period, cancelled included — that is the point of the breakdown. */
+  // Always over every order in the period, cancelled included.
   statuses: StatusStat[];
   freeDelivery: { free: number; ofZoned: number };
   customers: { total: number; fresh: number; returning: number; guestOrders: number; ordersPer: number };
@@ -209,12 +169,7 @@ export type AnalyticsReport = {
 
 export const TOP_PRODUCTS_LIMIT = 10;
 
-/**
- * Who placed an order. Phone first and `user_id` only as a fallback: the same person orders once
- * as a guest and once signed in, and counting that as two customers would inflate "новые" forever.
- * Kyrgyz numbers are written both as +996 555 … and 0555 …, so only the last nine digits are
- * compared.
- */
+// Phone (last 9 digits) before user_id: one person's guest and signed-in orders must count once.
 export function customerKey(row: { user_id: string | null; customer_phone: string | null }): string {
   const digits = (row.customer_phone ?? "").replace(/\D/g, "");
   if (digits.length >= 9) return `p:${digits.slice(-9)}`;
@@ -222,11 +177,6 @@ export function customerKey(row: { user_id: string | null; customer_phone: strin
   return digits ? `p:${digits}` : "";
 }
 
-/**
- * First order per customer across all of history — a customer is "new" only on their own first.
- * A cancelled order is not a purchase, so someone whose first attempt was cancelled becomes a
- * customer on the order that actually went through.
- */
 export function firstOrderDays(rows: CustomerSeenRow[]): Map<string, string> {
   const first = new Map<string, string>();
   for (const row of rows) {
@@ -248,20 +198,14 @@ export type ReportInput = {
   rows: AnalyticsOrderRow[];
   fromDay: string | null;
   toDay: string;
-  /** A cancelled order is a booking that never happened, so it is out of the money by default. */
   includeCancelled: boolean;
   firstOrderByCustomer: Map<string, string>;
 };
 
-/** The orders the money is computed over — see `includeCancelled`. */
 export function countedOrders(rows: AnalyticsOrderRow[], includeCancelled: boolean): AnalyticsOrderRow[] {
   return includeCancelled ? rows : rows.filter((r) => r.status !== "cancelled");
 }
 
-/**
- * The first day the report covers: the period's own start, or — for "всё время" — the oldest order
- * there actually is, so the series does not begin at an arbitrary date.
- */
 export function windowStart(fromDay: string | null, counted: AnalyticsOrderRow[], toDay: string): string {
   if (fromDay) return fromDay;
   let min: string | null = null;
@@ -272,7 +216,6 @@ export function windowStart(fromDay: string | null, counted: AnalyticsOrderRow[]
   return min ?? toDay;
 }
 
-/** The headline numbers alone — what the tiles compare the previous period on. */
 export type PeriodSummary = { revenue: number; orders: number; averageOrder: number; customers: number };
 
 export function summarizePeriod(rows: AnalyticsOrderRow[], includeCancelled: boolean): PeriodSummary {
@@ -287,10 +230,6 @@ export function summarizePeriod(rows: AnalyticsOrderRow[], includeCancelled: boo
   };
 }
 
-/**
- * The window the previous period covered — the same number of days, ending the day before this one
- * starts. Null for "всё время", which has nothing before it to compare with.
- */
 export function previousRange(period: PeriodId, fromDay: string | null): { fromDay: string; toDay: string } | null {
   const days = ANALYTICS_PERIODS.find((p) => p.id === period)?.days ?? null;
   if (!days || !fromDay) return null;
@@ -319,7 +258,6 @@ export function buildReport({
   const byStatus = new Map<string, StatusStat>();
   const ordersByCustomer = new Map<string, number>();
 
-  // The series has to span the whole window even where nothing sold.
   const firstDay = windowStart(fromDay, counted, toDay);
   const granularity = granularityFor(firstDay, toDay);
 
@@ -353,9 +291,7 @@ export function buildReport({
     delivery.revenue += row.delivery_cost;
     byDelivery.set(deliveryId, delivery);
 
-    // A zero fee only means "бесплатно" where the tariff could have charged one: "regions" is
-    // agreed by phone and "urgent" is paid to the courier, so neither says anything about free
-    // delivery and both stay out of the ratio.
+    // Only zones with a tariff count toward free delivery: a zero fee on regions/urgent means nothing.
     if (zone && zone.cost > 0) {
       ofZoned += 1;
       if (row.delivery_cost === 0) free += 1;
@@ -371,7 +307,6 @@ export function buildReport({
       const product = byProduct.get(item.id) ?? { id: item.id, name: item.name, quantity: 0, revenue: 0 };
       product.quantity += item.quantity;
       product.revenue += lineRevenue;
-      // The name is frozen per order, so a renamed product shows up under its latest sale's name.
       product.name = item.name;
       byProduct.set(item.id, product);
     }
@@ -395,7 +330,6 @@ export function buildReport({
   let fresh = 0;
   for (const key of ordersByCustomer.keys()) {
     const first = firstOrderByCustomer.get(key);
-    // No history for the key means this period holds their first order too.
     if (!first || first >= firstDay) fresh += 1;
   }
 

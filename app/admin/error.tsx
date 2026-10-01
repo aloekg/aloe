@@ -17,7 +17,7 @@ export default function AdminError({ error, reset }: { error: Error & { digest?:
       <Button variant="primary" size="md" onClick={reset}>
         Повторить
       </Button>
-      {error.digest && <p className="mt-4 text-xs text-gray-400 font-mono">Код ошибки: {error.digest}</p>}
+      {error.digest && <p className="mt-4 text-xs text-gray-500 font-mono">Код ошибки: {error.digest}</p>}
     </div>
   );
 }

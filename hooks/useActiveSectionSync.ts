@@ -19,7 +19,11 @@ export function useActiveSectionSync(containerRef: React.RefObject<HTMLElement |
       const viewLeft = container.scrollLeft;
       const viewRight = viewLeft + container.offsetWidth;
       if (pillLeft < viewLeft || pillRight > viewRight) {
-        container.scrollTo({ left: pillLeft - container.offsetWidth / 2 + pill.offsetWidth / 2, behavior: "smooth" });
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        container.scrollTo({
+          left: pillLeft - container.offsetWidth / 2 + pill.offsetWidth / 2,
+          behavior: reduced ? "auto" : "smooth",
+        });
       }
     });
   }, [containerRef]);

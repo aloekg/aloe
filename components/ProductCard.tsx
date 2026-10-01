@@ -4,15 +4,16 @@ import { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LABEL_MAP } from "@/lib/constants";
+import { averageRating, reviewPlural } from "@/lib/reviews";
 import type { ProductListItem } from "@/types";
 import AddToCart from "./AddToCart";
 import Currency from "./Currency";
 import FavoriteButton from "./FavoriteButton";
+import OldPrice from "./OldPrice";
+import StarRating, { formatRating } from "./StarRating";
 
 type Props = {
-  // Deliberately narrower than `Product`: the card renders seven fields, and typing it this way
-  // keeps `description`/`seo_text` from being pulled into list queries again. A full `Product`
-  // still satisfies it.
+  // Keep narrower than Product so description/seo_text stay out of list queries.
   product: ProductListItem;
   className?: string;
   href?: string;
@@ -24,28 +25,28 @@ function ProductBadge({ label }: { label: ProductListItem["label"] }) {
   const { text, cls } = LABEL_MAP[label];
   return (
     <div className="absolute top-1.5 left-1.5 z-10">
-      <span className={`${cls} text-white text-[10px] font-semibold px-1.5 py-0.5 rounded`}>{text}</span>
+      <span className={`${cls} text-[10px] font-semibold px-1.5 py-0.5 rounded`}>{text}</span>
     </div>
   );
 }
 
 function ProductCard({ product: p, className = "", href, preload = false }: Props) {
+  const rating = averageRating(p.rating_sum, p.rating_count);
   const productHref = href ?? `/product/${p.id}`;
-  // The card never renders above ~300px, so it takes the small variant; the detail page and the
-  // quick-view modal load `image_url`. Rows predating the thumbnail backfill fall back to it.
   const cardImage = p.thumbnail_url || p.image_url;
 
+  // scroll={false}: the quick-view modal is position:fixed, so Next would otherwise scroll the grid to top.
+  // alt="" on purpose: the link already carries the name as text.
+
   return (
-    // `relative` so FavoriteButton can sit over the image from outside the <Link>: a <button>
-    // nested inside an <a> is invalid HTML and behaves unpredictably for keyboard and
-    // screen-reader users.
+    // FavoriteButton stays outside the <Link>: a <button> inside an <a> is invalid HTML.
     <div className={`relative flex flex-col rounded-lg overflow-hidden ${className}`}>
       <FavoriteButton productId={p.id} />
-      <Link className="flex-1 flex flex-col" href={productHref}>
+      <Link className="flex-1 flex flex-col" href={productHref} scroll={false}>
         <div className="relative p-2 aspect-square shadow-xs rounded-lg">
           <Image
             src={cardImage}
-            alt={p.name}
+            alt=""
             fill
             className="object-contain p-2"
             preload={preload}
@@ -57,16 +58,23 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
           <p className="flex-1 text-sm font-medium line-clamp-3 w-fit" title={p.name}>
             {p.name}
           </p>
-          {p.brand_name && <p className="text-xs text-gray-400 mt-0.5 truncate">{p.brand_name}</p>}
+          {p.brand_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.brand_name}</p>}
+          {rating != null && (
+            <span className="flex items-center gap-1 mt-1">
+              <StarRating
+                average={rating}
+                label={`Оценка ${formatRating(rating)} из 5, ${p.rating_count} ${reviewPlural(p.rating_count)}`}
+              />
+              <span className="text-xs text-gray-500" aria-hidden>
+                {p.rating_count}
+              </span>
+            </span>
+          )}
           <div className="flex items-baseline gap-1.5 mt-1">
             <p className="text-base font-bold">
               {p.price} <Currency />
             </p>
-            {p.old_price && (
-              <p className="text-sm text-gray-400 line-through">
-                {p.old_price} <Currency />
-              </p>
-            )}
+            {p.old_price && <OldPrice value={p.old_price} className="text-sm text-gray-500" />}
           </div>
         </div>
       </Link>
@@ -75,8 +83,6 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
           id: p.id,
           name: p.name,
           price: p.price,
-          // Cart rows render at ~64px. The order record itself is re-resolved from the DB in
-          // `createOrder`, so this only affects what the cart displays.
           image_url: cardImage,
         }}
       />

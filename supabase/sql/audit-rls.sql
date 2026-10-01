@@ -67,6 +67,7 @@ where n.nspname = 'public'
 --      cart_items                              select, insert, update, delete
 --      favorites                               select, insert, delete
 --      rate_limits                             (absent — every grant revoked)
+--      reviews                                 (absent here — column-level only, see 5a)
 --    Anything beyond that list is a finding, and TRUNCATE in particular is not filtered by RLS.
 select
   table_name,
@@ -77,6 +78,20 @@ where table_schema = 'public'
   and grantee in ('anon', 'authenticated')
 group by table_name, grantee
 order by table_name, grantee;
+
+-- 5a. Column-level grants — the one table where the grant is narrower than the table. Expected as
+--     of 2026-09-24: reviews → id, product_id, rating, body, author_name, status, created_at for
+--     both roles, and NOT user_id / order_id. A table-wide `select` reappearing on reviews (it would
+--     show up in section 5 as well) is a finding.
+select
+  grantee,
+  string_agg(column_name, ', ' order by column_name) as columns
+from information_schema.column_privileges
+where table_schema = 'public'
+  and table_name = 'reviews'
+  and grantee in ('anon', 'authenticated')
+group by grantee
+order by grantee;
 
 -- 6. Functions: who may execute them, whether they run with definer rights, and how their
 --    search_path is pinned. A SECURITY DEFINER function that anon may execute is the shortest

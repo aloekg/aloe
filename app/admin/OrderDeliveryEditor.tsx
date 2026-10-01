@@ -12,7 +12,6 @@ type Props = {
   orderId: number;
   deliveryType: string | null;
   deliveryCost: number;
-  /** The goods total of the order as currently rendered, so the preview matches what the server computes. */
   itemsTotal: number;
   onCancel: () => void;
   onSaved: (deliveryType: string, deliveryCost: number, total: number) => void;
@@ -27,8 +26,6 @@ export default function OrderDeliveryEditor({
   onSaved,
 }: Props) {
   const [type, setType] = useState(deliveryType ?? DELIVERY_OPTIONS[0].id);
-  // A fee that the tariff cannot explain was typed in by someone; reopen it as manual rather than
-  // quietly reverting what was agreed on the phone.
   const [manual, setManual] = useState(() => isManualDeliveryCost(deliveryCost, deliveryType, itemsTotal));
   const [cost, setCost] = useState(String(deliveryCost || ""));
   const [saving, setSaving] = useState(false);
@@ -68,7 +65,7 @@ export default function OrderDeliveryEditor({
         value={type}
         onChange={(e) => setType(e.target.value)}
         aria-label="Способ доставки"
-        className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        className="w-full border border-gray-500 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
       >
         {DELIVERY_OPTIONS.map((option) => (
           <option key={option.id} value={option.id}>
@@ -95,7 +92,7 @@ export default function OrderDeliveryEditor({
             value={cost}
             onChange={(e) => setCost(e.target.value)}
             aria-label="Стоимость доставки"
-            className="w-24 text-right border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-24 text-right border border-gray-500 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
           />
           <Currency />
         </div>
@@ -113,7 +110,7 @@ export default function OrderDeliveryEditor({
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {error && <span className="mr-auto text-xs text-red-500">{error}</span>}
+        {error && <span className="mr-auto text-xs text-red-600">{error}</span>}
         <Button
           type="button"
           onClick={onCancel}
@@ -125,7 +122,7 @@ export default function OrderDeliveryEditor({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          className="text-xs px-3 py-1.5 bg-green-700 text-white rounded-lg hover:bg-green-800"
         >
           {saving ? "Сохраняем..." : "Сохранить"}
         </Button>

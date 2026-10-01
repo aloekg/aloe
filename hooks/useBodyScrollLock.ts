@@ -2,11 +2,7 @@
 
 import { useEffect } from "react";
 
-/**
- * Ref-counted so overlapping overlays can't clobber each other. `DeliveryModal` sits in the
- * header on every desktop page and used to write `overflow = ""` on mount, releasing a lock the
- * intercepted product modal had taken.
- */
+// Ref-counted so overlapping overlays cannot release each other's lock.
 let locks = 0;
 let previousOverflow = "";
 

@@ -9,8 +9,6 @@ export async function generateMetadata({
   searchParams: Promise<{ page?: string }>;
 }): Promise<Metadata> {
   const page = parsePage((await searchParams).page);
-  // Page 2+ served the identical title and description with no canonical — textbook
-  // duplicate-content dilution on a page the sitemap submits at priority 0.8.
   return pageMetadata({
     title: page > 1 ? "Акции — страница " + page : "Акции",
     description: "Товары со скидкой в интернет-магазине Aloe.kg: бытовая химия и косметика по акционным ценам.",

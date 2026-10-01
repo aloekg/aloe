@@ -35,7 +35,7 @@ export default function CheckoutError({ error, reset }: { error: Error & { diges
           В корзину
         </Link>
       </div>
-      {error.digest && <p className="mt-8 text-xs text-gray-400 font-mono">Код ошибки: {error.digest}</p>}
+      {error.digest && <p className="mt-8 text-xs text-gray-500 font-mono">Код ошибки: {error.digest}</p>}
     </MainContainer>
   );
 }

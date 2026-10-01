@@ -24,9 +24,7 @@ export type InvoiceData = {
 
 const FONTS_DIR = path.join(process.cwd(), "lib/fonts");
 
-// Read once per process rather than per invoice, and hand pdfkit a Buffer instead of a path.
-// `next.config.ts` traces these files into the serverless bundle via outputFileTracingIncludes;
-// resolving them lazily here keeps a missing font from breaking module load.
+// Loaded lazily so a missing font cannot break module load; next.config.ts traces these into the bundle.
 let fonts: { regular: Buffer; bold: Buffer } | null = null;
 
 function loadFonts() {
@@ -44,9 +42,7 @@ const PAGE_BOTTOM = 780;
 export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
   const { regular, bold } = loadFonts();
 
-  // font: false skips pdfkit's default Helvetica setup, which reads an .afm file from
-  // disk — that file isn't traced into the Next.js serverless bundle. We register our
-  // own (Cyrillic-capable) fonts below instead.
+  // font: false skips pdfkit's Helvetica .afm, which is not traced into the serverless bundle.
   const doc = new PDFDocument({ size: "A4", margin: 40, font: false as unknown as string });
   doc.registerFont("Regular", regular);
   doc.registerFont("Bold", bold);
@@ -116,7 +112,6 @@ export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     y += rowHeight;
   }
 
-  // Keep the totals block intact rather than splitting it across the page boundary.
   if (y + 64 > PAGE_BOTTOM) {
     doc.addPage();
     y = doc.page.margins.top;

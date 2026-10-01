@@ -9,9 +9,7 @@ export function useWindowScrolled(threshold = 1) {
     function onScroll() {
       setScrolled(window.scrollY > threshold);
     }
-    // Without this initial read, a reload mid-page or a back-navigation leaves `scrolled`
-    // false until the user scrolls — the subcategory bar renders in the wrong layout mode
-    // and then snaps, which also costs CLS.
+    // Initial read: a reload or back-navigation mid-page must not start as unscrolled.
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);

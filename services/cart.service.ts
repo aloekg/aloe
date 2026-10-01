@@ -16,7 +16,7 @@ type CartRow = {
   products: { name: string; price: number; image_url: string; thumbnail_url: string | null } | null;
 };
 
-/** Throws on failure — an empty cart and an unreachable database must not merge the same way. */
+// Throws on failure: an empty cart and an unreachable database must not merge the same way.
 export async function loadCart(supabase: SupabaseClient<Database>, userId: string): Promise<CartItem[]> {
   const res = await supabase
     .from("cart_items")
@@ -29,7 +29,7 @@ export async function loadCart(supabase: SupabaseClient<Database>, userId: strin
       id: r.product_id,
       name: r.products!.name,
       price: r.products!.price,
-      // Cart rows are ~64px — match what ProductCard puts in the local cart.
+      // Must match the image ProductCard puts in the local cart.
       image_url: r.products!.thumbnail_url || r.products!.image_url,
       quantity: r.quantity,
     }));
