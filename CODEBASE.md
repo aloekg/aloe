@@ -604,7 +604,9 @@ rows orphaned by the category FK's old `ON DELETE SET NULL`, which nothing else 
 single out — and `?brand=none` the products with no `brand_id` (413 of the published ones), which
 `?brand=<id>` alone could never reach. The list badges the category orphans only, since
 `products_published_has_category` means such a product cannot be published at all, while a missing
-brand is common and harmless. The brand list is read on the server with the page, which also feeds
+brand is common and harmless. A real `?category=<id>` covers the whole subtree, not that row alone: products
+sit on leaves only, so matching the id exactly made every parent category in the dropdown come back
+empty. The brand list is read on the server with the page, which also feeds
 the edit drawers — they used to fetch it lazily through a `getBrands()` action.
 
 **Editing a placed order** is the one path where the client decides prices. `updateOrderItems()`
