@@ -1052,7 +1052,7 @@ npm run db:push:stage   # link + apply supabase/migrations/ to staging
 npm run db:push:prod    # link + apply to production
 npm run db:types:prod   # the ONLY correct way to regenerate types/database.ts
 npm run backup:prod     # dump production into backups/<timestamp>-prod/
-npm run seed:stage      # dry-run the catalogue seed; --execute writes
+npm run seed:stage      # dry-run the catalogue seed; --execute writes, --refresh updates a staging in use
 npm run seed:stage:orders  # dry-run mock accounts + orders on staging; --execute writes, --reset replaces
 ```
 
@@ -1125,6 +1125,15 @@ are named `<product-id>.webp`, `product_url` feeds the legacy 301s), categories 
 because `parent_id` is a non-deferrable self-FK, and the script prints a `setval` block to run in the
 SQL Editor afterwards — writing explicit ids does not advance the sequences, and nothing looks wrong
 until the first insert from the admin collides.
+
+A plain seed refuses a staging that holds orders or profiles, and only ever upserts. **`--refresh`**
+is for the staging that is already in use: it keeps the test accounts, orders and reviews, deletes
+the catalogue rows production no longer has (products first — reviews, favorites and cart rows
+cascade with them — then categories leaf-first, brands, banners), and leaves `purchase_count` and
+the rating columns as staging computed them from its own orders and reviews. A stale row holding a
+slug the dump reuses under another id is renamed out of the way before the upsert. That is what
+"bring staging up to date with production" means now, rather than a recreate from
+`STAGING-RESET.md`.
 
 `seed-staging-orders.mjs` fills the gap that leaves: a catalogue-only staging has no orders, so
 `/admin/analytics` and `/admin/orders` are empty there. It invents customers (accounts
