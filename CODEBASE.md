@@ -1080,6 +1080,7 @@ below that writes.
 node scripts/normalize-product-images.mjs --env=prod   # row not yet a WebP pair → build it from Storage
 node scripts/prune-orphan-images.mjs --env=prod        # bucket objects nothing references (--execute deletes)
 node scripts/fix-orphan-categories.mjs --env=prod      # products whose category_id was stripped
+node scripts/assign-brands-from-names.mjs --env=prod   # brand_id from a brand named in the product name
 node scripts/purge-test-data.mjs --env=prod            # pre-launch orders/accounts/counters
 node scripts/seed-staging.mjs --env=stage              # production catalogue → staging (no personal data)
 node scripts/seed-staging-orders.mjs --env=stage       # made-up accounts + orders on staging, for the admin
@@ -1148,7 +1149,14 @@ the old one.
 lost their `category_id` when a category was deleted and keep only the denormalised `category`
 label, which the tree reorganisation renamed. It matches that label to a leaf category ignoring
 case, ё/е and punctuation, takes judgement calls from an `OVERRIDES` table in the file, and reports
-the rest with candidates rather than guessing. `prune-orphan-images.mjs` checks `orders.items` as well as both product columns, because an
+the rest with candidates rather than guessing. `assign-brands-from-names.mjs` fills in `brand_id` where the product's own name already says it
+("Zewa Deluxe…"), matching **existing brands only** — a brand missing from `brands` is listed as a
+candidate, because creating one publishes a `/brands/<slug>` page. Its rules were checked against the
+products that already have a brand (98.6% agreement); the exceptions are written into the file:
+ordinary words such as Gold or Весна count only at the start of a name, and Garnier Fructis /
+L'Oreal Elseve go to the line, as the catalogue already files them.
+
+`prune-orphan-images.mjs` checks `orders.items` as well as both product columns, because an
 order freezes its line items' image URLs and those files must outlive the product. It also holds
 back admin-uploaded originals (`<epoch-ms>-<rand>.<ext>`) unless `--originals` is passed —
 normalizing a product leaves its original unreferenced, but that file is the only high-quality
