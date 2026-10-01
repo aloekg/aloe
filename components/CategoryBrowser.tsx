@@ -16,6 +16,7 @@ type Section = {
   name: string;
   products: ProductListItem[];
   groups: { id: number; name: string; products: ProductListItem[] }[];
+  hideHeader?: boolean;
 };
 
 type Props = {
