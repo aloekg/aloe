@@ -49,7 +49,7 @@ export const getCachedActiveBanners = unstable_cache(
 export const getCachedProductsByLabel = unstable_cache(
   (label: "new" | "sale", limit?: number) => getProductsByLabel(supabase, label, limit),
   ["products-by-label"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
+  { revalidate: CATALOGUE_TTL, tags: ["products", "products-popular"] },
 );
 
 export const getCachedPopularProducts = unstable_cache(
@@ -62,7 +62,7 @@ export const getCachedHomePageCategoryProducts = unstable_cache(
   (groups: Array<{ topId: number; allIds: number[] }>, limitPerCategory?: number) =>
     getHomePageCategoryProducts(supabase, groups, limitPerCategory),
   ["home-category-products"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
+  { revalidate: CATALOGUE_TTL, tags: ["products", "products-popular"] },
 );
 
 export const getCachedBrands = unstable_cache(() => getBrands(supabase), ["brands"], {

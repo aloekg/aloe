@@ -70,7 +70,9 @@
 
 Note: the `discount` label/route from earlier iterations has been removed — `Product["label"]` is now only `"new" | "sale" | null`.
 
-Note: "popular" is no longer a manually-set admin label. `products.purchase_count` counts **confirmed** orders, not placed ones: `updateOrderStatus` in `app/admin/actions.ts` applies the order's quantities through the `increment_product_purchase_counts` RPC whenever a status change crosses into or out of `confirmed`/`processing`/`delivered` — in either direction, since a confirmed order can still be cancelled. `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`), and the "По популярности" sort orders by the same column. Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been confirmed.
+Note: "popular" is no longer a manually-set admin label. `products.purchase_count` counts **confirmed** orders, not placed ones: `updateOrderStatus` in `app/admin/actions.ts` applies the order's quantities through the `increment_product_purchase_counts` RPC whenever a status change crosses into or out of `confirmed`/`processing`/`delivered` — in either direction, since a confirmed order can still be cancelled. `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`), and the "По популярности" sort orders by the same column. So do the home page's other carousels — «Новинки», «Акции» and one per category — with the newest
+product breaking ties, since nine products in ten have never sold and ordering those by name put the
+same alphabetical first ten in every row; the `products-popular` tag expires them with the counts. Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been confirmed.
 
 Checkout deliberately does **not** touch it. There is no payment gate here, so a placed order is an intent someone then verifies by phone, and a fifth of production orders are cancelled. While the count was applied at checkout and never taken back, 10.6% of every counted unit came from a cancelled order, eleven products held a place in "Популярные" on cancelled orders alone, and the second product on the home page had all 23 of its "purchases" cancelled. The rule lives in one pure function — `purchaseCountDelta(prev, next)` in `lib/constants.ts`, tested in `tests/purchase-count.test.ts` — stated symmetrically rather than as "increment on confirm, decrement on cancel", which makes it idempotent for free: the same status twice compares equal and does nothing. The write is a compare-and-swap on the status just read, so two admins pressing at once cannot both apply the delta. Its cost is the other side of the same coin: an order left sitting at `new` counts for nothing, so the shelf depends on the admin moving statuses — 88.6% of production orders are moved off `new`, which is what makes that affordable. See `supabase/migrations/20260923120000_purchase_count_on_confirmation.sql` for the symmetric `qty` bound, the `greatest(0, …)` floor and the backfill.
 
@@ -410,11 +412,11 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedBrands()`                                 | 1 hour | `brands`                      |
 | `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`                      |
 | `getCachedActiveBanners()`                          | 1 hour | `banners`                     |
-| `getCachedProductsByLabel(label, limit?)`           | 10 min | `products`                    |
+| `getCachedProductsByLabel(label, limit?)`           | 10 min | `products` `products-popular` |
 | `getCachedProductsByLabelPaginated(label, page, …)` | 10 min | `products`                    |
 | `getCachedPopularProducts(limit?)`                  | 10 min | `products` `products-popular` |
 | `getCachedPopularProductsPaginated(page, pageSize)` | 10 min | `products` `products-popular` |
-| `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
+| `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products` `products-popular` |
 | `getCachedCategoryProducts(categoryIds)`            | 10 min | `products`                    |
 | `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
 | `getCachedProduct(id)`                              | 10 min | `products` `product-<id>`     |
