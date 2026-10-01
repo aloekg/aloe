@@ -1,3 +1,4 @@
+import { isCustomOrderItem } from "@/lib/order-pricing";
 import type { OrderItem } from "@/types";
 
 // Keep out of "use server" files: every export there becomes a public endpoint.
@@ -68,7 +69,7 @@ export function reviewableItems(items: readonly OrderItem[], alreadyReviewed: re
   const seen = new Set<number>();
   const out: OrderItem[] = [];
   for (const item of items) {
-    if (done.has(item.id) || seen.has(item.id)) continue;
+    if (isCustomOrderItem(item) || done.has(item.id) || seen.has(item.id)) continue;
     seen.add(item.id);
     out.push(item);
   }

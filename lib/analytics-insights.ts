@@ -10,6 +10,7 @@ import {
   windowStart,
 } from "@/lib/analytics";
 import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD } from "@/lib/constants";
+import { isCustomOrderItem } from "@/lib/order-pricing";
 
 export type CatalogueProductRow = {
   id: number;
@@ -291,7 +292,7 @@ export function buildCancellations(rows: AnalyticsOrderRow[]): CancellationInsig
 
     const seen = new Set<number>();
     for (const item of row.items ?? []) {
-      if (seen.has(item.id)) continue;
+      if (isCustomOrderItem(item) || seen.has(item.id)) continue;
       seen.add(item.id);
       const product = byProduct.get(item.id) ?? { id: item.id, name: item.name, orders: 0, cancelled: 0 };
       product.orders += 1;

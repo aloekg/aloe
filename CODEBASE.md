@@ -616,6 +616,15 @@ would have charged the _previous_ basket; without it, editing the items of a reg
 wipe the negotiated fee back to 0. The blind spot is a manual fee equal to the tariff, which
 recomputes to itself.
 
+The editor also takes **custom lines** — anything the admin types in that the catalogue does not
+carry (a gift bag, a substitute, a service), with its own name, price and quantity. Such a line is
+stored with a **negative `id`** (`isCustomOrderItem()` / `nextCustomItemId()` in
+`lib/order-pricing.ts`) rather than with a flag, so every consumer that treats `items[].id` as a
+product id passes it by without a special case: `increment_product_purchase_counts` matches no row,
+`reviewableItems()` skips it, and «Повторить заказ» in the profile leaves it out of the cart, where
+`parseLines()` would otherwise reject the whole basket. The ids are unique within one order only, so
+the analytics count a custom line towards revenue and units sold but never rank it as a product.
+
 **WhatsApp is a link, not an integration.** Each row in the admin order list carries a `wa.me`
 link to the customer's chat with a message for the order's current status already typed in
 (`lib/whatsapp.ts`) — the admin presses send, and edits the text first if the order needs it.

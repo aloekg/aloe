@@ -7,6 +7,7 @@ import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import Pagination from "@/components/Pagination";
 import { deliveryFreeNote, ORDER_STATUS } from "@/lib/constants";
+import { isCustomOrderItem } from "@/lib/order-pricing";
 import { orderCanBeReviewed } from "@/lib/reviews";
 import { useCart } from "@/store/cart";
 import { useToast } from "@/store/toast";
@@ -46,8 +47,14 @@ export default function ProfileTabs({
   const router = useRouter();
 
   function repeatOrder(order: Order) {
+    // A line the shop added by hand is not a product the cart or checkout can price.
+    const products = order.items.filter((item) => !isCustomOrderItem(item));
+    if (products.length === 0) {
+      show("В этом заказе нет товаров из каталога", "error");
+      return;
+    }
     addMany(
-      order.items.map((item) => ({
+      products.map((item) => ({
         id: item.id,
         name: item.name,
         price: item.price,
