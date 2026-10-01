@@ -247,6 +247,13 @@ export default function AdminCategories({
                       }`}
                     >
                       <GripVerticalIcon className="size-4 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {sub.image_url ? (
+                        <div className="relative size-6 shrink-0 rounded overflow-hidden bg-gray-100">
+                          <Image src={sub.image_url} alt={sub.name} fill className="object-cover" sizes="24px" />
+                        </div>
+                      ) : (
+                        <div className="size-6 shrink-0 rounded bg-gray-100" />
+                      )}
                       <div className="flex-1 min-w-0">
                         <span className="text-sm text-gray-700">{sub.name}</span>
                         <span className="text-xs text-gray-500 ml-2">{sub.slug}</span>
@@ -385,7 +392,8 @@ export default function AdminCategories({
             )}
           </Field>
 
-          {!editing.parent_id && (
+          {/* Top level and subcategories have tiles on /catalog; a sub-subcategory is only a section. */}
+          {(!editing.parent_id || parents.some((p) => p.id === editing.parent_id)) && (
             <Field label="Изображение">
               <input ref={fileRef} type="file" accept="image/*" onChange={onFileChange} className="hidden" />
               {editing.image_url ? (
