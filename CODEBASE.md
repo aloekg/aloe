@@ -38,7 +38,7 @@
 /auth/confirm               # Email OTP verification & OAuth PKCE callback (route.ts)
 /product/[id]               # Product detail page
 /catalog                    # All categories index — phone: Популярное/Новинки/Акции, then each category's subcategories, 3 per row
-/catalog/[slug]             # Category listing with filters — all subcategories in one scrollable view (see note below)
+/catalog/[slug]             # Category listing with filters — all subcategories in one scrollable view (see note below); a subcategory slug gets a page of its own
 /brands                     # All brands index (alphabetical)
 /brands/[brand]             # Brand product listing (infinite scroll)
 /search                     # Search results with filters
@@ -120,6 +120,18 @@ was scrolled (`useWindowScrolled`) and then collapse to one line, which on a pho
 with up to three rows of pills between the header and the first product and shifted the layout the
 moment you moved — in the direction that hides the goods. From `md` up the width is there, so the
 wrap-until-scrolled behaviour stays.
+
+**Subcategory page (`/catalog/[subSlug]`):** a subcategory slug renders its own page — what the
+phone's `/catalog` tiles open — with the subcategory as the title, only its products, and its
+**sub-subcategories as the sections and pills** (`SubcategoryPage` in `app/catalog/[slug]/page.tsx`).
+Products assigned to the subcategory itself become a last section, «Другое»; a subcategory without
+sub-subcategories is a single section with no pills and no section header (`hideHeader`), since the
+page title already names it. It reads the **top-level category's** `getCachedCategoryProducts` entry
+and picks its own buckets, so the ~75 subcategory pages add ISR pages but no Data Cache entries
+(see "Cache budget"). A sub-subcategory slug redirects to `/catalog/[subSlug]?sub=[subSubSlug]`,
+where `?sub=` works as on the category page. The other `?sub=` links — product breadcrumbs, the home
+page, the legacy redirects — still open the top-level view, which is unchanged; the sitemap lists
+both levels.
 
 **Sub-subcategories (3rd level):** `categories.parent_id` is self-referential, so a category can be nested one level deeper than a normal subcategory (category → subcategory → sub-subcategory). Sub-subcategories have **no page of their own** — `products.category_id` may point directly at one (instead of at the subcategory), and `/catalog/[slug]` groups that subcategory's products into per-sub-subcategory sections within its section rather than routing to a new URL. `getCategoryProducts` (cached as `getCachedCategoryProducts`) takes every category id under the top-level one in one query and returns the rows bucketed by `category_id`, so products assigned at either level arrive together; `buildCategorySection()` in `lib/subcategory-sections.ts` then splits each subcategory's bucket into per-sub-subcategory groups. `sitemap.ts`, the homepage carousel grouping (`app/page.tsx`), and the product-detail breadcrumbs (`app/product/[id]/page.tsx`) all walk up to 2 `parent_id` hops to resolve the real top-level/subcategory pair, and link to the subcategory as `/catalog/[topSlug]?sub=[subSlug]`. Admin: `AdminCategories.tsx` renders 3 tiers and only allows a subcategory (not a sub-subcategory) as a parent, capping the tree at 3 levels; the product editor's category `<select>` only offers leaf categories **below the top level** — a subcategory or sub-subcategory with no children of its own, labeled with its full breadcrumb path. A childless top-level category is a leaf by that test alone and used to be offered; a product assigned to one renders nowhere, because `/catalog/[slug]` builds its sections from subcategory ids and then calls `notFound()`.
 

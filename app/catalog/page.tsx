@@ -92,12 +92,7 @@ export default async function CatalogPage() {
                 </h2>
                 <div className="grid grid-cols-3 gap-2">
                   {subcategories.map((sub) => (
-                    <MobileTile
-                      key={sub.id}
-                      href={`/catalog/${cat.slug}?sub=${sub.slug}`}
-                      label={sub.name}
-                      image={sub.image_url}
-                    />
+                    <MobileTile key={sub.id} href={`/catalog/${sub.slug}`} label={sub.name} image={sub.image_url} />
                   ))}
                 </div>
               </section>

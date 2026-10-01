@@ -16,6 +16,8 @@ type Section = {
   name: string;
   products: ProductListItem[];
   groups?: Group[];
+  // The page title already names it: a subcategory page with no sub-subcategories is one section.
+  hideHeader?: boolean;
 };
 
 type VirtualRow =
@@ -35,10 +37,11 @@ const GROUP_GAP = 24;
 const SSR_PRODUCTS_PER_SECTION = 12;
 
 function sectionRowCount(section: Section, cols: number): number {
-  if (!section.groups?.length) return 1 + Math.ceil(section.products.length / cols);
+  const header = section.hideHeader ? 0 : 1;
+  if (!section.groups?.length) return header + Math.ceil(section.products.length / cols);
   const restRows = section.products.length > 0 ? Math.ceil(section.products.length / cols) : 0;
   const groupRows = section.groups.reduce((sum, g) => sum + 1 + Math.ceil(g.products.length / cols), 0);
-  return 1 + restRows + groupRows;
+  return header + restRows + groupRows;
 }
 
 function buildRows(sections: Section[], cols: number): VirtualRow[] {
@@ -50,8 +53,8 @@ function buildRows(sections: Section[], cols: number): VirtualRow[] {
       sawFirstProductsRow = true;
     }
   };
-  sections.forEach(({ name, products, groups }, si) => {
-    rows.push({ type: "header", name, first: si === 0 });
+  sections.forEach(({ name, products, groups, hideHeader }, si) => {
+    if (!hideHeader) rows.push({ type: "header", name, first: si === 0 });
     pushProductsRows(products);
     groups?.forEach((g, gi) => {
       rows.push({ type: "subheader", name: g.name, first: gi === 0 && products.length === 0 });
@@ -289,9 +292,9 @@ export default function VirtualCategoryContent({
         ))}
       </ProductGrid>
     );
-    return sections.map(({ id, name, products, groups }) => (
+    return sections.map(({ id, name, products, groups, hideHeader }) => (
       <React.Fragment key={id}>
-        <h2 className="text-lg font-semibold mb-4 text-center md:text-left">{name}</h2>
+        {!hideHeader && <h2 className="text-lg font-semibold mb-4 text-center md:text-left">{name}</h2>}
         {products.length > 0 && renderGrid(products)}
         {groups?.map((g) => (
           <React.Fragment key={g.id}>
