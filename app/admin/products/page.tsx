@@ -26,9 +26,15 @@ export default async function ProductsPage({
   const pageSizeParam = sp.pageSize ?? DEFAULT_PAGE_SIZE;
   const pageSize = pageSizeParam === "all" ? "all" : Math.max(1, parseInt(pageSizeParam) || 20);
 
-  const [{ products, total }, allCategories, brands] = await Promise.all([
-    getAdminProducts(supabase, { q, label, published, categoryId, brandId, sort, page: currentPage, pageSize }),
-    getCategories(supabase),
+  const allCategories = await getCategories(supabase);
+  // Products sit on leaves only, so a parent category stands for everything under it.
+  function subtree(id: number): number[] {
+    return [id, ...allCategories.filter((c) => c.parent_id === id).flatMap((c) => subtree(c.id))];
+  }
+  const categoryIds = categoryId === "none" ? "none" : categoryId ? subtree(categoryId) : undefined;
+
+  const [{ products, total }, brands] = await Promise.all([
+    getAdminProducts(supabase, { q, label, published, categoryIds, brandId, sort, page: currentPage, pageSize }),
     getAdminBrands(supabase),
   ]);
 

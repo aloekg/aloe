@@ -270,7 +270,7 @@ export async function getAdminProducts(
     q?: string;
     label?: string;
     published?: string;
-    categoryId?: number | "none";
+    categoryIds?: number[] | "none";
     brandId?: number | "none";
     sort?: AdminProductsSort;
     page?: number;
@@ -281,7 +281,7 @@ export async function getAdminProducts(
     q = "",
     label = "",
     published = "",
-    categoryId,
+    categoryIds,
     brandId,
     sort = "id-desc",
     page = 1,
@@ -293,8 +293,8 @@ export async function getAdminProducts(
   const idTerm = parseProductId(q);
   if (idTerm) query = query.or(`id.eq.${idTerm},name.ilike.%${idTerm}%`);
   else if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
-  if (categoryId === "none") query = query.is("category_id", null);
-  else if (categoryId) query = query.eq("category_id", categoryId);
+  if (categoryIds === "none") query = query.is("category_id", null);
+  else if (categoryIds) query = query.in("category_id", categoryIds);
   if (brandId === "none") query = query.is("brand_id", null);
   else if (brandId) query = query.eq("brand_id", brandId);
   if (label === "none") query = query.is("label", null);
