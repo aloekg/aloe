@@ -37,7 +37,7 @@
 /auth                       # Login / register (email+password, Google OAuth)
 /auth/confirm               # Email OTP verification & OAuth PKCE callback (route.ts)
 /product/[id]               # Product detail page
-/catalog                    # All categories index
+/catalog                    # All categories index — phone: Популярное/Новинки/Акции, then each category's subcategories, 3 per row
 /catalog/[slug]             # Category listing with filters — all subcategories in one scrollable view (see note below)
 /brands                     # All brands index (alphabetical)
 /brands/[brand]             # Brand product listing (infinite scroll)
