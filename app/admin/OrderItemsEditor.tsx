@@ -1,17 +1,26 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Search, Trash2, X } from "lucide-react";
+import { Minus, PencilLine, Plus, Search, Trash2, X } from "lucide-react";
 import Button from "@/components/Button";
 import Currency from "@/components/Currency";
 import { useOutsideClick } from "@/hooks/useOutsideClick";
 import { MIN_QUERY, useProductAutocomplete } from "@/hooks/useProductAutocomplete";
-import { MAX_ITEM_NAME, money, parsePriceInput, type OrderItemInput } from "@/lib/order-pricing";
+import {
+  isCustomOrderItem,
+  MAX_ITEM_NAME,
+  MAX_QUANTITY,
+  money,
+  nextCustomItemId,
+  parsePriceInput,
+  parseQuantityInput,
+  type OrderItemInput,
+} from "@/lib/order-pricing";
 import type { OrderItem } from "@/types";
 import { updateOrderItems } from "./actions";
 
-// Price is held as the raw string: mid-typing states like "12." are NaN as numbers.
-type Draft = { id: number; name: string; price: string; quantity: number; image_url: string | null };
+// Price and quantity are held as raw strings: mid-typing states like "12." or "" are NaN as numbers.
+type Draft = { id: number; name: string; price: string; quantity: string; image_url: string | null };
 
 type Props = {
   orderId: number;
@@ -30,7 +39,7 @@ const toDraft = (item: {
   id: item.id,
   name: item.name,
   price: String(item.price ?? ""),
-  quantity: item.quantity,
+  quantity: String(item.quantity),
   image_url: item.image_url,
 });
 
@@ -43,6 +52,7 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [focusId, setFocusId] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
   const { results: suggestions } = useProductAutocomplete(query);
@@ -56,26 +66,36 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
   function addProduct(product: Draft) {
     setItems((prev) => {
       const existing = prev.find((i) => i.id === product.id);
-      if (existing) return prev.map((i) => (i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i));
-      return [...prev, product];
+      if (!existing) return [...prev, product];
+      const quantity = Math.min(MAX_QUANTITY, (parseQuantityInput(existing.quantity) ?? 0) + 1);
+      return prev.map((i) => (i.id === product.id ? { ...i, quantity: String(quantity) } : i));
     });
     setQuery("");
+  }
+
+  function addCustom() {
+    const id = nextCustomItemId(items);
+    setItems((prev) => [...prev, { id, name: "", price: "", quantity: "1", image_url: null }]);
+    setFocusId(id);
   }
 
   function setField(id: number, patch: Partial<Draft>) {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   }
 
-  function setQuantity(id: number, quantity: number) {
-    if (quantity < 1) return;
-    setField(id, { quantity });
+  function stepQuantity(item: Draft, by: number) {
+    const quantity = (parseQuantityInput(item.quantity) ?? 1) + by;
+    if (quantity < 1 || quantity > MAX_QUANTITY) return;
+    setField(item.id, { quantity: String(quantity) });
   }
 
   function removeItem(id: number) {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  const itemsTotal = money(items.reduce((sum, i) => sum + (parsePriceInput(i.price) ?? 0) * i.quantity, 0));
+  const itemsTotal = money(
+    items.reduce((sum, i) => sum + (parsePriceInput(i.price) ?? 0) * (parseQuantityInput(i.quantity) ?? 0), 0),
+  );
 
   async function handleSave() {
     if (items.length === 0) {
@@ -84,12 +104,22 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
     }
     const payload: OrderItemInput[] = [];
     for (const item of items) {
-      const price = parsePriceInput(item.price);
-      if (price == null) {
-        setError(`Укажите цену числом для «${item.name.trim() || "без названия"}», например 1250`);
+      const label = item.name.trim();
+      if (!label) {
+        setError("Укажите название у каждой позиции");
         return;
       }
-      payload.push({ id: item.id, name: item.name, price, quantity: item.quantity, image_url: item.image_url });
+      const price = parsePriceInput(item.price);
+      if (price == null) {
+        setError(`Укажите цену числом для «${label}», например 1250`);
+        return;
+      }
+      const quantity = parseQuantityInput(item.quantity);
+      if (quantity == null) {
+        setError(`Укажите количество для «${label}» — целое число от 1 до ${MAX_QUANTITY}`);
+        return;
+      }
+      payload.push({ id: item.id, name: item.name, price, quantity, image_url: item.image_url });
     }
 
     setSaving(true);
@@ -108,15 +138,20 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
       <div className="space-y-2">
         {items.map((item) => {
           const price = parsePriceInput(item.price);
+          const quantity = parseQuantityInput(item.quantity);
+          const custom = isCustomOrderItem(item);
           return (
             <div key={item.id} className="rounded-lg border border-gray-200 p-2 space-y-2">
+              {custom && <p className="text-xs text-amber-700">Свой товар — не из каталога</p>}
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={item.name}
                   maxLength={MAX_ITEM_NAME}
                   onChange={(e) => setField(item.id, { name: e.target.value })}
+                  placeholder="Название товара"
                   aria-label="Название товара"
+                  autoFocus={item.id === focusId}
                   className={`min-w-0 flex-1 ${inputClass}`}
                 />
                 <Button
@@ -132,16 +167,23 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
                 <div className="flex items-center gap-1 border border-gray-300 rounded shrink-0">
                   <Button
                     type="button"
-                    onClick={() => setQuantity(item.id, item.quantity - 1)}
+                    onClick={() => stepQuantity(item, -1)}
                     aria-label="Меньше"
                     className="px-1.5 py-1 text-gray-500 hover:text-gray-800"
                   >
                     <Minus className="w-3 h-3" />
                   </Button>
-                  <span className="w-6 text-center">{item.quantity}</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={item.quantity}
+                    onChange={(e) => setField(item.id, { quantity: e.target.value.replace(/\D/g, "") })}
+                    aria-label="Количество"
+                    className={`w-10 text-center text-sm focus:outline-none ${quantity == null ? "text-red-600" : ""}`}
+                  />
                   <Button
                     type="button"
-                    onClick={() => setQuantity(item.id, item.quantity + 1)}
+                    onClick={() => stepQuantity(item, 1)}
                     aria-label="Больше"
                     className="px-1.5 py-1 text-gray-500 hover:text-gray-800"
                   >
@@ -160,11 +202,11 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
                 />
                 <Currency />
                 <span className="ml-auto shrink-0 text-gray-500">
-                  {price == null ? (
+                  {price == null || quantity == null ? (
                     "—"
                   ) : (
                     <>
-                      {money(price * item.quantity)} <Currency />
+                      {money(price * quantity)} <Currency />
                     </>
                   )}
                 </span>
@@ -174,33 +216,42 @@ export default function OrderItemsEditor({ orderId, items: initial, onCancel, on
         })}
       </div>
 
-      <div ref={boxRef} className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setDismissedFor(null)}
-          placeholder="Добавить товар..."
-          className="w-full border border-gray-500 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
-        />
-        {open && results.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-sm max-h-56 overflow-y-auto">
-            {results.map((p) => (
-              <Button
-                key={p.id}
-                type="button"
-                onClick={() => addProduct(p)}
-                className="w-full flex justify-between items-center px-3 py-2 text-sm text-left hover:bg-gray-50"
-              >
-                <span className="line-clamp-1">{p.name}</span>
-                <span className="text-gray-500 shrink-0 ml-2">
-                  {p.price} <Currency />
-                </span>
-              </Button>
-            ))}
-          </div>
-        )}
+      <div className="flex gap-2">
+        <div ref={boxRef} className="relative min-w-0 flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setDismissedFor(null)}
+            placeholder="Добавить товар..."
+            className="w-full border border-gray-500 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
+          />
+          {open && results.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-sm max-h-56 overflow-y-auto">
+              {results.map((p) => (
+                <Button
+                  key={p.id}
+                  type="button"
+                  onClick={() => addProduct(p)}
+                  className="w-full flex justify-between items-center px-3 py-2 text-sm text-left hover:bg-gray-50"
+                >
+                  <span className="line-clamp-1">{p.name}</span>
+                  <span className="text-gray-500 shrink-0 ml-2">
+                    {p.price} <Currency />
+                  </span>
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+        <Button
+          type="button"
+          onClick={addCustom}
+          className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          <PencilLine className="w-3.5 h-3.5" /> Свой товар
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
