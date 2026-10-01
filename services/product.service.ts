@@ -46,6 +46,7 @@ export async function getProductsByLabel(supabase: SupabaseClient<Database>, lab
     .select(LIST_COLUMNS, COUNT)
     .eq("published", true)
     .eq("label", label)
+    .order("purchase_count", { ascending: false })
     .order("id", { ascending: false })
     .limit(limit);
   return toList("products-by-label", res);
@@ -92,7 +93,9 @@ export async function getHomePageCategoryProducts(
         .select(LIST_COLUMNS, COUNT)
         .eq("published", true)
         .in("category_id", allIds)
-        .order("name")
+        // Most products have no sales yet, so the newest fill the rest rather than the same first names.
+        .order("purchase_count", { ascending: false })
+        .order("id", { ascending: false })
         .limit(limitPerCategory);
       const { products, total } = toList("home-category-products", res);
       return { topId, products, total };
