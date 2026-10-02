@@ -139,7 +139,6 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
                   {o.value === sort && <Check className="size-5 shrink-0" aria-hidden />}
                 </button>
               ))}
-              {note && <p className="text-xs text-gray-500 mt-2 px-3">{note}</p>}
             </div>
           ) : (
             <div className="flex flex-col gap-5 px-4 pb-6">
