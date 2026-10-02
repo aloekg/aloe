@@ -106,7 +106,7 @@ change resets `?page=`; it reads `window.location.search` at call time rather th
 `useSearchParams()`, because two writers share the query string here and a cached copy would have
 each silently drop the other's key. **Sorting by price orders within each section, never across
 them** — a flat list would break the pills, `section-scroll.ts`, `active-section.ts`, the `?sub=`
-contract and the `/catalog/[topSlug]?sub=[subSlug]` links — so the UI says "в каждом разделе". **Brands** filter on `brand_id`, which every list row already
+contract and the `/catalog/[topSlug]?sub=[subSlug]` links. **Brands** filter on `brand_id`, which every list row already
 carries: the options are the brands this page's products have, in `getCachedBrands()` order, and
 a `?brand=` id the page does not carry is dropped server-side rather than emptying it. On a phone
 and from `md` up alike they sit in the "Фильтры" panel under the price, since a category can carry
@@ -116,12 +116,14 @@ what keeps faceted URLs uncrawlable; `Pagination` is the only `<a href>` carryin
 and it carries every active filter so page 2 shows the same result set.
 
 `ProductFilterBar` has two variants and each carries its own breakpoint visibility, so the two can
-sit in different places: `inline` is the `md`-and-up row above the pills — two labelled buttons,
-the current sort order and "Фильтры · N" — and `icons` the phone's two
-triggers, which the category page passes into `SubcategoryFilter`'s `leading` slot so they ride as
-the **first items of the sticky pill row** and scroll sideways with it. That is the mobile first
-rule applied — the phone gets no filter row of its own, because a permanent one above the pills
-would spend vertical space on every visit to serve the few visitors who filter. The row itself is
+sit in different places: `inline` is the `md`-and-up row /search puts above its results — two
+labelled buttons, the current sort order and "Фильтры · N" — and `icons` two round triggers,
+phone-only by default. The category page uses `icons` **at every width** (`className="md:flex"`,
+merged through `cn` so it beats `md:hidden`) and passes them into `SubcategoryFilter`'s `leading`
+slot, so they ride as the **first items of the sticky pill row** and scroll sideways with it. That
+is the mobile first rule applied, and the desktop now follows the phone — no filter row of its own,
+because a permanent one above the pills would spend vertical space on every visit to serve the few
+visitors who filter. The row itself is
 sticky, so they stay reachable at any scroll depth down the page. (The scroller carries `relative`
 so it is the pills' `offsetParent`: `useActiveSectionSync` compares `offsetLeft` against
 `scrollLeft`, and the two have to be measured in the same coordinate space.) Sort and price are **two icons, not one "Фильтры"
@@ -140,11 +142,11 @@ full-height drawer on the right from `md`. The desktop row used to be the contro
 `<select>`, two price inputs applying as you typed, and a brands dialog — and became triggers once
 brands joined price in one staged panel, so one "Показать" applies them together on every width.
 
-Below `md` the subcategory pills are **always one scrollable row**. They used to wrap until the page
-was scrolled (`useWindowScrolled`) and then collapse to one line, which on a phone opened a category
-with up to three rows of pills between the header and the first product and shifted the layout the
-moment you moved — in the direction that hides the goods. From `md` up the width is there, so the
-wrap-until-scrolled behaviour stays.
+The subcategory pills are **always one scrollable row**, at every width; a mouse drags it sideways
+through `useDragScroll`. They used to wrap until the page was scrolled and then collapse to one
+line, which on a phone opened a category with up to three rows of pills between the header and the
+first product and shifted the layout the moment you moved — in the direction that hides the goods.
+The desktop kept that behaviour longer, and gave it up once the filter triggers moved into the row.
 
 **Subcategory page (`/catalog/[subSlug]`):** a subcategory slug renders its own page — what the
 phone's `/catalog` tiles open — with the subcategory as the title, only its products, and its

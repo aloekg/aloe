@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { ArrowDownUp, Check, SlidersHorizontal } from "lucide-react";
 import { useFilterNav } from "@/hooks/useFilterNav";
+import { cn } from "@/lib/cn";
 import { hasPriceRange, type PriceRange, type SortValue } from "@/lib/page-params";
 import Button from "./Button";
 import PriceFilter from "./PriceFilter";
@@ -32,12 +33,12 @@ type Props = {
   // Brand filtering is offered only where options are passed: the category page, which holds the whole set.
   brands?: number[];
   brandOptions?: BrandOption[];
-  // `inline`: the md-and-up row of labelled triggers; `icons`: the phone's two round ones.
+  // `inline`: the md-and-up row of labelled triggers (/search); `icons`: two round ones, phone-only
+  // unless `className` overrides `md:hidden` — the category page shows them at every width.
   variant: "inline" | "icons";
   bounds?: { min: number; max: number } | null;
   onChange?: (next: FilterState) => void;
   countFor?: (next: FilterState) => number;
-  note?: string;
   className?: string;
 };
 
@@ -143,7 +144,6 @@ export default function ProductFilterBar({
   bounds,
   onChange,
   countFor,
-  note,
   className,
 }: Props) {
   const navigate = useFilterNav();
@@ -269,7 +269,6 @@ export default function ProductFilterBar({
         >
           {activeFilters > 0 ? `Фильтры · ${activeFilters}` : "Фильтры"}
         </TextTrigger>
-        {note && sort !== "name" && <span className="text-xs text-gray-500">{note}</span>}
         {active && (
           <Button
             variant="ghost"
@@ -286,7 +285,7 @@ export default function ProductFilterBar({
 
   return (
     <>
-      <div className={`flex md:hidden shrink-0 items-center gap-2 ${className ?? ""}`}>
+      <div className={cn("flex md:hidden shrink-0 items-center gap-2", className)}>
         <IconTrigger icon={ArrowDownUp} label="Сортировка" active={sort !== "name"} onClick={() => open("sort")} />
         <IconTrigger
           icon={SlidersHorizontal}
