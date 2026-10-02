@@ -7,7 +7,15 @@ import { hasPriceRange, type PriceRange, type SortValue } from "@/lib/page-param
 import Button from "./Button";
 import PriceFilter from "./PriceFilter";
 import Sheet from "./Sheet";
-import SortSelect, { SORT_OPTIONS } from "./SortSelect";
+
+// Buttons in a sheet, never links: a sort order must not mint a crawlable URL.
+export const SORT_OPTIONS: { value: SortValue; label: string }[] = [
+  { value: "name", label: "По названию" },
+  { value: "popular", label: "По популярности" },
+  { value: "newest", label: "По новизне" },
+  { value: "price_asc", label: "По возрастанию цены" },
+  { value: "price_desc", label: "По убыванию цены" },
+];
 
 export type FilterState = { sort: SortValue; range: PriceRange; brands: number[] };
 
@@ -16,7 +24,7 @@ export type BrandOption = { id: number; name: string };
 const NO_PRICE: PriceRange = { min: null, max: null };
 const NO_BRANDS: number[] = [];
 
-type SheetKind = "sort" | "filters" | "brands";
+type SheetKind = "sort" | "filters";
 
 type Props = {
   sort: SortValue;
@@ -24,6 +32,7 @@ type Props = {
   // Brand filtering is offered only where options are passed: the category page, which holds the whole set.
   brands?: number[];
   brandOptions?: BrandOption[];
+  // `inline`: the md-and-up row of labelled triggers; `icons`: the phone's two round ones.
   variant: "inline" | "icons";
   bounds?: { min: number; max: number } | null;
   onChange?: (next: FilterState) => void;
@@ -60,21 +69,47 @@ function IconTrigger({
   );
 }
 
+function TextTrigger({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  icon: typeof ArrowDownUp;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-haspopup="dialog"
+      className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors cursor-pointer ${
+        active ? "border-green-700 text-green-700 bg-green-50" : "border-gray-500 text-gray-700 hover:bg-gray-50"
+      }`}
+    >
+      <Icon className="size-4" aria-hidden />
+      {children}
+    </button>
+  );
+}
+
 function BrandPicker({
   options,
   selected,
   onChange,
-  hideLegend = false,
 }: {
   options: BrandOption[];
   selected: number[];
   onChange: (next: number[]) => void;
-  // The brands-only dialog's heading already says it.
-  hideLegend?: boolean;
 }) {
   return (
     <fieldset>
-      <legend className={hideLegend ? "sr-only" : "text-sm text-gray-500 mb-2"}>Бренд</legend>
+      <legend className="text-sm text-gray-500 mb-2">Бренд</legend>
       <div className="flex flex-wrap gap-2">
         {options.map((b) => {
           const active = selected.includes(b.id);
@@ -142,17 +177,20 @@ export default function ProductFilterBar({
     setSheet(which);
   };
 
-  const stagedDirty = stagedBrands.length > 0 || (sheet === "filters" && hasPriceRange(staged));
+  const stagedDirty = stagedBrands.length > 0 || hasPriceRange(staged);
+  const activeFilters = (hasPriceRange(range) ? 1 : 0) + brands.length;
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? SORT_OPTIONS[0].label;
 
+  // One sheet for both variants: a bottom sheet edge to edge on a phone, a drawer on the right from md.
   const sheetEl = sheet && (
     <Sheet
-      heading={sheet === "sort" ? "Сортировка" : sheet === "brands" ? "Бренды" : "Фильтры"}
+      heading={sheet === "sort" ? "Сортировка" : "Фильтры"}
       requestClose={closing}
       onClose={() => {
         setSheet(null);
         setClosing(false);
       }}
-      // Edge to edge on a phone, as a bottom sheet should be; a narrow dialog from md.
+      drawer
       width="md:max-w-md"
     >
       {sheet === "sort" ? (
@@ -177,18 +215,11 @@ export default function ProductFilterBar({
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-5 px-4">
-          {sheet === "filters" && <PriceFilter value={staged} onChange={setStaged} bounds={bounds} stretch />}
-          {brandList && (
-            <BrandPicker
-              options={brandList}
-              selected={stagedBrands}
-              onChange={setStagedBrands}
-              hideLegend={sheet === "brands"}
-            />
-          )}
-          {/* Sticky: a long brand list scrolls the panel, and the button must stay in reach. */}
-          <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-6 bg-white flex items-center gap-3">
+        <div className="flex flex-col flex-1 gap-5 px-4">
+          <PriceFilter value={staged} onChange={setStaged} bounds={bounds} stretch />
+          {brandList && <BrandPicker options={brandList} selected={stagedBrands} onChange={setStagedBrands} />}
+          {/* Sticky: a long brand list scrolls the panel; mt-auto: in the full-height drawer it sits at the foot. */}
+          <div className="sticky bottom-0 mt-auto -mx-4 px-4 pt-3 pb-6 bg-white flex items-center gap-3">
             <Button
               variant="primary"
               size="lg"
@@ -205,8 +236,7 @@ export default function ProductFilterBar({
                 variant="secondary"
                 size="lg"
                 onClick={() => {
-                  // The brands-only dialog leaves the inline price range alone.
-                  if (sheet === "filters") setStaged(NO_PRICE);
+                  setStaged(NO_PRICE);
                   setStagedBrands(NO_BRANDS);
                 }}
               >
@@ -220,25 +250,25 @@ export default function ProductFilterBar({
   );
 
   if (variant === "inline") {
-    const active = sort !== "name" || hasPriceRange(range) || brands.length > 0;
+    const active = sort !== "name" || activeFilters > 0;
     return (
-      <div className={`hidden md:flex flex-wrap items-center gap-x-4 gap-y-2 ${className ?? ""}`}>
-        <SortSelect current={sort} onChange={(next) => commit({ sort: next, range, brands })} />
-        <PriceFilter value={range} onChange={(next) => commit({ sort, range: next, brands })} bounds={bounds} />
-        {brandList && (
-          <button
-            type="button"
-            onClick={() => open("brands")}
-            aria-haspopup="dialog"
-            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors cursor-pointer ${
-              brands.length > 0
-                ? "border-green-700 text-green-700 bg-green-50"
-                : "border-gray-500 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            {brands.length > 0 ? `Бренды · ${brands.length}` : "Бренды"}
-          </button>
-        )}
+      <div className={`hidden md:flex flex-wrap items-center gap-x-3 gap-y-2 ${className ?? ""}`}>
+        <TextTrigger
+          icon={ArrowDownUp}
+          label={`Сортировка: ${sortLabel}`}
+          active={sort !== "name"}
+          onClick={() => open("sort")}
+        >
+          {sortLabel}
+        </TextTrigger>
+        <TextTrigger
+          icon={SlidersHorizontal}
+          label={activeFilters > 0 ? `Фильтры, применено: ${activeFilters}` : "Фильтры"}
+          active={activeFilters > 0}
+          onClick={() => open("filters")}
+        >
+          {activeFilters > 0 ? `Фильтры · ${activeFilters}` : "Фильтры"}
+        </TextTrigger>
         {note && sort !== "name" && <span className="text-xs text-gray-500">{note}</span>}
         {active && (
           <Button
@@ -261,7 +291,7 @@ export default function ProductFilterBar({
         <IconTrigger
           icon={SlidersHorizontal}
           label="Фильтры"
-          active={hasPriceRange(range) || brands.length > 0}
+          active={activeFilters > 0}
           onClick={() => open("filters")}
         />
       </div>

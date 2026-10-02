@@ -109,14 +109,15 @@ them** — a flat list would break the pills, `section-scroll.ts`, `active-secti
 contract and the `/catalog/[topSlug]?sub=[subSlug]` links — so the UI says "в каждом разделе". **Brands** filter on `brand_id`, which every list row already
 carries: the options are the brands this page's products have, in `getCachedBrands()` order, and
 a `?brand=` id the page does not carry is dropped server-side rather than emptying it. On a phone
-they sit in the "Фильтры" sheet under the price; from `md` up a "Бренды" button opens them as a
-dialog, since a category can carry twenty brands and a row of pills would push the goods down. No
-filter control renders a link (`SortSelect` is a `<select>`, `PriceFilter` two inputs), which is
+and from `md` up alike they sit in the "Фильтры" panel under the price, since a category can carry
+twenty brands and a row of pills would push the goods down. No filter control renders a link (the
+sort options are buttons, `PriceFilter` two inputs), which is
 what keeps faceted URLs uncrawlable; `Pagination` is the only `<a href>` carrying query parameters,
 and it carries every active filter so page 2 shows the same result set.
 
 `ProductFilterBar` has two variants and each carries its own breakpoint visibility, so the two can
-sit in different places: `inline` is the `md`-and-up row above the pills, `icons` the phone's two
+sit in different places: `inline` is the `md`-and-up row above the pills — two labelled buttons,
+the current sort order and "Фильтры · N" — and `icons` the phone's two
 triggers, which the category page passes into `SubcategoryFilter`'s `leading` slot so they ride as
 the **first items of the sticky pill row** and scroll sideways with it. That is the mobile first
 rule applied — the phone gets no filter row of its own, because a permanent one above the pills
@@ -132,8 +133,12 @@ The price sheet stages its state and commits on "Показать" — on /searc
 navigation, and applying per keystroke would send three requests to set one range; its button names
 how many products the candidate range would leave, which only a page holding the whole set can
 answer (`countFor`), so /search just says "Показать". The sort sheet does not stage, since one tap
-is the whole interaction. That staged copy is the only cost of the sheets, and the reason the inline
-variant deliberately has none.
+is the whole interaction.
+
+Both variants open the same two panels through `Sheet`'s `drawer` mode: a bottom sheet on a phone, a
+full-height drawer on the right from `md`. The desktop row used to be the controls themselves — a
+`<select>`, two price inputs applying as you typed, and a brands dialog — and became triggers once
+brands joined price in one staged panel, so one "Показать" applies them together on every width.
 
 Below `md` the subcategory pills are **always one scrollable row**. They used to wrap until the page
 was scrolled (`useWindowScrolled`) and then collapse to one line, which on a phone opened a category

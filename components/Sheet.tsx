@@ -16,6 +16,8 @@ type Props = {
   // Runs after the exit animation: unmount or navigate from here, not before.
   onClose: () => void;
   fullHeight?: boolean;
+  // From md up a full-height panel sliding in from the right, instead of the centred dialog.
+  drawer?: boolean;
   width?: string;
   // Dismiss from outside through this; unmounting the sheet directly skips the exit animation.
   requestClose?: boolean;
@@ -38,6 +40,7 @@ export default function Sheet({
   label,
   heading,
   fullHeight = false,
+  drawer = false,
   width = "max-w-3xl",
   requestClose = false,
 }: Props) {
@@ -100,7 +103,10 @@ export default function Sheet({
 
   // The header row is absolute over the content; `pt-12` on the content clears it.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" inert={!isTop || undefined}>
+    <div
+      className={`fixed inset-0 z-50 flex items-end justify-center ${drawer ? "md:items-stretch md:justify-end" : "md:items-center"}`}
+      inert={!isTop || undefined}
+    >
       {/* On the backdrop, not the container: it covers the container, so a handler there never saw itself
           as the target. A drag out of the panel targets the container, so selecting text does not close. */}
       <div
@@ -115,12 +121,18 @@ export default function Sheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative flex flex-col bg-white rounded-t-2xl md:rounded-b-2xl shadow-xl w-full ${width} ${
-          fullHeight ? "h-[95dvh] md:h-[90vh]" : "max-h-[95dvh] md:max-h-[90vh]"
+        className={`relative flex flex-col bg-white rounded-t-2xl shadow-xl w-full ${width} ${
+          drawer
+            ? "max-h-[95dvh] md:h-full md:max-h-none md:rounded-none md:rounded-l-2xl"
+            : `md:rounded-b-2xl ${fullHeight ? "h-[95dvh] md:h-[90vh]" : "max-h-[95dvh] md:max-h-[90vh]"}`
         } overflow-hidden transition-[translate,scale,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${
-          open
-            ? "translate-y-0 md:opacity-100 md:scale-100"
-            : "translate-y-full md:translate-y-0 md:opacity-0 md:scale-95"
+          drawer
+            ? open
+              ? "translate-y-0 md:translate-x-0"
+              : "translate-y-full md:translate-y-0 md:translate-x-full"
+            : open
+              ? "translate-y-0 md:opacity-100 md:scale-100"
+              : "translate-y-full md:translate-y-0 md:opacity-0 md:scale-95"
         }`}
       >
         <div className="w-full absolute top-0 left-0 z-10 flex items-center gap-3 bg-white py-2 pl-4 pr-2">

@@ -37,7 +37,6 @@ export { default as RatingSummary } from "./RatingSummary";
 export { default as SearchInput } from "./SearchInput";
 export { default as SeeAllProducts } from "./SeeAllProducts";
 export { default as Skeleton } from "./Skeleton";
-export { default as SortSelect } from "./SortSelect";
 export { default as StarRating } from "./StarRating";
 export { default as SubcategoryFilter } from "./SubcategoryFilter";
 export { default as Title } from "./Title";
