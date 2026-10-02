@@ -37,6 +37,7 @@
 /auth                       # Login / register (email+password, Google OAuth)
 /auth/confirm               # Email OTP verification & OAuth PKCE callback (route.ts)
 /product/[id]               # Product detail page
+/product/[id]/reviews       # All approved reviews of a product; 404 for an unrated one
 /catalog                    # All categories index — Популярное/Новинки/Акции, then each category's subcategories as tiles (3 per row on a phone, up to 6 wider); one layout for every width
 /catalog/[slug]             # Category listing with filters — all subcategories in one scrollable view (see note below); a subcategory slug gets a page of its own
 /brands                     # All brands index (alphabetical)
@@ -84,6 +85,12 @@ products spares an entry for 95% of the catalogue. Its section id is `quick-view
 sheet can open over a product page that already has `reviews`, and the "N отзывов" link scrolls
 through `ReviewsJumpLink` rather than following `#reviews`: a hash entry in the history would make
 the sheet's `router.back()` remove the hash and leave the sheet open.
+
+Both show the newest `REVIEWS_PREVIEW` (3) and link the rest to `/product/[id]/reviews`. All three
+read the same `getCachedProductReviews` entry, which holds up to `PRODUCT_REVIEWS_LIMIT` (200) — the
+slice happens in the server component, so the page's payload carries three. The quick view's link
+is a plain `<a>`, like its "Открыть страницу товара": on a soft navigation the `@modal` slot keeps
+its last state for a URL it does not match, and the sheet would stay open over the reviews page.
 
 Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `AutocompleteDropdown`). The modal is `position: fixed`, which Next's post-navigation scroll handler skips (`shouldSkipElement` in `layout-router`), so with nothing left to consider it falls back to `documentElement.scrollTop = 0` — opening a quick view sent the grid behind it to the top, which showed up on closing and reset the category page's sticky subcategory bar out of its scrolled layout.
 

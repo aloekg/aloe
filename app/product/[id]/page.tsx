@@ -23,7 +23,7 @@ import {
   getCachedRelatedProducts,
 } from "@/lib/cached-queries";
 import { LABEL_MAP, SITE_URL } from "@/lib/constants";
-import { averageRating } from "@/lib/reviews";
+import { averageRating, REVIEWS_PREVIEW } from "@/lib/reviews";
 import { MERCHANT_RETURN_POLICY, OFFER_SHIPPING_DETAILS } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
 import { RELATED_PRODUCTS_LIMIT } from "@/services/product.service";
@@ -257,7 +257,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <ProductReviews reviews={reviews} ratingSum={product.rating_sum} ratingCount={product.rating_count} />
+      <ProductReviews
+        reviews={reviews}
+        ratingSum={product.rating_sum}
+        ratingCount={product.rating_count}
+        limit={REVIEWS_PREVIEW}
+        allHref={`/product/${product.id}/reviews`}
+      />
 
       {related && related.length > 0 && (
         <section>
