@@ -5,7 +5,6 @@ import { useFilterNav } from "@/hooks/useFilterNav";
 import type { PriceRange, SortValue } from "@/lib/page-params";
 import { filterCategorySections, priceBounds } from "@/lib/price-filter";
 import type { ProductListItem } from "@/types";
-import Container from "./Container";
 import MainContainer from "./MainContainer";
 import ProductFilterBar, { type BrandOption, type FilterState } from "./ProductFilterBar";
 import SubcategoryFilter from "./SubcategoryFilter";
@@ -91,20 +90,7 @@ export default function CategoryBrowser({
 
   return (
     <>
-      <Container className="md:py-2">
-        <ProductFilterBar
-          variant="inline"
-          sort={sort}
-          range={range}
-          brands={brands}
-          brandOptions={brandOptions}
-          bounds={bounds}
-          onChange={apply}
-          countFor={countFor}
-          note="Сортировка по цене — в каждом разделе"
-        />
-      </Container>
-
+      {/* One sticky row at every width: the two triggers lead the pills, as on a phone. */}
       <SubcategoryFilter
         subcategories={visibleSubcategories}
         leading={
@@ -117,6 +103,7 @@ export default function CategoryBrowser({
             bounds={bounds}
             onChange={apply}
             countFor={countFor}
+            className="md:flex"
           />
         }
       />
