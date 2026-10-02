@@ -16,7 +16,6 @@ export { default as InstallAppIos } from "./InstallAppIos";
 export { default as JsonLd } from "./JsonLd";
 export { default as LabelProductsPage } from "./LabelProductsPage";
 export { default as MainContainer } from "./MainContainer";
-export { default as ManufacturerFilter } from "./ManufacturerFilter";
 export { default as MobileBottomNav } from "./MobileBottomNav";
 export { default as MobileHeader } from "./MobileHeader";
 export { default as MobileSearchInput } from "./MobileSearchInput";

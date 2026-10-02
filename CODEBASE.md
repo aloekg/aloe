@@ -639,7 +639,10 @@ cached for an hour and already ordered by name — so a broad search no longer c
 `brands(id, name)` join on every page of matches. The scan is capped at five pages of 1000: a flat
 `.limit(1000)` silently dropped every brand whose products sorted past the first thousand, and the
 filter had no way to reach them. Past five pages the facet is approximate, which is the trade a full
-scan on an unrated public route cannot justify.
+scan on an unrated public route cannot justify. The facet is shown in the "Фильтры" panel under the price, as on the
+category page, and travels as `?brand=` with the rest of the staged state on "Показать";
+`ProductFilterBar` writes `?brand=` only when it was given `brandOptions`, so a caller without the
+picker cannot clear it.
 
 **Admin product filters** carry three `none` sentinels rather than only real values: `?label=none`
 finds products with no badge, `?category=none` finds products whose `category_id` is missing —

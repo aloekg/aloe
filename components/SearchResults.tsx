@@ -5,7 +5,6 @@ import { hasPriceRange, type PriceRange, type SortValue } from "@/lib/page-param
 import { supabase } from "@/lib/supabase";
 import { getBrandIdsForSearch, searchProducts } from "@/services/product.service";
 import MainContainer from "./MainContainer";
-import ManufacturerFilter from "./ManufacturerFilter";
 import Pagination from "./Pagination";
 import ProductCard from "./ProductCard";
 import ProductFilterBar from "./ProductFilterBar";
@@ -70,10 +69,18 @@ export default async function SearchResults({
         <p className="text-sm text-gray-500 mt-1">Найдено: {total} товаров</p>
       </div>
 
-      <ProductFilterBar variant="icons" sort={sort} range={priceRange} className={className} />
-      <ProductFilterBar variant="inline" sort={sort} range={priceRange} className={className} />
-
-      <ManufacturerFilter manufacturers={brands} className={className} />
+      {/* Brands live in the "Фильтры" panel with the price, as on the category page. */}
+      {(["icons", "inline"] as const).map((variant) => (
+        <ProductFilterBar
+          key={variant}
+          variant={variant}
+          sort={sort}
+          range={priceRange}
+          brands={brandIds}
+          brandOptions={brands.map(({ id, name }) => ({ id, name }))}
+          className={className}
+        />
+      ))}
 
       {products.length === 0 ? (
         <div className="text-center py-16 text-gray-500">

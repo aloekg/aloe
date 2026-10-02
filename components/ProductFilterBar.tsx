@@ -34,7 +34,7 @@ const isDesktop = () => window.matchMedia("(min-width: 768px)").matches;
 type Props = {
   sort: SortValue;
   range: PriceRange;
-  // Brand filtering is offered only where options are passed: the category page, which holds the whole set.
+  // Brand filtering is offered only where options are passed — the category page and /search.
   brands?: number[];
   brandOptions?: BrandOption[];
   // `inline`: the md-and-up row of labelled triggers (/search); `icons`: two round ones, phone-only
@@ -170,14 +170,15 @@ export default function ProductFilterBar({
         onChange(next);
         return;
       }
-      // ?brand= is ManufacturerFilter's on /search, so it is left alone here.
       navigate({
         sort: next.sort === "name" ? null : next.sort,
         price_min: next.range.min == null ? null : String(next.range.min),
         price_max: next.range.max == null ? null : String(next.range.max),
+        // Only where brands are offered: a caller without the picker must not clear ?brand=.
+        ...(brandList && { brand: next.brands.map(String) }),
       });
     },
-    [onChange, navigate],
+    [onChange, navigate, brandList],
   );
 
   const openSheet = (which: SheetKind) => {
