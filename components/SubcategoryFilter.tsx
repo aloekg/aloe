@@ -34,7 +34,8 @@ export default function SubcategoryFilter({
   // The scroller must stay `relative`: useActiveSectionSync compares the pills' offsetLeft with its scrollLeft.
 
   return (
-    <div className="sticky top-15 md:top-41.5 z-10 bg-white">
+    // data-sticky-bar: VirtualCategoryContent measures it to land a section just below.
+    <div data-sticky-bar className="sticky top-15 md:top-41.5 z-10 bg-white">
       <div className={`${containerClassname} py-2`}>
         <div
           ref={ref}

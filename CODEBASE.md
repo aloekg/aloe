@@ -96,6 +96,18 @@ Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `Autocomp
 
 **Category page (`/catalog/[slug]`):** renders every subcategory of the top-level category as its own section in one `VirtualCategoryContent` window-virtualized scroll (`@tanstack/react-virtual`). `SubcategoryFilter` renders a pill per subcategory; clicking one calls `scrollToSection` (`lib/section-scroll.ts`) to jump to it, and the pill that's currently scrolled into view is tracked via `lib/active-section.ts` pub/sub and highlighted (`useActiveSectionSync`). As the active section changes, `SubcategoryFilter` mirrors it into the URL as `?sub=<subcategorySlug>` via `history.replaceState` directly (not `router.replace`) so the address bar stays shareable/bookmarkable without forcing a server re-render on every scroll tick. Landing on `/catalog/[slug]?sub=<slug>` (a shared link, a reload, or the breadcrumb/sitemap links below) resolves that slug to a subcategory id server-side and passes it to `VirtualCategoryContent` as `initialSectionId`, which scrolls to it on mount — reasserting the scroll position for the first ~20 frames to win a race against the App Router's own post-navigation scroll handling, which otherwise snaps it back to the top a couple of frames after mount.
 
+A jump — a pill tap or that deep link — lands the section heading 12px below the sticky bar
+(`GAP_BELOW_BAR`), where the bar's bottom is **measured** (`data-sticky-bar`: its CSS `top` plus
+its height) rather than assumed; a fixed 214px suited the desktop header and left a 140px gap on a
+phone. The active pill is decided against the same line, so the pill tapped is the pill lit. Three
+things keep the landing still: the window virtualizer gets `scrollMargin` (the list's offset in the
+document — without it, rows on screen counted as "above" it), the jump re-aims for a few frames
+while rows measured on the way in replace their estimates, and during that window the
+virtualizer's own size-change correction is switched off
+(`shouldAdjustScrollPositionOnItemSizeChange`). On iOS that correction is deferred until scrolling
+stops and was then applied on top of the re-aim, pushing the heading under the bar a fifth of a
+second after it had landed.
+
 **Filters on the category page:** `CategoryBrowser` wraps the filter bar, `SubcategoryFilter` and
 `VirtualCategoryContent` so the three agree on one set of sections. The server already sent every
 product of the category, so **narrowing and reordering happen on the client and cost nothing** — no
