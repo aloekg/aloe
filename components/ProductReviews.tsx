@@ -15,18 +15,22 @@ export default function ProductReviews({
   reviews,
   ratingSum,
   ratingCount,
+  id = "reviews",
+  // scroll-mt mirrors the sticky header height (`top-15 md:top-41.5`).
+  className = "mb-12 scroll-mt-16 md:scroll-mt-44",
 }: {
   reviews: Review[];
   ratingSum: number;
   ratingCount: number;
+  id?: string;
+  className?: string;
 }) {
   const average = averageRating(ratingSum, ratingCount);
   if (!average || reviews.length === 0) return null;
 
   return (
-    // scroll-mt mirrors the sticky header height (`top-15 md:top-41.5`).
-    <section id="reviews" aria-labelledby="reviews-heading" className="mb-12 scroll-mt-16 md:scroll-mt-44">
-      <h2 id="reviews-heading" className="text-lg font-semibold mb-3">
+    <section id={id} aria-labelledby={`${id}-heading`} className={className}>
+      <h2 id={`${id}-heading`} className="text-lg font-semibold mb-3">
         Отзывы
       </h2>
 
