@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_PRICE_RANGE, MAX_PRICE, parsePriceRange, type PriceRange } from "@/lib/page-params";
 import {
   applyProductFilters,
+  filterByBrand,
   filterByPrice,
   filterCategorySections,
   priceBounds,
@@ -9,12 +10,21 @@ import {
 } from "@/lib/price-filter";
 
 /** A list row, reduced to what filtering and sorting read. */
-const p = (id: number, price: number, purchase_count = 0, created_at = "2020-01-01T00:00:00+00:00") => ({
+const p = (
+  id: number,
+  price: number,
+  purchase_count = 0,
+  created_at = "2020-01-01T00:00:00+00:00",
+  brand_id: number | null = null,
+) => ({
   id,
   price,
   purchase_count,
   created_at,
+  brand_id,
 });
+
+const b = (id: number, brand_id: number | null, price = 100) => p(id, price, 0, undefined, brand_id);
 
 const range = (min: number | null, max: number | null): PriceRange => ({ min, max });
 
@@ -151,6 +161,22 @@ describe("sortProducts — популярные и новые", () => {
   });
 });
 
+describe("filterByBrand", () => {
+  const products = [b(1, 10), b(2, 20), b(3, null), b(4, 10)];
+
+  it("returns the input untouched when no brand is chosen", () => {
+    expect(filterByBrand(products, [])).toBe(products);
+  });
+
+  it("keeps any of the chosen brands", () => {
+    expect(filterByBrand(products, [10, 20]).map((x) => x.id)).toEqual([1, 2, 4]);
+  });
+
+  it("drops products with no brand once a brand is chosen", () => {
+    expect(filterByBrand(products, [10]).map((x) => x.id)).toEqual([1, 4]);
+  });
+});
+
 describe("applyProductFilters", () => {
   it("narrows first, then orders", () => {
     const products = [p(1, 100), p(2, 500), p(3, 300), p(4, 50)];
@@ -221,6 +247,22 @@ describe("filterCategorySections", () => {
 
   it("can empty the page entirely — a valid result, not a 404", () => {
     expect(filterCategorySections(sections, range(9_000_000, null), "name")).toEqual([]);
+  });
+
+  it("narrows by brand inside sections and groups alike", () => {
+    const branded = [
+      {
+        id: 1,
+        name: "Порошки",
+        products: [b(1, 10), b(2, 20)],
+        groups: [{ id: 11, name: "Автомат", products: [b(3, 20)] }],
+      },
+      { id: 2, name: "Гели", products: [b(4, 10)], groups: [] },
+    ];
+    const out = filterCategorySections(branded, EMPTY_PRICE_RANGE, "name", [20]);
+    expect(out.map((s) => s.id)).toEqual([1]);
+    expect(out[0].products.map((x) => x.id)).toEqual([2]);
+    expect(out[0].groups?.[0].products.map((x) => x.id)).toEqual([3]);
   });
 
   it("does not mutate the sections it was given", () => {
