@@ -17,7 +17,7 @@ import {
   getProductsByLabelPaginated,
   getRelatedProducts,
 } from "@/services/product.service";
-import { getProductReviews } from "@/services/review.service";
+import { getProductReviews, PRODUCT_REVIEWS_LIMIT } from "@/services/review.service";
 
 // Tag invalidation keeps data fresh; the TTL is only a backstop, and a shorter one multiplies ISR writes.
 const CATALOGUE_TTL = 600;
@@ -97,10 +97,14 @@ export const getCachedCategoryProducts = unstable_cache(
 
 // Product tag only, not `products`: card stars catching up within CATALOGUE_TTL is the accepted trade.
 export function getCachedProductReviews(productId: number) {
-  return unstable_cache(() => getProductReviews(supabase, productId), ["product-reviews", String(productId)], {
-    revalidate: CATALOGUE_TTL,
-    tags: [productTag(productId)],
-  })();
+  return unstable_cache(
+    () => getProductReviews(supabase, productId, PRODUCT_REVIEWS_LIMIT),
+    ["product-reviews", String(productId)],
+    {
+      revalidate: CATALOGUE_TTL,
+      tags: [productTag(productId)],
+    },
+  )();
 }
 
 export const getCachedProduct = perRequest((id: number) =>

@@ -32,6 +32,8 @@ export function canEditReview(status: string | null | undefined): boolean {
 
 export const MIN_RATING = 1;
 export const MAX_RATING = 5;
+/** How many reviews a product page and the quick view show before "Показать все". */
+export const REVIEWS_PREVIEW = 3;
 export const MAX_REVIEW_BODY = 2000;
 
 // Checked before the query: Postgres errors (500) on a malformed uuid instead of returning empty.

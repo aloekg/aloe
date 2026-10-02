@@ -11,6 +11,7 @@ import {
 } from "@/components";
 import { getCachedProduct, getCachedProductReviews } from "@/lib/cached-queries";
 import { LABEL_MAP } from "@/lib/constants";
+import { REVIEWS_PREVIEW } from "@/lib/reviews";
 import type { ProductRow } from "@/types";
 import { withBrandName } from "@/types";
 
@@ -101,6 +102,9 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
             ratingCount={product.rating_count}
             id="quick-view-reviews"
             className="mt-6 scroll-mt-14"
+            limit={REVIEWS_PREVIEW}
+            allHref={`/product/${product.id}/reviews`}
+            hardNavigation
           />
 
           <a href={productHref} className="text-sm text-green-700 hover:underline mt-auto pt-4 w-fit">

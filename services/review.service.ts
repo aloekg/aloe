@@ -6,7 +6,18 @@ import type { Database } from "@/types/database";
 
 const PUBLIC_COLUMNS = "id, product_id, rating, body, author_name, created_at";
 
-export async function getProductReviews(supabase: SupabaseClient<Database>, productId: number, limit = 20) {
+/**
+ * Every approved review a product page can show, newest first — one cache entry feeds the page, the
+ * quick view and /product/[id]/reviews. Capped so a worst case (2000-character bodies) stays well
+ * inside the 2 MB Data Cache entry limit; no product is anywhere near it.
+ */
+export const PRODUCT_REVIEWS_LIMIT = 200;
+
+export async function getProductReviews(
+  supabase: SupabaseClient<Database>,
+  productId: number,
+  limit = PRODUCT_REVIEWS_LIMIT,
+) {
   const res = await supabase
     .from("reviews")
     .select(PUBLIC_COLUMNS)
