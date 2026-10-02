@@ -1,11 +1,22 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { CategoryBrowser, MobileHeader, NextCategoryLink } from "@/components";
-import { getCachedCategoriesWithSlug, getCachedCategoryProducts } from "@/lib/cached-queries";
-import { parsePriceRange, parseSortParam, type PriceRange, type SortValue } from "@/lib/page-params";
+import { getCachedBrands, getCachedCategoriesWithSlug, getCachedCategoryProducts } from "@/lib/cached-queries";
+import { parseBrandIds, parsePriceRange, parseSortParam, type PriceRange, type SortValue } from "@/lib/page-params";
 import { pageMetadata } from "@/lib/seo";
 import { buildCategorySection } from "@/lib/subcategory-sections";
-import type { ProductListItem } from "@/types";
+import type { Brand, ProductListItem } from "@/types";
+
+/**
+ * The brands this page's products carry, in getCachedBrands' order (by name, Postgres collation), and
+ * the requested ids narrowed to them — an id from a stale link would otherwise empty the page.
+ */
+function brandFilter(products: ProductListItem[], allBrands: Brand[], requested: number[]) {
+  const present = new Set(products.map((p) => p.brand_id));
+  const options = allBrands.filter((b) => present.has(b.id)).map(({ id, name }) => ({ id, name }));
+  const known = new Set(options.map((b) => b.id));
+  return { options, selected: requested.filter((id) => known.has(id)) };
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -26,13 +37,20 @@ export default async function CategoryPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ sort?: string; sub?: string; price_min?: string; price_max?: string }>;
+  searchParams: Promise<{
+    sort?: string;
+    sub?: string;
+    price_min?: string;
+    price_max?: string;
+    brand?: string | string[];
+  }>;
 }) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const sort = parseSortParam(sp.sort);
   const priceRange = parsePriceRange(sp.price_min, sp.price_max);
+  const brandIds = parseBrandIds(sp.brand);
 
-  const allCategories = await getCachedCategoriesWithSlug();
+  const [allCategories, allBrands] = await Promise.all([getCachedCategoriesWithSlug(), getCachedBrands()]);
 
   const category = allCategories?.find((c) => c.slug === slug);
   if (!category) notFound();
@@ -62,6 +80,8 @@ export default async function CategoryPage({
         byCategory={byCategory}
         sort={sort}
         priceRange={priceRange}
+        brandIds={brandIds}
+        allBrands={allBrands}
         activeSlug={sp.sub}
       />
     );
@@ -82,6 +102,11 @@ export default async function CategoryPage({
   );
 
   const visibleSubcategories = nonEmpty.map((s) => s.sub);
+  const brands = brandFilter(
+    nonEmpty.flatMap((s) => s.products),
+    allBrands,
+    brandIds,
+  );
 
   const initialSectionId = visibleSubcategories.find((s) => s.slug === sp.sub)?.id;
 
@@ -102,6 +127,8 @@ export default async function CategoryPage({
         subcategories={visibleSubcategories}
         initialSort={sort}
         initialRange={priceRange}
+        initialBrands={brands.selected}
+        brandOptions={brands.options}
         initialSectionId={initialSectionId}
       >
         {nextCategory && nextCategory.id !== category.id && (
@@ -121,6 +148,8 @@ function SubcategoryPage({
   byCategory,
   sort,
   priceRange,
+  brandIds,
+  allBrands,
   activeSlug,
 }: {
   subcategory: CategoryRow;
@@ -129,6 +158,8 @@ function SubcategoryPage({
   byCategory: Map<number, ProductListItem[]>;
   sort: SortValue;
   priceRange: PriceRange;
+  brandIds: number[];
+  allBrands: Brand[];
   activeSlug?: string;
 }) {
   const sections = subSubcategories
@@ -149,6 +180,11 @@ function SubcategoryPage({
   const single = sections.length === 1;
   const pills = single ? [] : sections.map(({ id, name, slug }) => ({ id, name, slug }));
   const initialSectionId = sections.find((s) => s.slug === activeSlug)?.id;
+  const brands = brandFilter(
+    sections.flatMap((s) => s.products),
+    allBrands,
+    brandIds,
+  );
 
   const index = siblings.findIndex((c) => c.id === subcategory.id);
   const next = siblings[(index + 1) % siblings.length];
@@ -171,6 +207,8 @@ function SubcategoryPage({
         subcategories={pills}
         initialSort={sort}
         initialRange={priceRange}
+        initialBrands={brands.selected}
+        brandOptions={brands.options}
         initialSectionId={initialSectionId}
       >
         {next && next.id !== subcategory.id && <NextCategoryLink name={next.name} slug={next.slug} />}

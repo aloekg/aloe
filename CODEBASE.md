@@ -86,13 +86,17 @@ Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `Autocomp
 `VirtualCategoryContent` so the three agree on one set of sections. The server already sent every
 product of the category, so **narrowing and reordering happen on the client and cost nothing** — no
 server round trip, no Data Cache lookup — and the result is mirrored into `?sort=`/`?price_min=`/
-`?price_max=` through `history.replaceState`, the same mechanism and the same reason as `?sub=`.
+`?price_max=`/`?brand=` through `history.replaceState`, the same mechanism and the same reason as `?sub=`.
 `hooks/useFilterNav.ts` owns that merge for the whole storefront, including the rule that any filter
 change resets `?page=`; it reads `window.location.search` at call time rather than closing over
 `useSearchParams()`, because two writers share the query string here and a cached copy would have
 each silently drop the other's key. **Sorting by price orders within each section, never across
 them** — a flat list would break the pills, `section-scroll.ts`, `active-section.ts`, the `?sub=`
-contract and the `/catalog/[topSlug]?sub=[subSlug]` links — so the UI says "в каждом разделе". No
+contract and the `/catalog/[topSlug]?sub=[subSlug]` links — so the UI says "в каждом разделе". **Brands** filter on `brand_id`, which every list row already
+carries: the options are the brands this page's products have, in `getCachedBrands()` order, and
+a `?brand=` id the page does not carry is dropped server-side rather than emptying it. On a phone
+they sit in the "Фильтры" sheet under the price; from `md` up a "Бренды" button opens them as a
+dialog, since a category can carry twenty brands and a row of pills would push the goods down. No
 filter control renders a link (`SortSelect` is a `<select>`, `PriceFilter` two inputs), which is
 what keeps faceted URLs uncrawlable; `Pagination` is the only `<a href>` carrying query parameters,
 and it carries every active filter so page 2 shows the same result set.
@@ -851,8 +855,8 @@ should be weighed before any of them is changed:
 - **A page past the end is a 404, not an empty 200.** `LabelProductsPage` and `SearchResults` call
   `notFound()` when `page > 1` comes back empty, and `MAX_PAGE` (`lib/page-params.ts`) is 500 —
   otherwise anyone could mint an ISR and a Data Cache entry per `?page=`, each one indexable.
-- **A filter runs on the cached result, not in the cached query.** Sorting and the price range never
-  enter a cache key: `/catalog/[slug]` gets the whole category in one entry and narrows it with
+- **A filter runs on the cached result, not in the cached query.** Sorting, the price range and the
+  brands never enter a cache key: `/catalog/[slug]` gets the whole category in one entry and narrows it with
   `lib/price-filter.ts`, on the server for the first render and on the client for every interaction
   after it. `/search` is the exception and filters in SQL, because it is not cached at all and its
   `COUNT` is what decides how many pages exist. **An empty filter result is a 200, not a 404** — the

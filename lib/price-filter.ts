@@ -5,13 +5,23 @@ import type { ProductListItem } from "@/types";
 
 type Priced = Pick<ProductListItem, "id" | "price">;
 
-type Sortable = Priced & Pick<ProductListItem, "purchase_count" | "created_at">;
+type Sortable = Priced & Pick<ProductListItem, "purchase_count" | "created_at" | "brand_id">;
 
 export function filterByPrice<T extends Priced>(products: readonly T[], range: PriceRange): readonly T[] {
   if (!hasPriceRange(range)) return products;
   return products.filter(
     (p) => (range.min == null || p.price >= range.min) && (range.max == null || p.price <= range.max),
   );
+}
+
+// An empty list means "any brand"; a product without a brand matches only that.
+export function filterByBrand<T extends Pick<ProductListItem, "brand_id">>(
+  products: readonly T[],
+  brandIds: readonly number[],
+): readonly T[] {
+  if (brandIds.length === 0) return products;
+  const wanted = new Set(brandIds);
+  return products.filter((p) => p.brand_id != null && wanted.has(p.brand_id));
 }
 
 // `name` keeps the query's order: JS collation differs from Postgres for Cyrillic.
@@ -38,8 +48,9 @@ export function applyProductFilters<T extends Sortable>(
   products: readonly T[],
   range: PriceRange,
   sort: SortValue,
+  brandIds: readonly number[] = [],
 ): readonly T[] {
-  return sortProducts(filterByPrice(products, range), sort);
+  return sortProducts(filterByPrice(filterByBrand(products, brandIds), range), sort);
 }
 
 export function priceBounds(products: readonly Priced[]): { min: number; max: number } | null {
@@ -65,14 +76,15 @@ export function filterCategorySections<T extends Sortable, S extends FilterableS
   sections: readonly S[],
   range: PriceRange,
   sort: SortValue,
+  brandIds: readonly number[] = [],
 ): S[] {
-  if (!hasPriceRange(range) && sort === "name") return sections as S[];
+  if (!hasPriceRange(range) && sort === "name" && brandIds.length === 0) return sections as S[];
 
   const result: S[] = [];
   for (const section of sections) {
-    const products = applyProductFilters(section.products, range, sort) as T[];
+    const products = applyProductFilters(section.products, range, sort, brandIds) as T[];
     const groups = section.groups
-      ?.map((g) => ({ ...g, products: applyProductFilters(g.products, range, sort) as T[] }))
+      ?.map((g) => ({ ...g, products: applyProductFilters(g.products, range, sort, brandIds) as T[] }))
       .filter((g) => g.products.length > 0);
     if (products.length === 0 && !groups?.length) continue;
     result.push({ ...section, products, groups } as S);
