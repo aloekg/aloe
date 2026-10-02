@@ -137,8 +137,12 @@ how many products the candidate range would leave, which only a page holding the
 answer (`countFor`), so /search just says "Показать". The sort sheet does not stage, since one tap
 is the whole interaction.
 
-Both variants open the same two panels through `Sheet`'s `drawer` mode: a bottom sheet on a phone, a
-full-height drawer on the right from `md`. The desktop row used to be the controls themselves — a
+Filters open through `Sheet`'s `drawer` mode: a bottom sheet on a phone, a full-height drawer on
+the right from `md`. Sorting is the bottom sheet on a phone and a dropdown from `md` (`SortMenu`),
+decided at tap time since the same round trigger serves both widths. The dropdown is portalled and
+`fixed` because the trigger sits in the pill row's horizontal scroller, which would clip it; it
+closes on any scroll, and the click that dismisses it is swallowed, as a native `<select>` does —
+otherwise closing it over the grid opened the quick view of the card underneath. The desktop row used to be the controls themselves — a
 `<select>`, two price inputs applying as you typed, and a brands dialog — and became triggers once
 brands joined price in one staged panel, so one "Показать" applies them together on every width.
 

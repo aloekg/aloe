@@ -8,8 +8,9 @@ import { hasPriceRange, type PriceRange, type SortValue } from "@/lib/page-param
 import Button from "./Button";
 import PriceFilter from "./PriceFilter";
 import Sheet from "./Sheet";
+import SortMenu from "./SortMenu";
 
-// Buttons in a sheet, never links: a sort order must not mint a crawlable URL.
+// Buttons in a menu, never links: a sort order must not mint a crawlable URL.
 export const SORT_OPTIONS: { value: SortValue; label: string }[] = [
   { value: "name", label: "По названию" },
   { value: "popular", label: "По популярности" },
@@ -27,6 +28,9 @@ const NO_BRANDS: number[] = [];
 
 type SheetKind = "sort" | "filters";
 
+// Read at tap time rather than through a hook: the same round trigger serves both widths.
+const isDesktop = () => window.matchMedia("(min-width: 768px)").matches;
+
 type Props = {
   sort: SortValue;
   range: PriceRange;
@@ -42,24 +46,29 @@ type Props = {
   className?: string;
 };
 
-function IconTrigger({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
+type TriggerProps = {
   icon: typeof ArrowDownUp;
   label: string;
   active: boolean;
   onClick: () => void;
-}) {
+  ref?: React.Ref<HTMLButtonElement>;
+  // A menu trigger reports its state; a dialog trigger is covered by the dialog it opens.
+  popup?: "dialog" | "menu";
+  expanded?: boolean;
+  controls?: string;
+};
+
+function IconTrigger({ icon: Icon, label, active, onClick, ref, popup = "dialog", expanded, controls }: TriggerProps) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       aria-label={active ? `${label} — применено` : label}
       title={label}
-      aria-haspopup="dialog"
+      aria-haspopup={popup}
+      aria-expanded={popup === "menu" ? expanded : undefined}
+      aria-controls={expanded ? controls : undefined}
       className={`relative shrink-0 flex items-center justify-center size-9 rounded-full border transition-colors cursor-pointer ${
         active ? "border-green-700 text-green-700 bg-green-50" : "border-gray-300 text-gray-600 hover:bg-gray-50"
       }`}
@@ -75,20 +84,21 @@ function TextTrigger({
   label,
   active,
   onClick,
+  ref,
+  popup = "dialog",
+  expanded,
+  controls,
   children,
-}: {
-  icon: typeof ArrowDownUp;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+}: TriggerProps & { children: React.ReactNode }) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       aria-label={label}
-      aria-haspopup="dialog"
+      aria-haspopup={popup}
+      aria-expanded={popup === "menu" ? expanded : undefined}
+      aria-controls={expanded ? controls : undefined}
       className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors cursor-pointer ${
         active ? "border-green-700 text-green-700 bg-green-50" : "border-gray-500 text-gray-700 hover:bg-gray-50"
       }`}
@@ -170,7 +180,7 @@ export default function ProductFilterBar({
     [onChange, navigate],
   );
 
-  const open = (which: SheetKind) => {
+  const openSheet = (which: SheetKind) => {
     setStaged(range);
     setStagedBrands(brands);
     setClosing(false);
@@ -181,7 +191,8 @@ export default function ProductFilterBar({
   const activeFilters = (hasPriceRange(range) ? 1 : 0) + brands.length;
   const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? SORT_OPTIONS[0].label;
 
-  // One sheet for both variants: a bottom sheet edge to edge on a phone, a drawer on the right from md.
+  // A bottom sheet edge to edge on a phone, a drawer on the right from md. Sorting reaches it only
+  // on a phone; from md it is a dropdown.
   const sheetEl = sheet && (
     <Sheet
       heading={sheet === "sort" ? "Сортировка" : "Фильтры"}
@@ -249,23 +260,43 @@ export default function ProductFilterBar({
     </Sheet>
   );
 
+  // From md a dropdown, on a phone the bottom sheet: a menu anchored to a 36px icon is a small target
+  // for a thumb, and the sheet's full-width rows are not.
+  const sortMenu = (compact: boolean) => (
+    <SortMenu
+      options={SORT_OPTIONS}
+      value={sort}
+      onSelect={(next) => commit({ sort: next, range, brands })}
+      label="Порядок сортировки"
+      renderTrigger={({ ref, expanded, controls, onClick }) => {
+        const props = { ref, expanded, controls, onClick, popup: "menu" as const, icon: ArrowDownUp };
+        return compact ? (
+          <IconTrigger
+            {...props}
+            // aria-haspopup stays "menu" on a phone too: it cannot change with the width after render.
+            onClick={() => (isDesktop() ? onClick() : openSheet("sort"))}
+            label="Сортировка"
+            active={sort !== "name"}
+          />
+        ) : (
+          <TextTrigger {...props} label={`Сортировка: ${sortLabel}`} active={sort !== "name"}>
+            {sortLabel}
+          </TextTrigger>
+        );
+      }}
+    />
+  );
+
   if (variant === "inline") {
     const active = sort !== "name" || activeFilters > 0;
     return (
       <div className={`hidden md:flex flex-wrap items-center gap-x-3 gap-y-2 ${className ?? ""}`}>
-        <TextTrigger
-          icon={ArrowDownUp}
-          label={`Сортировка: ${sortLabel}`}
-          active={sort !== "name"}
-          onClick={() => open("sort")}
-        >
-          {sortLabel}
-        </TextTrigger>
+        {sortMenu(false)}
         <TextTrigger
           icon={SlidersHorizontal}
           label={activeFilters > 0 ? `Фильтры, применено: ${activeFilters}` : "Фильтры"}
           active={activeFilters > 0}
-          onClick={() => open("filters")}
+          onClick={() => openSheet("filters")}
         >
           {activeFilters > 0 ? `Фильтры · ${activeFilters}` : "Фильтры"}
         </TextTrigger>
@@ -286,12 +317,12 @@ export default function ProductFilterBar({
   return (
     <>
       <div className={cn("flex md:hidden shrink-0 items-center gap-2", className)}>
-        <IconTrigger icon={ArrowDownUp} label="Сортировка" active={sort !== "name"} onClick={() => open("sort")} />
+        {sortMenu(true)}
         <IconTrigger
           icon={SlidersHorizontal}
           label="Фильтры"
           active={activeFilters > 0}
-          onClick={() => open("filters")}
+          onClick={() => openSheet("filters")}
         />
       </div>
       {sheetEl}
