@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
@@ -9,7 +9,6 @@ import type { ProductRecord } from "@/types";
 import {
   bulkUpdateProducts,
   deleteProduct,
-  getBrands,
   uploadProductImage,
   upsertProduct,
   type BulkProductUpdate,
@@ -48,9 +47,11 @@ type Props = {
   label: string;
   published: string;
   category: string;
+  brand: string;
   sort: SortBy;
   pageSize: string;
   categories: { id: number; name: string; depth: number; selectable: boolean }[];
+  brands: { id: number; name: string }[];
 };
 
 export default function AdminProducts({
@@ -62,9 +63,11 @@ export default function AdminProducts({
   label,
   published,
   category,
+  brand,
   sort,
   pageSize,
   categories,
+  brands,
 }: Props) {
   const router = useRouter();
   const navigateRaw = useAdminListNav({ sort: "id-desc", pageSize: "20" });
@@ -73,8 +76,6 @@ export default function AdminProducts({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const [brands, setBrands] = useState<{ id: number; name: string }[]>([]);
-  const brandsLoadedRef = useRef(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkEditing, setBulkEditing] = useState(false);
@@ -87,21 +88,12 @@ export default function AdminProducts({
   }
   const search = useDebouncedSearch(q, (value) => navigate({ q: value }));
 
-  async function loadBrands() {
-    if (brandsLoadedRef.current) return;
-    brandsLoadedRef.current = true;
-    const result = await getBrands();
-    if (result.ok) setBrands(result.data);
-  }
-
   function openNew() {
     setEditing({ ...empty });
     setError("");
-    loadBrands();
   }
 
   function openEdit(p: ProductRecord) {
-    loadBrands();
     setEditing({
       id: p.id,
       name: p.name,
@@ -182,7 +174,6 @@ export default function AdminProducts({
   }
 
   function openBulkEdit() {
-    loadBrands();
     setBulkError("");
     setBulkEditing(true);
   }
@@ -218,10 +209,13 @@ export default function AdminProducts({
         published={published}
         category={category}
         categories={categories}
+        brand={brand}
+        brands={brands}
         sort={sort}
         onLabelChange={(value) => navigate({ label: value })}
         onPublishedChange={(value) => navigate({ published: value })}
         onCategoryChange={(value) => navigate({ category: value })}
+        onBrandChange={(value) => navigate({ brand: value })}
         onSortChange={(value) => navigate({ sort: value })}
       />
 

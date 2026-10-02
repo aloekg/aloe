@@ -110,6 +110,16 @@ export type OrderItemInput = {
   image_url: string | null;
 };
 
+// A line the admin typed in rather than picked from the catalogue: a negative id never matches a product,
+// so purchase counts, reviews and "repeat order" pass it by. Unique within one order only.
+export function isCustomOrderItem(item: { id: number }): boolean {
+  return item.id < 0;
+}
+
+export function nextCustomItemId(items: readonly { id: number }[]): number {
+  return Math.min(0, ...items.map((i) => i.id)) - 1;
+}
+
 export const MAX_ITEM_NAME = 200;
 export const MAX_ITEM_PRICE = 1_000_000;
 export const MAX_DELIVERY_COST = 100_000;
@@ -138,7 +148,7 @@ export function validateOrderItems(items: OrderItemInput[]): string | null {
 
   const seen = new Set<number>();
   for (const item of items) {
-    if (!Number.isInteger(item?.id) || item.id <= 0) return "Некорректная позиция заказа";
+    if (!Number.isInteger(item?.id) || item.id === 0) return "Некорректная позиция заказа";
     if (seen.has(item.id)) return "Один товар не может быть в заказе дважды";
     seen.add(item.id);
 
@@ -196,6 +206,12 @@ export function priceOrder(
 // Inferred, since the schema does not record a typed fee; a manual fee equal to the tariff reads as derived.
 export function isManualDeliveryCost(storedCost: number, deliveryType: string | null, itemsTotal: number): boolean {
   return money(storedCost) !== money(getDeliveryCost(deliveryType ?? "", itemsTotal));
+}
+
+export function parseQuantityInput(input: string): number | null {
+  if (!/^\d+$/.test(input.trim())) return null;
+  const value = Number(input.trim());
+  return value >= 1 && value <= MAX_QUANTITY ? value : null;
 }
 
 export function parsePriceInput(input: string): number | null {

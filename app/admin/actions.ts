@@ -20,7 +20,6 @@ import { REVIEW_STATUS } from "@/lib/reviews";
 import { adminRole } from "@/lib/roles";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
-import { getAdminBrands } from "@/services/brand.service";
 import { getOrderForNotification, markOrderNotified } from "@/services/order.service";
 import { deleteReview, setReviewStatus } from "@/services/review.service";
 import type { OrderItem } from "@/types";
@@ -592,15 +591,6 @@ export async function uploadBannerImage(
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   await assertAdmin();
   return uploadEncoded("banners", formData, type === "mobile" ? BANNER_MOBILE : BANNER_DESKTOP);
-}
-
-export async function getBrands(): Promise<
-  { ok: true; data: { id: number; name: string }[] } | { ok: false; error: string }
-> {
-  await assertAdmin();
-  const supabase = await createClient();
-  const data = await getAdminBrands(supabase);
-  return { ok: true, data };
 }
 
 export type BrandInput = {

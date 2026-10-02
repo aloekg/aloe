@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
+import { getAdminBrands } from "@/services/brand.service";
 import { getCategories } from "@/services/category.service";
 import { getAdminProducts, type AdminProductsSort } from "@/services/product.service";
 import AdminProducts from "../AdminProducts";
@@ -19,13 +20,22 @@ export default async function ProductsPage({
   const published = sp.published ?? "";
   const category = sp.category ?? "";
   const categoryId = category === "none" ? "none" : category ? parseInt(category) || undefined : undefined;
+  const brand = sp.brand ?? "";
+  const brandId = brand === "none" ? "none" : brand ? parseInt(brand) || undefined : undefined;
   const sort = (sp.sort ?? "id-desc") as AdminProductsSort;
   const pageSizeParam = sp.pageSize ?? DEFAULT_PAGE_SIZE;
   const pageSize = pageSizeParam === "all" ? "all" : Math.max(1, parseInt(pageSizeParam) || 20);
 
-  const [{ products, total }, allCategories] = await Promise.all([
-    getAdminProducts(supabase, { q, label, published, categoryId, sort, page: currentPage, pageSize }),
-    getCategories(supabase),
+  const allCategories = await getCategories(supabase);
+  // Products sit on leaves only, so a parent category stands for everything under it.
+  function subtree(id: number): number[] {
+    return [id, ...allCategories.filter((c) => c.parent_id === id).flatMap((c) => subtree(c.id))];
+  }
+  const categoryIds = categoryId === "none" ? "none" : categoryId ? subtree(categoryId) : undefined;
+
+  const [{ products, total }, brands] = await Promise.all([
+    getAdminProducts(supabase, { q, label, published, categoryIds, brandId, sort, page: currentPage, pageSize }),
+    getAdminBrands(supabase),
   ]);
 
   const totalPages = pageSize === "all" ? 1 : Math.ceil(total / pageSize);
@@ -54,9 +64,11 @@ export default async function ProductsPage({
       label={label}
       published={published}
       category={category}
+      brand={brand}
       sort={sort}
       pageSize={pageSizeParam}
       categories={categories}
+      brands={brands}
     />
   );
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { StarRating } from "@/components";
 import { authorInitial, avatarTone, averageRating, reviewPlural } from "@/lib/reviews";
 
@@ -15,18 +16,40 @@ export default function ProductReviews({
   reviews,
   ratingSum,
   ratingCount,
+  id = "reviews",
+  // scroll-mt mirrors the sticky header height (`top-15 md:top-41.5`).
+  className = "mb-12 scroll-mt-16 md:scroll-mt-44",
+  limit,
+  allHref,
+  hardNavigation = false,
+  hideHeading = false,
 }: {
   reviews: Review[];
   ratingSum: number;
   ratingCount: number;
+  id?: string;
+  className?: string;
+  // Show the first `limit` and link the rest to `allHref`.
+  limit?: number;
+  allHref?: string;
+  // The quick view: a soft navigation would leave the @modal slot open over the next page.
+  hardNavigation?: boolean;
+  // The reviews page, whose own title already says "Отзывы".
+  hideHeading?: boolean;
 }) {
   const average = averageRating(ratingSum, ratingCount);
   if (!average || reviews.length === 0) return null;
 
+  const shown = limit == null ? reviews : reviews.slice(0, limit);
+  const more = allHref && shown.length < reviews.length;
+  const moreLabel = `Показать все ${ratingCount} ${reviewPlural(ratingCount)}`;
+  const moreCls =
+    "mt-4 block w-full md:w-fit text-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium " +
+    "text-green-700 hover:bg-gray-50 transition-colors";
+
   return (
-    // scroll-mt mirrors the sticky header height (`top-15 md:top-41.5`).
-    <section id="reviews" aria-labelledby="reviews-heading" className="mb-12 scroll-mt-16 md:scroll-mt-44">
-      <h2 id="reviews-heading" className="text-lg font-semibold mb-3">
+    <section id={id} aria-labelledby={`${id}-heading`} className={className}>
+      <h2 id={`${id}-heading`} className={hideHeading ? "sr-only" : "text-lg font-semibold mb-3"}>
         Отзывы
       </h2>
 
@@ -43,7 +66,7 @@ export default function ProductReviews({
       </div>
 
       <ul className="flex flex-col gap-4">
-        {reviews.map((review) => (
+        {shown.map((review) => (
           <li key={review.id} className="flex gap-3 border-b border-gray-200 pb-4 last:border-0">
             <span
               aria-hidden
@@ -64,6 +87,17 @@ export default function ProductReviews({
           </li>
         ))}
       </ul>
+
+      {more &&
+        (hardNavigation ? (
+          <a href={allHref} className={moreCls}>
+            {moreLabel}
+          </a>
+        ) : (
+          <Link href={allHref} className={moreCls}>
+            {moreLabel}
+          </Link>
+        ))}
     </section>
   );
 }

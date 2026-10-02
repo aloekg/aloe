@@ -85,6 +85,10 @@ describe("reviewableItems", () => {
     expect(reviewableItems([item(1), item(1), item(2)], []).map((i) => i.id)).toEqual([1, 2]);
   });
 
+  it("skips a custom line — it is not a product anyone can review", () => {
+    expect(reviewableItems([item(1), item(-1)], []).map((i) => i.id)).toEqual([1]);
+  });
+
   it("returns nothing when everything is reviewed", () => {
     expect(reviewableItems([item(1)], [1])).toEqual([]);
   });

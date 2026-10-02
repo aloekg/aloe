@@ -1,4 +1,5 @@
 import { DELIVERY_OPTIONS } from "@/lib/constants";
+import { isCustomOrderItem } from "@/lib/order-pricing";
 import type { OrderItem } from "@/types";
 
 // Keep this module pure (no DB): tests/analytics.test.ts exercises it directly.
@@ -304,6 +305,8 @@ export function buildReport({
       const lineRevenue = item.price * item.quantity;
       itemsSold += item.quantity;
 
+      // Custom lines reuse ids across orders, so they count towards revenue but not towards a product.
+      if (isCustomOrderItem(item)) continue;
       const product = byProduct.get(item.id) ?? { id: item.id, name: item.name, quantity: 0, revenue: 0 };
       product.quantity += item.quantity;
       product.revenue += lineRevenue;

@@ -17,7 +17,7 @@ import {
   getProductsByLabelPaginated,
   getRelatedProducts,
 } from "@/services/product.service";
-import { getProductReviews } from "@/services/review.service";
+import { getProductReviews, PRODUCT_REVIEWS_LIMIT } from "@/services/review.service";
 
 // Tag invalidation keeps data fresh; the TTL is only a backstop, and a shorter one multiplies ISR writes.
 const CATALOGUE_TTL = 600;
@@ -49,7 +49,7 @@ export const getCachedActiveBanners = unstable_cache(
 export const getCachedProductsByLabel = unstable_cache(
   (label: "new" | "sale", limit?: number) => getProductsByLabel(supabase, label, limit),
   ["products-by-label"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
+  { revalidate: CATALOGUE_TTL, tags: ["products", "products-popular"] },
 );
 
 export const getCachedPopularProducts = unstable_cache(
@@ -62,7 +62,7 @@ export const getCachedHomePageCategoryProducts = unstable_cache(
   (groups: Array<{ topId: number; allIds: number[] }>, limitPerCategory?: number) =>
     getHomePageCategoryProducts(supabase, groups, limitPerCategory),
   ["home-category-products"],
-  { revalidate: CATALOGUE_TTL, tags: ["products"] },
+  { revalidate: CATALOGUE_TTL, tags: ["products", "products-popular"] },
 );
 
 export const getCachedBrands = unstable_cache(() => getBrands(supabase), ["brands"], {
@@ -97,10 +97,14 @@ export const getCachedCategoryProducts = unstable_cache(
 
 // Product tag only, not `products`: card stars catching up within CATALOGUE_TTL is the accepted trade.
 export function getCachedProductReviews(productId: number) {
-  return unstable_cache(() => getProductReviews(supabase, productId), ["product-reviews", String(productId)], {
-    revalidate: CATALOGUE_TTL,
-    tags: [productTag(productId)],
-  })();
+  return unstable_cache(
+    () => getProductReviews(supabase, productId, PRODUCT_REVIEWS_LIMIT),
+    ["product-reviews", String(productId)],
+    {
+      revalidate: CATALOGUE_TTL,
+      tags: [productTag(productId)],
+    },
+  )();
 }
 
 export const getCachedProduct = perRequest((id: number) =>

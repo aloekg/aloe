@@ -37,8 +37,9 @@
 /auth                       # Login / register (email+password, Google OAuth)
 /auth/confirm               # Email OTP verification & OAuth PKCE callback (route.ts)
 /product/[id]               # Product detail page
-/catalog                    # All categories index
-/catalog/[slug]             # Category listing with filters — all subcategories in one scrollable view (see note below)
+/product/[id]/reviews       # All approved reviews of a product; 404 for an unrated one
+/catalog                    # All categories index — Популярное/Новинки/Акции, then each category's subcategories as tiles (3 per row on a phone, up to 6 wider); one layout for every width
+/catalog/[slug]             # Category listing with filters — all subcategories in one scrollable view (see note below); a subcategory slug gets a page of its own
 /brands                     # All brands index (alphabetical)
 /brands/[brand]             # Brand product listing (infinite scroll)
 /search                     # Search results with filters
@@ -70,37 +71,71 @@
 
 Note: the `discount` label/route from earlier iterations has been removed — `Product["label"]` is now only `"new" | "sale" | null`.
 
-Note: "popular" is no longer a manually-set admin label. `products.purchase_count` counts **confirmed** orders, not placed ones: `updateOrderStatus` in `app/admin/actions.ts` applies the order's quantities through the `increment_product_purchase_counts` RPC whenever a status change crosses into or out of `confirmed`/`processing`/`delivered` — in either direction, since a confirmed order can still be cancelled. `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`), and the "По популярности" sort orders by the same column. Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been confirmed.
+Note: "popular" is no longer a manually-set admin label. `products.purchase_count` counts **confirmed** orders, not placed ones: `updateOrderStatus` in `app/admin/actions.ts` applies the order's quantities through the `increment_product_purchase_counts` RPC whenever a status change crosses into or out of `confirmed`/`processing`/`delivered` — in either direction, since a confirmed order can still be cancelled. `/popular` + the homepage carousel rank published products by `purchase_count` (`getPopularProducts` / `getPopularProductsPaginated` in `product.service.ts`, `getCachedPopularProducts` in `cached-queries.ts`), and the "По популярности" sort orders by the same column. So do the home page's other carousels — «Новинки», «Акции» and one per category — with the newest
+product breaking ties, since nine products in ten have never sold and ordering those by name put the
+same alphabetical first ten in every row; the `products-popular` tag expires them with the counts. Products with `purchase_count = 0` are excluded, so the section stays hidden until at least one order has been confirmed.
 
 Checkout deliberately does **not** touch it. There is no payment gate here, so a placed order is an intent someone then verifies by phone, and a fifth of production orders are cancelled. While the count was applied at checkout and never taken back, 10.6% of every counted unit came from a cancelled order, eleven products held a place in "Популярные" on cancelled orders alone, and the second product on the home page had all 23 of its "purchases" cancelled. The rule lives in one pure function — `purchaseCountDelta(prev, next)` in `lib/constants.ts`, tested in `tests/purchase-count.test.ts` — stated symmetrically rather than as "increment on confirm, decrement on cancel", which makes it idempotent for free: the same status twice compares equal and does nothing. The write is a compare-and-swap on the status just read, so two admins pressing at once cannot both apply the delta. Its cost is the other side of the same coin: an order left sitting at `new` counts for nothing, so the shelf depends on the admin moving statuses — 88.6% of production orders are moved off `new`, which is what makes that affordable. See `supabase/migrations/20260923120000_purchase_count_on_confirmation.sql` for the symmetric `qty` bound, the `greatest(0, …)` floor and the backfill.
 
 **Quick-view modal:** `/product/[id]` also renders as a modal overlay via a parallel route — `app/@modal/(.)product/[id]/page.tsx` intercepts client-side navigation from `ProductCard`'s `<Link>` and renders it inside `components/ProductModal.tsx` (closes on `Esc`/backdrop click via `router.back()`). A direct/hard navigation still renders the full `/product/[id]` page. `app/@modal/default.tsx` renders `null` when no intercept matches. The shell lives in `app/@modal/(.)product/[id]/layout.tsx`, not in the page: `page`/`loading`/`error` swap places inside a Suspense boundary, and wrapping each of them would remount the sheet and replay its open animation when the product data lands. That is also why the sheet has a fixed height rather than a `max-h` — it must not resize when the skeleton is replaced — and why the folder has its own `not-found.tsx`.
 
+The quick view shows the product's reviews like the page does, but fetches them only when
+`rating_count > 0` — the page's `getCachedProductReviews` entry is shared, and skipping unrated
+products spares an entry for 95% of the catalogue. Its section id is `quick-view-reviews`, since the
+sheet can open over a product page that already has `reviews`, and the "N отзывов" link scrolls
+through `ReviewsJumpLink` rather than following `#reviews`: a hash entry in the history would make
+the sheet's `router.back()` remove the hash and leave the sheet open.
+
+Both show the newest `REVIEWS_PREVIEW` (3) and link the rest to `/product/[id]/reviews`. All three
+read the same `getCachedProductReviews` entry, which holds up to `PRODUCT_REVIEWS_LIMIT` (200) — the
+slice happens in the server component, so the page's payload carries three. The quick view's link
+is a plain `<a>`, like its "Открыть страницу товара": on a soft navigation the `@modal` slot keeps
+its last state for a URL it does not match, and the sheet would stay open over the reviews page.
+
 Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `AutocompleteDropdown`). The modal is `position: fixed`, which Next's post-navigation scroll handler skips (`shouldSkipElement` in `layout-router`), so with nothing left to consider it falls back to `documentElement.scrollTop = 0` — opening a quick view sent the grid behind it to the top, which showed up on closing and reset the category page's sticky subcategory bar out of its scrolled layout.
 
 **Category page (`/catalog/[slug]`):** renders every subcategory of the top-level category as its own section in one `VirtualCategoryContent` window-virtualized scroll (`@tanstack/react-virtual`). `SubcategoryFilter` renders a pill per subcategory; clicking one calls `scrollToSection` (`lib/section-scroll.ts`) to jump to it, and the pill that's currently scrolled into view is tracked via `lib/active-section.ts` pub/sub and highlighted (`useActiveSectionSync`). As the active section changes, `SubcategoryFilter` mirrors it into the URL as `?sub=<subcategorySlug>` via `history.replaceState` directly (not `router.replace`) so the address bar stays shareable/bookmarkable without forcing a server re-render on every scroll tick. Landing on `/catalog/[slug]?sub=<slug>` (a shared link, a reload, or the breadcrumb/sitemap links below) resolves that slug to a subcategory id server-side and passes it to `VirtualCategoryContent` as `initialSectionId`, which scrolls to it on mount — reasserting the scroll position for the first ~20 frames to win a race against the App Router's own post-navigation scroll handling, which otherwise snaps it back to the top a couple of frames after mount.
+
+A jump — a pill tap or that deep link — lands the section heading 12px below the sticky bar
+(`GAP_BELOW_BAR`), where the bar's bottom is **measured** (`data-sticky-bar`: its CSS `top` plus
+its height) rather than assumed; a fixed 214px suited the desktop header and left a 140px gap on a
+phone. The active pill is decided against the same line, so the pill tapped is the pill lit. Three
+things keep the landing still: the window virtualizer gets `scrollMargin` (the list's offset in the
+document — without it, rows on screen counted as "above" it), the jump re-aims for a few frames
+while rows measured on the way in replace their estimates, and during that window the
+virtualizer's own size-change correction is switched off
+(`shouldAdjustScrollPositionOnItemSizeChange`). On iOS that correction is deferred until scrolling
+stops and was then applied on top of the re-aim, pushing the heading under the bar a fifth of a
+second after it had landed.
 
 **Filters on the category page:** `CategoryBrowser` wraps the filter bar, `SubcategoryFilter` and
 `VirtualCategoryContent` so the three agree on one set of sections. The server already sent every
 product of the category, so **narrowing and reordering happen on the client and cost nothing** — no
 server round trip, no Data Cache lookup — and the result is mirrored into `?sort=`/`?price_min=`/
-`?price_max=` through `history.replaceState`, the same mechanism and the same reason as `?sub=`.
+`?price_max=`/`?brand=` through `history.replaceState`, the same mechanism and the same reason as `?sub=`.
 `hooks/useFilterNav.ts` owns that merge for the whole storefront, including the rule that any filter
 change resets `?page=`; it reads `window.location.search` at call time rather than closing over
 `useSearchParams()`, because two writers share the query string here and a cached copy would have
 each silently drop the other's key. **Sorting by price orders within each section, never across
 them** — a flat list would break the pills, `section-scroll.ts`, `active-section.ts`, the `?sub=`
-contract and the `/catalog/[topSlug]?sub=[subSlug]` links — so the UI says "в каждом разделе". No
-filter control renders a link (`SortSelect` is a `<select>`, `PriceFilter` two inputs), which is
+contract and the `/catalog/[topSlug]?sub=[subSlug]` links. **Brands** filter on `brand_id`, which every list row already
+carries: the options are the brands this page's products have, in `getCachedBrands()` order, and
+a `?brand=` id the page does not carry is dropped server-side rather than emptying it. On a phone
+and from `md` up alike they sit in the "Фильтры" panel under the price, since a category can carry
+twenty brands and a row of pills would push the goods down. No filter control renders a link (the
+sort options are buttons, `PriceFilter` two inputs), which is
 what keeps faceted URLs uncrawlable; `Pagination` is the only `<a href>` carrying query parameters,
 and it carries every active filter so page 2 shows the same result set.
 
 `ProductFilterBar` has two variants and each carries its own breakpoint visibility, so the two can
-sit in different places: `inline` is the `md`-and-up row above the pills, `icons` the phone's two
-triggers, which the category page passes into `SubcategoryFilter`'s `leading` slot so they ride as
-the **first items of the sticky pill row** and scroll sideways with it. That is the mobile first
-rule applied — the phone gets no filter row of its own, because a permanent one above the pills
-would spend vertical space on every visit to serve the few visitors who filter. The row itself is
+sit in different places: `inline` is the `md`-and-up row /search puts above its results — two
+labelled buttons, the current sort order and "Фильтры · N" — and `icons` two round triggers,
+phone-only by default. The category page uses `icons` **at every width** (`className="md:flex"`,
+merged through `cn` so it beats `md:hidden`) and passes them into `SubcategoryFilter`'s `leading`
+slot, so they ride as the **first items of the sticky pill row** and scroll sideways with it. That
+is the mobile first rule applied, and the desktop now follows the phone — no filter row of its own,
+because a permanent one above the pills would spend vertical space on every visit to serve the few
+visitors who filter. The row itself is
 sticky, so they stay reachable at any scroll depth down the page. (The scroller carries `relative`
 so it is the pills' `offsetParent`: `useActiveSectionSync` compares `offsetLeft` against
 `scrollLeft`, and the two have to be measured in the same coordinate space.) Sort and price are **two icons, not one "Фильтры"
@@ -112,14 +147,34 @@ The price sheet stages its state and commits on "Показать" — on /searc
 navigation, and applying per keystroke would send three requests to set one range; its button names
 how many products the candidate range would leave, which only a page holding the whole set can
 answer (`countFor`), so /search just says "Показать". The sort sheet does not stage, since one tap
-is the whole interaction. That staged copy is the only cost of the sheets, and the reason the inline
-variant deliberately has none.
+is the whole interaction.
 
-Below `md` the subcategory pills are **always one scrollable row**. They used to wrap until the page
-was scrolled (`useWindowScrolled`) and then collapse to one line, which on a phone opened a category
-with up to three rows of pills between the header and the first product and shifted the layout the
-moment you moved — in the direction that hides the goods. From `md` up the width is there, so the
-wrap-until-scrolled behaviour stays.
+Filters open through `Sheet`'s `drawer` mode: a bottom sheet on a phone, a full-height drawer on
+the right from `md`. Sorting is the bottom sheet on a phone and a dropdown from `md` (`SortMenu`),
+decided at tap time since the same round trigger serves both widths. The dropdown is portalled and
+`fixed` because the trigger sits in the pill row's horizontal scroller, which would clip it; it
+closes on any scroll, and the click that dismisses it is swallowed, as a native `<select>` does —
+otherwise closing it over the grid opened the quick view of the card underneath. The desktop row used to be the controls themselves — a
+`<select>`, two price inputs applying as you typed, and a brands dialog — and became triggers once
+brands joined price in one staged panel, so one "Показать" applies them together on every width.
+
+The subcategory pills are **always one scrollable row**, at every width; a mouse drags it sideways
+through `useDragScroll`. They used to wrap until the page was scrolled and then collapse to one
+line, which on a phone opened a category with up to three rows of pills between the header and the
+first product and shifted the layout the moment you moved — in the direction that hides the goods.
+The desktop kept that behaviour longer, and gave it up once the filter triggers moved into the row.
+
+**Subcategory page (`/catalog/[subSlug]`):** a subcategory slug renders its own page — what the
+phone's `/catalog` tiles open — with the subcategory as the title, only its products, and its
+**sub-subcategories as the sections and pills** (`SubcategoryPage` in `app/catalog/[slug]/page.tsx`).
+Products assigned to the subcategory itself become a last section, «Другое»; a subcategory without
+sub-subcategories is a single section with no pills and no section header (`hideHeader`), since the
+page title already names it. It reads the **top-level category's** `getCachedCategoryProducts` entry
+and picks its own buckets, so the ~75 subcategory pages add ISR pages but no Data Cache entries
+(see "Cache budget"). A sub-subcategory slug redirects to `/catalog/[subSlug]?sub=[subSubSlug]`,
+where `?sub=` works as on the category page. The other `?sub=` links — product breadcrumbs, the home
+page, the legacy redirects — still open the top-level view, which is unchanged; the sitemap lists
+both levels.
 
 **Sub-subcategories (3rd level):** `categories.parent_id` is self-referential, so a category can be nested one level deeper than a normal subcategory (category → subcategory → sub-subcategory). Sub-subcategories have **no page of their own** — `products.category_id` may point directly at one (instead of at the subcategory), and `/catalog/[slug]` groups that subcategory's products into per-sub-subcategory sections within its section rather than routing to a new URL. `getCategoryProducts` (cached as `getCachedCategoryProducts`) takes every category id under the top-level one in one query and returns the rows bucketed by `category_id`, so products assigned at either level arrive together; `buildCategorySection()` in `lib/subcategory-sections.ts` then splits each subcategory's bucket into per-sub-subcategory groups. `sitemap.ts`, the homepage carousel grouping (`app/page.tsx`), and the product-detail breadcrumbs (`app/product/[id]/page.tsx`) all walk up to 2 `parent_id` hops to resolve the real top-level/subcategory pair, and link to the subcategory as `/catalog/[topSlug]?sub=[subSlug]`. Admin: `AdminCategories.tsx` renders 3 tiers and only allows a subcategory (not a sub-subcategory) as a parent, capping the tree at 3 levels; the product editor's category `<select>` only offers leaf categories **below the top level** — a subcategory or sub-subcategory with no children of its own, labeled with its full breadcrumb path. A childless top-level category is a leaf by that test alone and used to be offered; a product assigned to one renders nowhere, because `/catalog/[slug]` builds its sections from subcategory ids and then calls `notFound()`.
 
@@ -398,11 +453,11 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedBrands()`                                 | 1 hour | `brands`                      |
 | `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`                      |
 | `getCachedActiveBanners()`                          | 1 hour | `banners`                     |
-| `getCachedProductsByLabel(label, limit?)`           | 10 min | `products`                    |
+| `getCachedProductsByLabel(label, limit?)`           | 10 min | `products` `products-popular` |
 | `getCachedProductsByLabelPaginated(label, page, …)` | 10 min | `products`                    |
 | `getCachedPopularProducts(limit?)`                  | 10 min | `products` `products-popular` |
 | `getCachedPopularProductsPaginated(page, pageSize)` | 10 min | `products` `products-popular` |
-| `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products`                    |
+| `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products` `products-popular` |
 | `getCachedCategoryProducts(categoryIds)`            | 10 min | `products`                    |
 | `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
 | `getCachedProduct(id)`                              | 10 min | `products` `product-<id>`     |
@@ -459,13 +514,13 @@ still has four neighbours to show. The rendered result is identical to the old q
 
 ## Server Actions
 
-| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                                                                                                       |
-| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `app/order/[token]/actions.ts`  | `claimOrder()` — привязать гостевой заказ к аккаунту по кнопке (см. «Product reviews»); GET страницы ничего не меняет                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `getBrands()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client. Writes copy an explicit column list (`pick()`), never the client's object |
+| file                            | actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/checkout/actions.ts`       | `quoteOrder()` — re-derives item prices and the delivery charge server-side for the form; `createOrder()` — inserts via service-role client so guest (unauthenticated) checkout is allowed, clears the server-side cart and emails the admin with a PDF invoice. It does **not** touch `purchase_count`: that follows the order's status, from `updateOrderStatus`                                                                                                                                                                                                                        |
+| `app/profile/actions.ts`        | `saveProfile()`, `editReview()` — правка своего отзыва, всегда возвращающая его на модерацию                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `app/brands/[brand]/actions.ts` | `loadMoreBrandProducts()` — cached, paginated, backs the infinite-scroll brand page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `app/order/[token]/actions.ts`  | `claimOrder()` — привязать гостевой заказ к аккаунту по кнопке (см. «Product reviews»); GET страницы ничего не меняет                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `app/admin/actions.ts`          | `upsertProduct()`, `deleteProduct()`, `bulkUpdateProducts()`, `uploadProductImage()`, `upsertCategory()`, `deleteCategory()`, `uploadCategoryImage()`, `reorderSubcategories()`, `upsertBrand()`, `deleteBrand()`, `upsertBanner()`, `deleteBanner()`, `uploadBannerImage()`, `reorderBanners()`, `updateOrderStatus()`, `updateOrderItems()`, `updateOrderDelivery()`, `downloadInvoice()`, `resendOrderNotification()`, `setUserRole()` — all gated by `assertAdmin()` and run through a service-role client. Writes copy an explicit column list (`pick()`), never the client's object |
 
 ## Auth
 
@@ -596,13 +651,21 @@ cached for an hour and already ordered by name — so a broad search no longer c
 `brands(id, name)` join on every page of matches. The scan is capped at five pages of 1000: a flat
 `.limit(1000)` silently dropped every brand whose products sorted past the first thousand, and the
 filter had no way to reach them. Past five pages the facet is approximate, which is the trade a full
-scan on an unrated public route cannot justify.
+scan on an unrated public route cannot justify. The facet is shown in the "Фильтры" panel under the price, as on the
+category page, and travels as `?brand=` with the rest of the staged state on "Показать";
+`ProductFilterBar` writes `?brand=` only when it was given `brandOptions`, so a caller without the
+picker cannot clear it.
 
-**Admin product filters** carry two `none` sentinels rather than only real values: `?label=none`
-finds products with no badge, and `?category=none` finds products whose `category_id` is missing —
+**Admin product filters** carry three `none` sentinels rather than only real values: `?label=none`
+finds products with no badge, `?category=none` finds products whose `category_id` is missing —
 rows orphaned by the category FK's old `ON DELETE SET NULL`, which nothing else in the admin could
-single out. The list also badges them, since `products_published_has_category` means such a product
-cannot be published at all.
+single out — and `?brand=none` the products with no `brand_id` (413 of the published ones), which
+`?brand=<id>` alone could never reach. The list badges the category orphans only, since
+`products_published_has_category` means such a product cannot be published at all, while a missing
+brand is common and harmless. A real `?category=<id>` covers the whole subtree, not that row alone: products
+sit on leaves only, so matching the id exactly made every parent category in the dropdown come back
+empty. The brand list is read on the server with the page, which also feeds
+the edit drawers — they used to fetch it lazily through a `getBrands()` action.
 
 **Editing a placed order** is the one path where the client decides prices. `updateOrderItems()`
 takes the name and price of each line from the admin — correcting what the catalogue says is the
@@ -615,6 +678,15 @@ derived, so `isManualDeliveryCost()` infers it by asking whether the stored fee 
 would have charged the _previous_ basket; without it, editing the items of a regions order would
 wipe the negotiated fee back to 0. The blind spot is a manual fee equal to the tariff, which
 recomputes to itself.
+
+The editor also takes **custom lines** — anything the admin types in that the catalogue does not
+carry (a gift bag, a substitute, a service), with its own name, price and quantity. Such a line is
+stored with a **negative `id`** (`isCustomOrderItem()` / `nextCustomItemId()` in
+`lib/order-pricing.ts`) rather than with a flag, so every consumer that treats `items[].id` as a
+product id passes it by without a special case: `increment_product_purchase_counts` matches no row,
+`reviewableItems()` skips it, and «Повторить заказ» in the profile leaves it out of the cart, where
+`parseLines()` would otherwise reject the whole basket. The ids are unique within one order only, so
+the analytics count a custom line towards revenue and units sold but never rank it as a product.
 
 **WhatsApp is a link, not an integration.** Each row in the admin order list carries a `wa.me`
 link to the customer's chat with a message for the order's current status already typed in
@@ -823,8 +895,8 @@ should be weighed before any of them is changed:
 - **A page past the end is a 404, not an empty 200.** `LabelProductsPage` and `SearchResults` call
   `notFound()` when `page > 1` comes back empty, and `MAX_PAGE` (`lib/page-params.ts`) is 500 —
   otherwise anyone could mint an ISR and a Data Cache entry per `?page=`, each one indexable.
-- **A filter runs on the cached result, not in the cached query.** Sorting and the price range never
-  enter a cache key: `/catalog/[slug]` gets the whole category in one entry and narrows it with
+- **A filter runs on the cached result, not in the cached query.** Sorting, the price range and the
+  brands never enter a cache key: `/catalog/[slug]` gets the whole category in one entry and narrows it with
   `lib/price-filter.ts`, on the server for the first render and on the client for every interaction
   after it. `/search` is the exception and filters in SQL, because it is not cached at all and its
   `COUNT` is what decides how many pages exist. **An empty filter result is a 200, not a 404** — the
@@ -1040,7 +1112,7 @@ npm run db:push:stage   # link + apply supabase/migrations/ to staging
 npm run db:push:prod    # link + apply to production
 npm run db:types:prod   # the ONLY correct way to regenerate types/database.ts
 npm run backup:prod     # dump production into backups/<timestamp>-prod/
-npm run seed:stage      # dry-run the catalogue seed; --execute writes
+npm run seed:stage      # dry-run the catalogue seed; --execute writes, --refresh updates a staging in use
 npm run seed:stage:orders  # dry-run mock accounts + orders on staging; --execute writes, --reset replaces
 ```
 
@@ -1068,6 +1140,7 @@ below that writes.
 node scripts/normalize-product-images.mjs --env=prod   # row not yet a WebP pair → build it from Storage
 node scripts/prune-orphan-images.mjs --env=prod        # bucket objects nothing references (--execute deletes)
 node scripts/fix-orphan-categories.mjs --env=prod      # products whose category_id was stripped
+node scripts/assign-brands-from-names.mjs --env=prod   # brand_id from a brand named in the product name
 node scripts/purge-test-data.mjs --env=prod            # pre-launch orders/accounts/counters
 node scripts/seed-staging.mjs --env=stage              # production catalogue → staging (no personal data)
 node scripts/seed-staging-orders.mjs --env=stage       # made-up accounts + orders on staging, for the admin
@@ -1113,6 +1186,15 @@ because `parent_id` is a non-deferrable self-FK, and the script prints a `setval
 SQL Editor afterwards — writing explicit ids does not advance the sequences, and nothing looks wrong
 until the first insert from the admin collides.
 
+A plain seed refuses a staging that holds orders or profiles, and only ever upserts. **`--refresh`**
+is for the staging that is already in use: it keeps the test accounts, orders and reviews, deletes
+the catalogue rows production no longer has (products first — reviews, favorites and cart rows
+cascade with them — then categories leaf-first, brands, banners), and leaves `purchase_count` and
+the rating columns as staging computed them from its own orders and reviews. A stale row holding a
+slug the dump reuses under another id is renamed out of the way before the upsert. That is what
+"bring staging up to date with production" means now, rather than a recreate from
+`STAGING-RESET.md`.
+
 `seed-staging-orders.mjs` fills the gap that leaves: a catalogue-only staging has no orders, so
 `/admin/analytics` and `/admin/orders` are empty there. It invents customers (accounts
 `mock-NN@mock.aloe.kg`, confirmed, one shared password printed once) and orders against the real
@@ -1136,7 +1218,14 @@ the old one.
 lost their `category_id` when a category was deleted and keep only the denormalised `category`
 label, which the tree reorganisation renamed. It matches that label to a leaf category ignoring
 case, ё/е and punctuation, takes judgement calls from an `OVERRIDES` table in the file, and reports
-the rest with candidates rather than guessing. `prune-orphan-images.mjs` checks `orders.items` as well as both product columns, because an
+the rest with candidates rather than guessing. `assign-brands-from-names.mjs` fills in `brand_id` where the product's own name already says it
+("Zewa Deluxe…"), matching **existing brands only** — a brand missing from `brands` is listed as a
+candidate, because creating one publishes a `/brands/<slug>` page. Its rules were checked against the
+products that already have a brand (98.6% agreement); the exceptions are written into the file:
+ordinary words such as Gold or Весна count only at the start of a name, and Garnier Fructis /
+L'Oreal Elseve go to the line, as the catalogue already files them.
+
+`prune-orphan-images.mjs` checks `orders.items` as well as both product columns, because an
 order freezes its line items' image URLs and those files must outlive the product. It also holds
 back admin-uploaded originals (`<epoch-ms>-<rand>.<ext>`) unless `--originals` is passed —
 normalizing a product leaves its original unreferenced, but that file is the only high-quality

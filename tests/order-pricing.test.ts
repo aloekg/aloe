@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD, MIN_ORDER_TOTAL } from "@/lib/constants";
 import {
   buildQuote,
+  isCustomOrderItem,
   isManualDeliveryCost,
   itemsTotalOf,
   MAX_ITEM_NAME,
@@ -9,9 +10,11 @@ import {
   MAX_QUANTITY,
   minOrderShortfall,
   money,
+  nextCustomItemId,
   normalizeOrderItems,
   parseLines,
   parsePriceInput,
+  parseQuantityInput,
   priceOrder,
   validateDeliveryInput,
   validateOrderItems,
@@ -232,6 +235,10 @@ describe("validateOrderItems", () => {
     expect(validateOrderItems([line({ image_url: null }), line({ id: 2, image_url: "" })])).toBeNull();
   });
 
+  it("accepts a custom line — a negative id is a line typed in by the admin", () => {
+    expect(validateOrderItems([line(), line({ id: -1, image_url: null }), line({ id: -2 })])).toBeNull();
+  });
+
   it("accepts a zero price — the admin writing off a line is not a broken row", () => {
     expect(validateOrderItems([line({ price: 0 })])).toBeNull();
   });
@@ -247,6 +254,7 @@ describe("validateOrderItems", () => {
     ["a zero id", [line({ id: 0 })], "Некорректная позиция заказа"],
     ["a fractional id", [line({ id: 1.5 })], "Некорректная позиция заказа"],
     ["the same product twice", [line(), line()], "Один товар не может быть в заказе дважды"],
+    ["the same custom line twice", [line({ id: -1 }), line({ id: -1 })], "Один товар не может быть в заказе дважды"],
     ["a blank name", [line({ name: "   " })], "Укажите название товара"],
     ["a non-string name", [line({ name: 7 as unknown as string })], "Укажите название товара"],
     ["an over-long name", [line({ name: "я".repeat(MAX_ITEM_NAME + 1) })], "Название товара длиннее 200 символов"],
@@ -385,6 +393,33 @@ describe("parsePriceInput", () => {
 
   it.each([[""], ["   "], ["12."], ["abc"], ["-5"], ["1.005"], ["1,2,3"]])("rejects %s", (input) => {
     expect(parsePriceInput(input)).toBeNull();
+  });
+});
+
+describe("parseQuantityInput", () => {
+  it.each([
+    ["1", 1],
+    [" 12 ", 12],
+    [String(MAX_QUANTITY), MAX_QUANTITY],
+  ])("parses %s", (input, expected) => {
+    expect(parseQuantityInput(input)).toBe(expected);
+  });
+
+  it.each([[""], ["0"], ["1.5"], ["-1"], ["abc"], [String(MAX_QUANTITY + 1)]])("rejects %s", (input) => {
+    expect(parseQuantityInput(input)).toBeNull();
+  });
+});
+
+describe("custom order lines", () => {
+  it("are the negative ids — no product has one", () => {
+    expect(isCustomOrderItem({ id: -1 })).toBe(true);
+    expect(isCustomOrderItem({ id: 1 })).toBe(false);
+  });
+
+  it("take the next free negative id, whatever the catalogue ids around them", () => {
+    expect(nextCustomItemId([])).toBe(-1);
+    expect(nextCustomItemId([{ id: 42 }, { id: 7 }])).toBe(-1);
+    expect(nextCustomItemId([{ id: 42 }, { id: -1 }, { id: -3 }])).toBe(-4);
   });
 });
 

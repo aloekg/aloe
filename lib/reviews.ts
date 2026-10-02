@@ -1,3 +1,4 @@
+import { isCustomOrderItem } from "@/lib/order-pricing";
 import type { OrderItem } from "@/types";
 
 // Keep out of "use server" files: every export there becomes a public endpoint.
@@ -31,6 +32,8 @@ export function canEditReview(status: string | null | undefined): boolean {
 
 export const MIN_RATING = 1;
 export const MAX_RATING = 5;
+/** How many reviews a product page and the quick view show before "Показать все". */
+export const REVIEWS_PREVIEW = 3;
 export const MAX_REVIEW_BODY = 2000;
 
 // Checked before the query: Postgres errors (500) on a malformed uuid instead of returning empty.
@@ -68,7 +71,7 @@ export function reviewableItems(items: readonly OrderItem[], alreadyReviewed: re
   const seen = new Set<number>();
   const out: OrderItem[] = [];
   for (const item of items) {
-    if (done.has(item.id) || seen.has(item.id)) continue;
+    if (isCustomOrderItem(item) || done.has(item.id) || seen.has(item.id)) continue;
     seen.add(item.id);
     out.push(item);
   }

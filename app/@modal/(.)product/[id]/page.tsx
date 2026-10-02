@@ -1,8 +1,17 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AddToCart, Currency, FavoriteButton, OldPrice, ProductDescription } from "@/components";
-import { getCachedProduct } from "@/lib/cached-queries";
+import {
+  AddToCart,
+  Currency,
+  FavoriteButton,
+  OldPrice,
+  ProductDescription,
+  ProductReviews,
+  RatingSummary,
+} from "@/components";
+import { getCachedProduct, getCachedProductReviews } from "@/lib/cached-queries";
 import { LABEL_MAP } from "@/lib/constants";
+import { REVIEWS_PREVIEW } from "@/lib/reviews";
 import type { ProductRow } from "@/types";
 import { withBrandName } from "@/types";
 
@@ -15,6 +24,8 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
 
   const brandInfo = (rawProduct as unknown as { brands?: { name: string; slug: string } | null }).brands;
   const product = withBrandName([rawProduct as unknown as ProductRow])[0];
+  // Only a rated product has reviews to show: skipping the rest spares a Data Cache entry each.
+  const reviews = product.rating_count > 0 ? await getCachedProductReviews(product.id) : [];
 
   const label = product.label ? LABEL_MAP[product.label as keyof typeof LABEL_MAP] : null;
   const discount =
@@ -53,7 +64,15 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
             {product.name}
           </a>
 
-          {brandInfo && <p className="text-sm text-gray-500 mb-4">Производитель: {brandInfo.name}</p>}
+          {brandInfo && <p className="text-sm text-gray-500 mb-2">Производитель: {brandInfo.name}</p>}
+
+          {/* Not "reviews": the quick view can open over a product page, which already has that id. */}
+          <RatingSummary
+            ratingSum={product.rating_sum}
+            ratingCount={product.rating_count}
+            targetId="quick-view-reviews"
+            className="mb-4"
+          />
 
           <div className="hidden md:flex items-baseline gap-3 mb-6">
             <span className="text-2xl font-bold">
@@ -75,6 +94,18 @@ export default async function ProductModalPage({ params }: { params: Promise<{ i
           </div>
 
           {product.description && <ProductDescription text={product.description} />}
+
+          {/* scroll-mt clears the sheet's close row, which overlays the content. */}
+          <ProductReviews
+            reviews={reviews}
+            ratingSum={product.rating_sum}
+            ratingCount={product.rating_count}
+            id="quick-view-reviews"
+            className="mt-6 scroll-mt-14"
+            limit={REVIEWS_PREVIEW}
+            allHref={`/product/${product.id}/reviews`}
+            hardNavigation
+          />
 
           <a href={productHref} className="text-sm text-green-700 hover:underline mt-auto pt-4 w-fit">
             Открыть страницу товара →
