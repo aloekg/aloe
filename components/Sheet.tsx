@@ -100,16 +100,12 @@ export default function Sheet({
 
   // The header row is absolute over the content; `pt-12` on the content clears it.
   return createPortal(
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <div
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-      inert={!isTop || undefined}
-    >
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" inert={!isTop || undefined}>
+      {/* On the backdrop, not the container: it covers the container, so a handler there never saw itself
+          as the target. A drag out of the panel targets the container, so selecting text does not close. */}
       <div
         aria-hidden
+        onClick={close}
         className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ease-out motion-reduce:transition-none ${
           open ? "opacity-100" : "opacity-0"
         }`}
