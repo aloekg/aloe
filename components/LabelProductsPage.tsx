@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { getCachedPopularProductsPaginated, getCachedProductsByLabelPaginated } from "@/lib/cached-queries";
 import MainContainer from "./MainContainer";
+import MobileHeader from "./MobileHeader";
 import Pagination from "./Pagination";
 import ProductCard from "./ProductCard";
 import ProductGrid from "./ProductGrid";
+import Title from "./Title";
 
 const PAGE_SIZE = 20;
 
@@ -32,21 +34,24 @@ export default async function LabelProductsPage({
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <MainContainer>
-      <h1 className="text-lg font-semibold mb-4 text-center md:text-left">{title}</h1>
+    <>
+      <MobileHeader title={title} withBackButton />
+      <MainContainer>
+        <Title className="hidden md:block mb-4">{title}</Title>
 
-      {products.length === 0 ? (
-        <p className="text-gray-500 text-sm">{emptyText}</p>
-      ) : (
-        <>
-          <ProductGrid>
-            {products.map((p, i) => (
-              <ProductCard key={p.id} product={p} preload={i === 0} />
-            ))}
-          </ProductGrid>
-          <Pagination page={page} totalPages={totalPages} basePath={basePath} />
-        </>
-      )}
-    </MainContainer>
+        {products.length === 0 ? (
+          <p className="text-gray-500 text-sm">{emptyText}</p>
+        ) : (
+          <>
+            <ProductGrid>
+              {products.map((p, i) => (
+                <ProductCard key={p.id} product={p} preload={i === 0} />
+              ))}
+            </ProductGrid>
+            <Pagination page={page} totalPages={totalPages} basePath={basePath} />
+          </>
+        )}
+      </MainContainer>
+    </>
   );
 }
