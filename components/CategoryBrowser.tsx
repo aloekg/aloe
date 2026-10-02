@@ -100,7 +100,6 @@ export default function CategoryBrowser({
             bounds={bounds}
             onChange={apply}
             countFor={countFor}
-            note="Сортировка по цене — в каждом разделе"
           />
         }
       />

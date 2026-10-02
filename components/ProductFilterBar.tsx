@@ -116,7 +116,8 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
             setSheet(null);
             setClosing(false);
           }}
-          width="max-w-md"
+          // Edge to edge on a phone, as a bottom sheet should be; a narrow dialog from md.
+          width="md:max-w-md"
         >
           {sheet === "sort" ? (
             <div role="radiogroup" aria-label="Порядок сортировки" className="flex flex-col gap-1 px-4 pb-6">
@@ -138,11 +139,10 @@ export default function ProductFilterBar({ sort, range, variant, bounds, onChang
                   {o.value === sort && <Check className="size-5 shrink-0" aria-hidden />}
                 </button>
               ))}
-              {note && <p className="text-xs text-gray-500 mt-2 px-3">{note}</p>}
             </div>
           ) : (
             <div className="flex flex-col gap-5 px-4 pb-6">
-              <PriceFilter value={staged} onChange={setStaged} bounds={bounds} className="flex-wrap" />
+              <PriceFilter value={staged} onChange={setStaged} bounds={bounds} stretch />
               <div className="flex items-center gap-3 pt-1">
                 <Button
                   variant="primary"
