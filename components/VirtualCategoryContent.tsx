@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useIsClient } from "@/hooks/useIsClient";
 import { setActiveSection } from "@/lib/active-section";
@@ -27,10 +27,13 @@ type VirtualRow =
 
 // 160px min item + 16px gap
 const ITEM_WIDTH = 176;
-const PRODUCT_ROW_HEIGHT = 300;
-const HEADER_HEIGHT = 52;
+// Estimates, measured off the rendered rows (390–1280px wide): a product row runs 331–370px with
+// the card's brand and rating lines, a heading 44px, a group heading 32px. The closer they are, the
+// less a jump moves once the rows near its target are measured.
+const PRODUCT_ROW_HEIGHT = 350;
+const HEADER_HEIGHT = 44;
 const SECTION_GAP = 40;
-const SUBHEADER_HEIGHT = 36;
+const SUBHEADER_HEIGHT = 32;
 const GROUP_GAP = 24;
 
 // Space between the sticky bar and a section heading that was jumped to.
@@ -83,6 +86,8 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
   // at the top of the page, treats rows that are on screen as above it, and "corrects" the scroll
   // by their size change once they are measured — which pushed a jumped-to section under the bar.
   const [scrollMargin, setScrollMargin] = useState(0);
+  // Set while a jump is landing: re-aims the scroll from inside the virtualizer's change callback.
+  const reaimRef = useRef<(() => void) | null>(null);
   const didInitialScroll = useRef(false);
 
   useLayoutEffect(() => {
@@ -123,7 +128,20 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
     },
     overscan: 3,
     scrollMargin,
+    // Positions are written to the DOM inside the same callback that measured the rows, and the
+    // jump re-aims in that callback too, so the shift and its correction land in one frame. Through
+    // React the shift painted a frame before the correction did — the flicker on every pill tap.
+    directDomUpdates: true,
+    onChange: () => reaimRef.current?.(),
   });
+
+  const setContainer = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      virtualizer.containerRef(node);
+    },
+    [virtualizer],
+  );
 
   const sectionHeaderRows = useMemo(() => {
     const result: number[] = [];
@@ -219,6 +237,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
     const stopSettling = () => {
       if (settleId !== null) cancelAnimationFrame(settleId);
       settleId = null;
+      reaimRef.current = null;
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
       window.removeEventListener("wheel", stopSettling);
       window.removeEventListener("touchstart", stopSettling);
@@ -234,6 +253,10 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       const first = getScrollTarget(sectionId);
       if (first == null) return;
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;
+      reaimRef.current = () => {
+        const target = getScrollTarget(sectionId);
+        if (target != null && Math.abs(window.scrollY - target) > 1) window.scrollTo({ top: target, behavior: "auto" });
+      };
       window.scrollTo({ top: first, behavior: "auto" });
       window.addEventListener("wheel", stopSettling, { passive: true });
       window.addEventListener("touchstart", stopSettling, { passive: true });
@@ -289,7 +312,8 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
   }, [sections, cols, initialSectionId]);
 
   return (
-    <div ref={containerRef} style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+    // No height or item transform in the JSX: with directDomUpdates the virtualizer owns both.
+    <div ref={setContainer} style={{ position: "relative" }}>
       {virtualizer.getVirtualItems().map((virtualItem) => {
         const row = rows[virtualItem.index];
         return (
@@ -302,7 +326,6 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
               top: 0,
               left: 0,
               width: "100%",
-              transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
             }}
           >
             {row.type === "header" ? (

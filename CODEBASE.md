@@ -99,14 +99,25 @@ Those links pass `scroll={false}` (`ProductCard`, and `router.push` in `Autocomp
 A jump — a pill tap or that deep link — lands the section heading 12px below the sticky bar
 (`GAP_BELOW_BAR`), where the bar's bottom is **measured** (`data-sticky-bar`: its CSS `top` plus
 its height) rather than assumed; a fixed 214px suited the desktop header and left a 140px gap on a
-phone. The active pill is decided against the same line, so the pill tapped is the pill lit. Three
-things keep the landing still: the window virtualizer gets `scrollMargin` (the list's offset in the
-document — without it, rows on screen counted as "above" it), the jump re-aims for a few frames
-while rows measured on the way in replace their estimates, and during that window the
-virtualizer's own size-change correction is switched off
-(`shouldAdjustScrollPositionOnItemSizeChange`). On iOS that correction is deferred until scrolling
-stops and was then applied on top of the re-aim, pushing the heading under the bar a fifth of a
-second after it had landed.
+phone. The active pill is decided against the same line, so the pill tapped is the pill lit. What
+keeps the landing still:
+
+- the window virtualizer gets `scrollMargin` (the list's offset in the document — without it, rows
+  on screen counted as "above" it);
+- the row estimates are the measured heights (product row 350px, heading 44px, group heading 32px),
+  so the rows measured on the way in barely move the target;
+- whatever they still move is re-aimed **in the same callback that measured them**: with
+  `directDomUpdates` the virtualizer writes row positions straight to the DOM in its `onChange`,
+  and the jump re-aims there too, so the shift and its correction paint as one frame. Through a
+  React render the shifted rows painted a frame before the correction — a one-frame flash of
+  misplaced cards on every tap, visible in a screencast and in no layout reading;
+- while a jump is landing the virtualizer's own size-change correction is off
+  (`shouldAdjustScrollPositionOnItemSizeChange`). On iOS it is deferred until scrolling stops and
+  was then applied on top of the re-aim, pushing the heading under the bar a fifth of a second
+  after it had landed.
+
+`directDomUpdates` means the JSX sets neither the container's height nor the rows' `transform`; the
+virtualizer owns both, and the container takes `virtualizer.containerRef`.
 
 **Filters on the category page:** `CategoryBrowser` wraps the filter bar, `SubcategoryFilter` and
 `VirtualCategoryContent` so the three agree on one set of sections. The server already sent every
