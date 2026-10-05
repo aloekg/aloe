@@ -918,6 +918,15 @@ should be weighed before any of them is changed:
 
 None of it costs freshness, because tag invalidation, not the TTL, is what publishes an admin edit.
 
+**AI training crawlers are turned away in `app/robots.ts`.** A cache rebuild is paid for by whoever
+triggers it, and a fifth of product-page hits came from crawlers collecting training data
+(meta-externalagent, GPTBot, ClaudeBot, ShapBot, CCBot, Bytespider), which send no customers back.
+They get `Disallow: /`. Assistants that fetch a page because a person asked (OAI-SearchBot,
+ChatGPT-User, PerplexityBot) are deliberately left alone, since they are how the shop shows up in AI
+answers, and so is Applebot, which also feeds Siri and Spotlight. robots.txt is a request, not a
+barrier: if one of these keeps coming, the Vercel Firewall can deny it by user agent (blocking by
+bot category needs a plan above Pro).
+
 **Image optimization is intentionally disabled** — `next.config.ts` sets `images.unoptimized: true` (Vercel Hobby plan quota on Image Optimization source images). Do not re-enable without checking the plan/hosting situation first. Because nothing resizes at request time, **the browser downloads exactly the bytes that were uploaded**, so every product photo is stored at two sizes instead:
 
 | column          | size    | rendered by                                                                                         |
