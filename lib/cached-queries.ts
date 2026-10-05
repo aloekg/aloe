@@ -21,7 +21,12 @@ import { getProductReviews, PRODUCT_REVIEWS_LIMIT } from "@/services/review.serv
 
 // Tag invalidation keeps data fresh; the TTL is only a backstop, and a shorter one multiplies ISR writes.
 const CATALOGUE_TTL = 600;
-const REFERENCE_TTL = 3600;
+// A page revalidates at the shortest TTL it reads, and the root layout reads categories — so this also
+// caps /product/[id], which must stay at PRODUCT_TTL.
+const REFERENCE_TTL = 86400;
+// What /product/[id] reads. Nine hits in ten there are crawlers, rarely twice within an hour on the same
+// product, so anything shorter rebuilds the page on nearly every visit.
+const PRODUCT_TTL = 86400;
 
 // unstable_cache does not dedupe within a request; React cache() does.
 const perRequest = cache;
@@ -101,7 +106,7 @@ export function getCachedProductReviews(productId: number) {
     () => getProductReviews(supabase, productId, PRODUCT_REVIEWS_LIMIT),
     ["product-reviews", String(productId)],
     {
-      revalidate: CATALOGUE_TTL,
+      revalidate: PRODUCT_TTL,
       tags: [productTag(productId)],
     },
   )();
@@ -112,14 +117,14 @@ export const getCachedProduct = perRequest((id: number) =>
     // maybe(), not bare data: a swallowed error would cache a notFound() for a whole TTL.
     async () => maybe("product", await getProduct(supabase, id)),
     ["product", String(id)],
-    { revalidate: CATALOGUE_TTL, tags: ["products", productTag(id)] },
+    { revalidate: PRODUCT_TTL, tags: ["products", productTag(id)] },
   )(),
 );
 
 // Keyed by category alone; the caller filters the viewed product out of the pool.
 export function getCachedRelatedProducts(categoryId: number) {
   return unstable_cache(() => getRelatedProducts(supabase, categoryId), ["related-products", String(categoryId)], {
-    revalidate: CATALOGUE_TTL,
+    revalidate: PRODUCT_TTL,
     tags: ["products", categoryTag(categoryId)],
   })();
 }

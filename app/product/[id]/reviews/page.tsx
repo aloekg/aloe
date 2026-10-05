@@ -7,8 +7,8 @@ import { getCachedProduct, getCachedProductReviews } from "@/lib/cached-queries"
 import { averageRating, reviewPlural } from "@/lib/reviews";
 import { pageMetadata } from "@/lib/seo";
 
-// Must match CATALOGUE_TTL in lib/cached-queries.ts, like /product/[id].
-export const revalidate = 600;
+// Must match PRODUCT_TTL in lib/cached-queries.ts, like /product/[id].
+export const revalidate = 86400;
 
 // Rendered on first visit and cached, never prerendered: only rated products have this page.
 export async function generateStaticParams() {

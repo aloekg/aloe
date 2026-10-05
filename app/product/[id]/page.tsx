@@ -30,8 +30,8 @@ import { RELATED_PRODUCTS_LIMIT } from "@/services/product.service";
 import type { ProductRow } from "@/types";
 import { withBrandName } from "@/types";
 
-// Must match CATALOGUE_TTL in lib/cached-queries.ts.
-export const revalidate = 600;
+// Must match PRODUCT_TTL in lib/cached-queries.ts.
+export const revalidate = 86400;
 
 export async function generateStaticParams() {
   const { data } = await supabase
