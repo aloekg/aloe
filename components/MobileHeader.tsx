@@ -18,7 +18,9 @@ export default function MobileHeader({
   const router = useRouter();
 
   return (
-    <div className="flex items-center md:hidden sticky rounded-2xl top-0 bg-linear-to-t from-white to-green-100 p-4 z-50">
+    // A fixed 72px rather than p-4 around the content: a search field and a title line are not the same
+    // height, and the header used to change size from page to page. The home page's logo header matches it.
+    <div className="flex items-center md:hidden sticky rounded-2xl top-0 bg-linear-to-t from-white to-green-100 h-18 px-4 z-50">
       {withBackButton ? (
         <button
           onClick={() => router.back()}
