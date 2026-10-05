@@ -52,14 +52,14 @@ export default function FavoriteButton({
       disabled={!initialized}
       className={
         variant === "inline"
-          ? `size-10 flex items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200 ${
+          ? `size-9 flex items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200 ${
               isFav ? "text-red-500" : "text-gray-600"
             }`
           : `absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-colors z-9
         ${isFav ? "md:bg-red-50 text-red-500 md:hover:bg-red-100" : "md:bg-white/80 text-gray-500 hover:text-red-500 md:hover:bg-white"}`
       }
     >
-      <Heart className={variant === "inline" ? "size-5" : "size-6 md:size-4"} fill={isFav ? "currentColor" : "none"} />
+      <Heart className={variant === "inline" ? "size-4" : "size-6 md:size-4"} fill={isFav ? "currentColor" : "none"} />
     </Button>
   );
 }

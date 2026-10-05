@@ -33,7 +33,7 @@ function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: ()
       checked={checked}
       onChange={onChange}
       aria-label={label}
-      className="size-5 shrink-0 cursor-pointer rounded accent-green-700"
+      className="size-4 shrink-0 cursor-pointer rounded accent-green-700"
     />
   );
 }
@@ -96,10 +96,10 @@ export default function CartPage() {
   const checkout = (
     <Button
       variant="primary"
-      size="lg"
+      size="md"
       onClick={() => router.push("/checkout")}
       disabled={!canCheckout}
-      className="shrink-0 px-5"
+      className="shrink-0 px-4 py-2"
     >
       <span className="sm:hidden">К оформлению</span>
       <span className="hidden sm:inline">Перейти к оформлению</span>
@@ -108,10 +108,10 @@ export default function CartPage() {
 
   const summary = (
     <div>
-      <p className="text-xl md:text-2xl font-bold">
+      <p className="text-lg md:text-2xl font-bold">
         {selectedTotal} <Currency />
       </p>
-      <p className="text-sm text-gray-500 whitespace-nowrap">
+      <p className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
         {selectedCount > 0 ? `${selectedCount} ${goodsPlural(selectedCount)}` : "Товары не выбраны"}
       </p>
     </div>
@@ -128,14 +128,14 @@ export default function CartPage() {
         <Title className="hidden md:block mb-6">Корзина</Title>
         <div className="md:grid md:grid-cols-[1fr_20rem] md:gap-8 md:items-start">
           <div>
-            <label className="flex items-center gap-3 py-3 border-b border-gray-100 cursor-pointer select-none">
+            <label className="flex items-center gap-2.5 py-2.5 border-b border-gray-100 cursor-pointer select-none">
               <Checkbox
                 checked={allSelected}
                 onChange={() => setAllSelected(!allSelected)}
                 label="Выбрать все товары"
               />
-              <span className="text-base">Выбрать все</span>
-              <span className="ml-auto text-sm text-gray-500">
+              <span className="text-sm">Выбрать все</span>
+              <span className="ml-auto text-xs text-gray-500">
                 {selected.length} из {items.length}
               </span>
             </label>
@@ -144,9 +144,9 @@ export default function CartPage() {
               {items.map((item) => {
                 const isSelected = !excluded.includes(item.id);
                 return (
-                  <li key={item.id} className="py-4">
+                  <li key={item.id} className="py-3">
                     <div className="flex gap-3">
-                      <div className="relative size-24 md:size-28 shrink-0">
+                      <div className="relative size-20 md:size-24 shrink-0">
                         <Link
                           href={`/product/${item.id}`}
                           className="block relative size-full bg-gray-50 rounded-xl overflow-hidden"
@@ -155,7 +155,7 @@ export default function CartPage() {
                             src={item.image_url}
                             alt={item.name}
                             fill
-                            sizes="112px"
+                            sizes="96px"
                             className="object-contain p-1"
                           />
                         </Link>
@@ -168,37 +168,40 @@ export default function CartPage() {
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-lg font-bold leading-tight">
+                        <p className="text-base font-bold leading-tight">
                           {money(item.price * item.quantity)} <Currency />
                         </p>
-                        <Link href={`/product/${item.id}`} className="mt-1 block text-sm line-clamp-3 hover:underline">
+                        <Link
+                          href={`/product/${item.id}`}
+                          className="mt-0.5 block text-[13px] leading-snug line-clamp-3 hover:underline"
+                        >
                           {item.name}
                         </Link>
                         {/* Under the name, not under the price: there it pushed the name down on the second unit. */}
                         {item.quantity > 1 && (
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-0.5 text-xs text-gray-500">
                             {item.price} <Currency />
                             /ед.
                           </p>
                         )}
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2">
                       <FavoriteButton productId={item.id} variant="inline" />
                       <Button
                         onClick={() => remove(item.id)}
                         title="Удалить"
                         aria-label={`Удалить ${item.name} из корзины`}
-                        className="size-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+                        className="size-9 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
                       >
-                        <Trash2Icon className="size-5" />
+                        <Trash2Icon className="size-4" />
                       </Button>
                       <QuantityStepper
                         quantity={item.quantity}
                         onDecrement={() => decrement(item.id)}
                         onIncrement={() => increment(item.id)}
                         label={item.name}
-                        size="lg"
+                        size="md"
                         variant="pill"
                         removeAtMinimum={false}
                       />
@@ -223,11 +226,11 @@ export default function CartPage() {
       {/* Above MobileBottomNav, which is ~80px with the safe area. */}
       <div className="md:hidden fixed left-0 right-0 bottom-20 z-30 px-4">
         {hint && (
-          <p className="mb-2 w-fit rounded-lg bg-gray-200/95 px-3 py-1.5 text-sm text-gray-700 backdrop-blur-xs">
+          <p className="mb-2 w-fit rounded-lg bg-gray-200/95 px-3 py-1 text-xs text-gray-700 backdrop-blur-xs">
             {hint}
           </p>
         )}
-        <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_-2px_16px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_-2px_16px_rgba(0,0,0,0.08)]">
           {summary}
           {checkout}
         </div>
