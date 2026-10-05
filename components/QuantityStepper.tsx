@@ -13,6 +13,8 @@ type Props = {
   variant?: "plain" | "pill";
   // Only for when this replaces the pressed button; elsewhere it would steal focus on page load.
   focusIncrementOnMount?: boolean;
+  // false where a separate delete button sits next to it (the cart): minus stops at 1 instead of removing.
+  removeAtMinimum?: boolean;
 };
 
 export default function QuantityStepper({
@@ -23,6 +25,7 @@ export default function QuantityStepper({
   size = "md",
   variant = "plain",
   focusIncrementOnMount = false,
+  removeAtMinimum = true,
 }: Props) {
   const incrementRef = useRef<HTMLButtonElement>(null);
   const atMinimum = quantity === 1;
@@ -44,10 +47,11 @@ export default function QuantityStepper({
         variant="icon"
         size={size}
         onClick={onDecrement}
-        aria-label={atMinimum ? `Удалить ${label} из корзины` : `Уменьшить количество: ${label}`}
+        disabled={atMinimum && !removeAtMinimum}
+        aria-label={atMinimum && removeAtMinimum ? `Удалить ${label} из корзины` : `Уменьшить количество: ${label}`}
         className={`${rounded} font-bold ${variant === "plain" ? "hover:bg-gray-50" : ""}`}
       >
-        {atMinimum ? <Trash2Icon className="size-4" /> : <MinusIcon className="size-4" />}
+        {atMinimum && removeAtMinimum ? <Trash2Icon className="size-4" /> : <MinusIcon className="size-4" />}
       </Button>
 
       <span

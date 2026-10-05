@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,7 +11,7 @@ import { DELIVERY_OPTIONS, FREE_DELIVERY_THRESHOLD, MIN_ORDER_TOTAL } from "@/li
 // Import types from lib/order-pricing, never from ./actions: a type re-export from "use server" crashes it.
 import { minOrderShortfall } from "@/lib/order-pricing";
 import type { Quote, RejectedLine } from "@/lib/order-pricing";
-import { useCart } from "@/store/cart";
+import { selectedItems, useCart } from "@/store/cart";
 import { createOrder, quoteOrder } from "./actions";
 
 type Props = {
@@ -24,8 +24,11 @@ type Props = {
 
 export default function CheckoutForm({ initial }: Props) {
   const router = useRouter();
-  const items = useCart((s) => s.items);
-  const clear = useCart((s) => s.clear);
+  const cartItems = useCart((s) => s.items);
+  const excluded = useCart((s) => s.excluded);
+  // Only the lines ticked in the cart are ordered; the rest stay behind.
+  const items = useMemo(() => selectedItems(cartItems, excluded), [cartItems, excluded]);
+  const removeMany = useCart((s) => s.removeMany);
   const removeItem = useCart((s) => s.remove);
   const isClient = useIsClient();
   const [name, setName] = useState(initial?.name ?? "");
@@ -85,6 +88,17 @@ export default function CheckoutForm({ initial }: Props) {
     return <div className="py-16 h-96" aria-busy="true" />;
   }
 
+  if (items.length === 0 && cartItems.length > 0) {
+    return (
+      <div className="text-center py-16 text-gray-500">
+        <p className="text-lg">Не выбрано ни одного товара</p>
+        <Link href="/cart" className="text-green-700 text-sm mt-2 inline-block hover:underline">
+          Вернуться в корзину
+        </Link>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500">
@@ -120,7 +134,7 @@ export default function CheckoutForm({ initial }: Props) {
         if (result.quote) setQuote(result.quote);
         return;
       }
-      clear();
+      removeMany(items.map((i) => i.id));
       router.push(`/checkout/success?id=${result.orderId}&t=${result.token}`);
     } catch {
       // The order may exist: never invite a blind retry, and do not send guests to an auth-gated page.

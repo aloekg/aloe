@@ -129,8 +129,16 @@ export async function createOrder({
 
   if (error || !data) return fail("Не удалось оформить заказ. Попробуйте ещё раз.");
 
+  // Only what was ordered: lines left unticked in the cart stay there for next time.
   if (user?.id) {
-    await admin.from("cart_items").delete().eq("user_id", user.id);
+    await admin
+      .from("cart_items")
+      .delete()
+      .eq("user_id", user.id)
+      .in(
+        "product_id",
+        orderItems.map((i) => i.id),
+      );
   }
 
   // purchase_count is deliberately not touched here: it follows the order status (app/admin/actions.ts).
