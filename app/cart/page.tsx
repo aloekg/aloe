@@ -47,7 +47,7 @@ export default function CartPage() {
   const remove = useCart((s) => s.remove);
   const toggleSelected = useCart((s) => s.toggleSelected);
   const setAllSelected = useCart((s) => s.setAllSelected);
-  const clear = useCart((s) => s.clear);
+  const removeMany = useCart((s) => s.removeMany);
   const [confirming, setConfirming] = useState(false);
   const isClient = useIsClient();
 
@@ -120,8 +120,14 @@ export default function CartPage() {
   return (
     <>
       <MobileHeader title="Корзина">
-        <Button variant="ghost" size="md" onClick={() => setConfirming(true)} className="absolute right-4">
-          Очистить
+        <Button
+          onClick={() => setConfirming(true)}
+          disabled={selected.length === 0}
+          title="Удалить выбранные"
+          aria-label="Удалить выбранные товары"
+          className="absolute right-4 size-10 flex items-center justify-center rounded-full bg-white text-gray-700 transition-colors hover:text-red-600"
+        >
+          <Trash2Icon className="size-5" />
         </Button>
       </MobileHeader>
       <MainContainer className="pb-56 md:pb-20">
@@ -216,8 +222,14 @@ export default function CartPage() {
             {summary}
             {hint && <p className="text-sm text-gray-500">{hint}</p>}
             {checkout}
-            <Button variant="secondary" onClick={() => setConfirming(true)}>
-              Очистить корзину
+            <Button
+              variant="secondary"
+              onClick={() => setConfirming(true)}
+              disabled={selected.length === 0}
+              className="inline-flex items-center justify-center gap-2"
+            >
+              <Trash2Icon className="size-4" />
+              Удалить выбранные
             </Button>
           </aside>
         </div>
@@ -237,11 +249,13 @@ export default function CartPage() {
       </div>
 
       {confirming && (
-        <Sheet heading="Очистить корзину?" onClose={() => setConfirming(false)} width="max-w-md">
+        <Sheet heading="Удалить выбранные товары?" onClose={() => setConfirming(false)} width="max-w-md">
           <div className="px-4 pb-6 flex flex-col gap-4">
             <p className="text-sm text-gray-600">
-              Из корзины будут убраны все товары — {items.length}{" "}
-              {items.length === 1 ? "позиция" : items.length < 5 ? "позиции" : "позиций"}. Отменить это будет нельзя.
+              {selected.length === items.length
+                ? "Из корзины будут убраны все товары."
+                : `Из корзины будут убраны выбранные: ${selected.length} из ${items.length}. Остальные останутся.`}{" "}
+              Отменить это будет нельзя.
             </p>
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => setConfirming(false)} className="flex-1">
@@ -250,12 +264,12 @@ export default function CartPage() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  clear();
+                  removeMany(selected.map((i) => i.id));
                   setConfirming(false);
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-800 disabled:hover:bg-red-700"
               >
-                Очистить
+                Удалить
               </Button>
             </div>
           </div>
