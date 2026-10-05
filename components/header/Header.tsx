@@ -12,9 +12,9 @@ import Logo from "./Logo";
 export default function Header({ className, logoOnly = false }: { className?: string; logoOnly?: boolean }) {
   return (
     <header
-      className={`${className ?? "hidden md:block"} h-16 ${
-        // The phone variant matches MobileHeader, the header every other page shows there.
-        logoOnly ? "rounded-2xl bg-linear-to-t from-white to-green-100" : "bg-green-50 sticky top-0 z-50"
+      className={`${className ?? "hidden md:block"} ${
+        // The phone variant matches MobileHeader, the header every other page shows there: 72px, gradient.
+        logoOnly ? "h-18 rounded-2xl bg-linear-to-t from-white to-green-100" : "h-16 bg-green-50 sticky top-0 z-50"
       }`}
     >
       <Container className="h-full flex items-center gap-2 md:gap-4">
