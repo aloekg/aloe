@@ -17,8 +17,8 @@ export default function ProductReviews({
   ratingSum,
   ratingCount,
   id = "reviews",
-  // scroll-mt mirrors the sticky header height (`top-15 md:top-41.5`).
-  className = "mb-12 scroll-mt-16 md:scroll-mt-44",
+  // scroll-mt mirrors the sticky header height (`top-18 md:top-41.5`).
+  className = "mb-12 scroll-mt-20 md:scroll-mt-44",
   limit,
   allHref,
   hardNavigation = false,
