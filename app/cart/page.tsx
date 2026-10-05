@@ -44,11 +44,11 @@ export default function CartPage() {
   const excluded = useCart((s) => s.excluded);
   const increment = useCart((s) => s.increment);
   const decrement = useCart((s) => s.decrement);
-  const remove = useCart((s) => s.remove);
   const toggleSelected = useCart((s) => s.toggleSelected);
   const setAllSelected = useCart((s) => s.setAllSelected);
   const removeMany = useCart((s) => s.removeMany);
-  const [confirming, setConfirming] = useState(false);
+  // One confirmation for both: a single line from its own button, or every ticked line from the header.
+  const [pending, setPending] = useState<{ ids: number[]; name?: string } | null>(null);
   const isClient = useIsClient();
 
   const selected = useMemo(() => selectedItems(items, excluded), [items, excluded]);
@@ -121,7 +121,7 @@ export default function CartPage() {
     <>
       <MobileHeader title="Корзина">
         <Button
-          onClick={() => setConfirming(true)}
+          onClick={() => setPending({ ids: selected.map((i) => i.id) })}
           disabled={selected.length === 0}
           title="Удалить выбранные"
           aria-label="Удалить выбранные товары"
@@ -195,7 +195,7 @@ export default function CartPage() {
                     <div className="mt-2 flex items-center gap-2">
                       <FavoriteButton productId={item.id} variant="inline" />
                       <Button
-                        onClick={() => remove(item.id)}
+                        onClick={() => setPending({ ids: [item.id], name: item.name })}
                         title="Удалить"
                         aria-label={`Удалить ${item.name} из корзины`}
                         className="size-9 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
@@ -224,7 +224,7 @@ export default function CartPage() {
             {checkout}
             <Button
               variant="secondary"
-              onClick={() => setConfirming(true)}
+              onClick={() => setPending({ ids: selected.map((i) => i.id) })}
               disabled={selected.length === 0}
               className="inline-flex items-center justify-center gap-2"
             >
@@ -248,24 +248,30 @@ export default function CartPage() {
         </div>
       </div>
 
-      {confirming && (
-        <Sheet heading="Удалить выбранные товары?" onClose={() => setConfirming(false)} width="max-w-md">
+      {pending && (
+        <Sheet
+          heading={pending.name ? "Удалить товар?" : "Удалить выбранные товары?"}
+          onClose={() => setPending(null)}
+          width="max-w-md"
+        >
           <div className="px-4 pb-6 flex flex-col gap-4">
             <p className="text-sm text-gray-600">
-              {selected.length === items.length
-                ? "Из корзины будут убраны все товары."
-                : `Из корзины будут убраны выбранные: ${selected.length} из ${items.length}. Остальные останутся.`}{" "}
+              {pending.name
+                ? `Товар «${pending.name}» будет убран из корзины.`
+                : pending.ids.length === items.length
+                  ? "Из корзины будут убраны все товары."
+                  : `Из корзины будут убраны выбранные: ${pending.ids.length} из ${items.length}. Остальные останутся.`}{" "}
               Отменить это будет нельзя.
             </p>
             <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setConfirming(false)} className="flex-1">
+              <Button variant="secondary" onClick={() => setPending(null)} className="flex-1">
                 Оставить
               </Button>
               <Button
                 variant="primary"
                 onClick={() => {
-                  removeMany(selected.map((i) => i.id));
-                  setConfirming(false);
+                  removeMany(pending.ids);
+                  setPending(null);
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-800 disabled:hover:bg-red-700"
               >
