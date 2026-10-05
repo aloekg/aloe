@@ -4,7 +4,6 @@ import {
   BannerCarousel,
   Header,
   MainContainer,
-  MobileHeader,
   ProductCarousel,
   ProductGridSkeleton,
   Skeleton,
@@ -79,11 +78,12 @@ export default async function HomePage() {
   return (
     <>
       <Header className="block md:hidden" logoOnly />
-      <MobileHeader>
-        <HeaderSearchInput />
-      </MobileHeader>
       <MainContainer className="flex flex-col gap-4 md:gap-8">
         <Title className="sr-only">Бытовая химия и косметика с доставкой по Бишкеку</Title>
+        {/* Pinned on a phone; the negative margins keep the field where it sat before it was sticky. */}
+        <div className="md:hidden sticky top-0 z-40 -mx-4 -my-2 px-4 py-2 bg-white">
+          <HeaderSearchInput className="rounded-xl bg-green-50" />
+        </div>
         <div className="block md:hidden">
           <BannerCarousel banners={mobileBanners} media="mobile" />
         </div>
