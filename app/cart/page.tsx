@@ -171,14 +171,16 @@ export default function CartPage() {
                         <p className="text-lg font-bold leading-tight">
                           {money(item.price * item.quantity)} <Currency />
                         </p>
-                        {item.quantity > 1 && (
-                          <p className="text-xs text-gray-500">
-                            {item.price} <Currency /> × {item.quantity}
-                          </p>
-                        )}
                         <Link href={`/product/${item.id}`} className="mt-1 block text-sm line-clamp-3 hover:underline">
                           {item.name}
                         </Link>
+                        {/* Under the name, not under the price: there it pushed the name down on the second unit. */}
+                        {item.quantity > 1 && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {item.price} <Currency />
+                            /ед.
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
