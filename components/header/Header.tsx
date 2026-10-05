@@ -8,9 +8,10 @@ import HeaderSearchInput from "./HeaderSearchInput";
 import Logo from "./Logo";
 
 // logoOnly renders the logo alone: `hidden` would still mount the search, cart and AuthButton.
+// It also scrolls away: on the phone's home page the search below it is what stays pinned.
 export default function Header({ className, logoOnly = false }: { className?: string; logoOnly?: boolean }) {
   return (
-    <header className={`${className ?? "hidden md:block"} h-16 bg-green-50 sticky top-0 z-50`}>
+    <header className={`${className ?? "hidden md:block"} h-16 bg-green-50 ${logoOnly ? "" : "sticky top-0 z-50"}`}>
       <Container className="h-full flex items-center gap-2 md:gap-4">
         <Logo className="md:w-40 lg:w-56" withIcon />
 

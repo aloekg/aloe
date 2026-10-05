@@ -4,6 +4,7 @@ import {
   BannerCarousel,
   Header,
   MainContainer,
+  MobileHeader,
   ProductCarousel,
   ProductGridSkeleton,
   Skeleton,
@@ -78,9 +79,11 @@ export default async function HomePage() {
   return (
     <>
       <Header className="block md:hidden" logoOnly />
+      <MobileHeader>
+        <HeaderSearchInput />
+      </MobileHeader>
       <MainContainer className="flex flex-col gap-4 md:gap-8">
         <Title className="sr-only">Бытовая химия и косметика с доставкой по Бишкеку</Title>
-        <HeaderSearchInput className="rounded-xl bg-green-50 md:hidden" />
         <div className="block md:hidden">
           <BannerCarousel banners={mobileBanners} media="mobile" />
         </div>
