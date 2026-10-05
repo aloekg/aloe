@@ -9,6 +9,7 @@ import Title from "@/components/Title";
 import { getCachedCategories } from "@/lib/cached-queries";
 import { SPECIALS_BASE_URL } from "@/lib/constants";
 import { pageMetadata } from "@/lib/seo";
+import { CATALOG_GRID } from "./grid";
 
 const specials: Array<{ href: string; label: string; image_url?: string | null }> = [
   { href: "/popular", label: "Популярное", image_url: `${SPECIALS_BASE_URL}/popular.webp` },
@@ -21,9 +22,6 @@ export const metadata: Metadata = pageMetadata({
   description: "Каталог бытовой химии и косметики: все категории товаров интернет-магазина Aloe.kg.",
   path: "/catalog",
 });
-
-// Three across on a phone, more as the width allows, so a tile stays roughly the same size.
-const GRID = "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-3";
 
 type CatalogCategory = { id: number; name: string; parent_id: number | null; slug: string; image_url?: string | null };
 
@@ -78,7 +76,7 @@ export default async function CatalogPage() {
       <MainContainer>
         <Title className="sr-only md:not-sr-only md:mb-4">Каталог товаров</Title>
         <div className="space-y-5 md:space-y-8">
-          <div className={GRID}>
+          <div className={CATALOG_GRID}>
             {/* `preload`: the first row is the LCP candidate, and `fill` images are lazy by default. */}
             {specials.map((s) => (
               <Tile key={s.href} href={s.href} label={s.label} image={s.image_url} preload />
@@ -98,7 +96,7 @@ export default async function CatalogPage() {
                     <ChevronRight className="w-4 h-4 text-gray-500" aria-hidden />
                   </Link>
                 </h2>
-                <div className={GRID}>
+                <div className={CATALOG_GRID}>
                   {subcategories.map((sub) => (
                     <Tile key={sub.id} href={`/catalog/${sub.slug}`} label={sub.name} image={sub.image_url} />
                   ))}
