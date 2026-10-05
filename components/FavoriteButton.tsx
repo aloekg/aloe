@@ -6,7 +6,14 @@ import { useFavorites } from "@/store/favorites";
 import { useToast } from "@/store/toast";
 import Button from "./Button";
 
-export default function FavoriteButton({ productId }: { productId: number }) {
+// `overlay` sits in a product card's corner; `inline` is a plain round button in a row of actions (the cart).
+export default function FavoriteButton({
+  productId,
+  variant = "overlay",
+}: {
+  productId: number;
+  variant?: "overlay" | "inline";
+}) {
   const isFav = useFavorites((s) => s.ids.includes(productId));
   const userId = useFavorites((s) => s.userId);
   const initialized = useFavorites((s) => s.initialized);
@@ -43,10 +50,16 @@ export default function FavoriteButton({ productId }: { productId: number }) {
       aria-label={isFav ? "Убрать из избранного" : "Добавить в избранное"}
       aria-pressed={isFav}
       disabled={!initialized}
-      className={`absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-colors z-9
-        ${isFav ? "md:bg-red-50 text-red-500 md:hover:bg-red-100" : "md:bg-white/80 text-gray-500 hover:text-red-500 md:hover:bg-white"}`}
+      className={
+        variant === "inline"
+          ? `size-9 flex items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200 ${
+              isFav ? "text-red-500" : "text-gray-600"
+            }`
+          : `absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-colors z-9
+        ${isFav ? "md:bg-red-50 text-red-500 md:hover:bg-red-100" : "md:bg-white/80 text-gray-500 hover:text-red-500 md:hover:bg-white"}`
+      }
     >
-      <Heart className="size-6 md:size-4" fill={isFav ? "currentColor" : "none"} />
+      <Heart className={variant === "inline" ? "size-4" : "size-6 md:size-4"} fill={isFav ? "currentColor" : "none"} />
     </Button>
   );
 }

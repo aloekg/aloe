@@ -52,6 +52,12 @@ export async function deleteCartItem(supabase: SupabaseClient<Database>, userId:
   if (error) console.error("[cart] delete error:", error.message);
 }
 
+export async function deleteCartItems(supabase: SupabaseClient<Database>, userId: string, productIds: number[]) {
+  if (productIds.length === 0) return;
+  const { error } = await supabase.from("cart_items").delete().eq("user_id", userId).in("product_id", productIds);
+  if (error) console.error("[cart] delete error:", error.message);
+}
+
 export async function clearCart(supabase: SupabaseClient<Database>, userId: string) {
   const { error } = await supabase.from("cart_items").delete().eq("user_id", userId);
   if (error) console.error("[cart] clear error:", error.message);
