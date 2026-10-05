@@ -10,7 +10,7 @@ import Logo from "./Logo";
 // logoOnly renders the logo alone: `hidden` would still mount the search, cart and AuthButton.
 export default function Header({ className, logoOnly = false }: { className?: string; logoOnly?: boolean }) {
   return (
-    <header className={`${className ?? "hidden md:block"} h-16 bg-green-50 sticky top-0 z-50`}>
+    <header className={`${className ?? "hidden md:block"} h-16 bg-green-50 sticky top-0 z-50 will-change-transform`}>
       <Container className="h-full flex items-center gap-2 md:gap-4">
         <Logo className="md:w-40 lg:w-56" withIcon />
 

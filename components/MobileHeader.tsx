@@ -17,8 +17,11 @@ export default function MobileHeader({
 }) {
   const router = useRouter();
 
+  // will-change: its own compositor layer. Painted with the scrolling content, a sticky bar goes
+  // blank for a frame on iOS Safari after a long programmatic jump (a pill tap), until the page at
+  // the new offset is rasterised — the header flashed white. Every sticky bar on the storefront has it.
   return (
-    <div className="flex items-center md:hidden sticky rounded-2xl top-0 bg-linear-to-t from-white to-green-100 p-4 z-50">
+    <div className="flex items-center md:hidden sticky rounded-2xl top-0 bg-linear-to-t from-white to-green-100 p-4 z-50 will-change-transform">
       {withBackButton ? (
         <button
           onClick={() => router.back()}

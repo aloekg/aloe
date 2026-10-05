@@ -105,7 +105,10 @@ export default function CategoryNav({ categories }: { categories: Category[] }) 
   }, [parents.length, updateFades]);
 
   return (
-    <nav aria-label="Категории товаров" className="hidden md:block h-25.5 bg-white sticky top-16 z-40">
+    <nav
+      aria-label="Категории товаров"
+      className="hidden md:block h-25.5 bg-white sticky top-16 z-40 will-change-transform"
+    >
       <Container className="relative">
         <div
           ref={scrollerRef}

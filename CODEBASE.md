@@ -119,6 +119,13 @@ keeps the landing still:
 `directDomUpdates` means the JSX sets neither the container's height nor the rows' `transform`; the
 virtualizer owns both, and the container takes `virtualizer.containerRef`.
 
+Every sticky bar on the storefront (`MobileHeader`, `Header`, `CategoryNav`, the pill row, the
+/brands letter row) carries `will-change-transform`, so it sits on its own compositor layer. Painted
+with the scrolling content, a sticky bar went blank for a frame on iOS Safari after a long
+programmatic jump, until the page at the new offset was rasterised — the green mobile header
+flashed white on every pill tap. Chromium and desktop WebKit never showed it, so a screencast there
+proves nothing; check on a phone.
+
 **Filters on the category page:** `CategoryBrowser` wraps the filter bar, `SubcategoryFilter` and
 `VirtualCategoryContent` so the three agree on one set of sections. The server already sent every
 product of the category, so **narrowing and reordering happen on the client and cost nothing** — no

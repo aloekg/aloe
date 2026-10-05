@@ -29,7 +29,7 @@ export default async function BrandsPage() {
 
         {list.length === 0 && <p className="text-gray-500 text-sm">Бренды не найдены</p>}
 
-        <div className="sticky top-15 md:top-41.5 bg-white flex flex-wrap gap-1 py-2 mb-4 md:mb-6">
+        <div className="sticky top-15 md:top-41.5 bg-white will-change-transform flex flex-wrap gap-1 py-2 mb-4 md:mb-6">
           {letters.map((letter) => (
             <a
               key={letter}
