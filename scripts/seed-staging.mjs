@@ -17,6 +17,14 @@
 //   node scripts/seed-staging.mjs --env=stage                      dry run: counts and ordering
 //   node scripts/seed-staging.mjs --env=stage --execute            write
 //   node scripts/seed-staging.mjs --env=stage --execute --dump=2026-09-15T09-00-00-000Z-prod
+//   node scripts/seed-staging.mjs --env=stage --refresh            dry run of an in-place refresh
+//   node scripts/seed-staging.mjs --env=stage --refresh --execute
+//
+// --refresh brings the catalogue of a staging database that is already in use up to date, without
+// recreating it: the test accounts, orders and reviews stay, and catalogue rows production no longer
+// has are deleted rather than left behind (a plain seed only upserts). purchase_count and the rating
+// columns are kept as staging has them, because they are derived from staging's own orders and
+// reviews — production's numbers would describe orders that are not there.
 //
 // There is no --env=prod. resolveTarget refuses it outright.
 
@@ -31,14 +39,21 @@ const BACKUPS = path.join(ROOT, "backups");
 
 const target = resolveTarget({ allow: ["stage"] });
 const db = createClient(target.url, target.key, { auth: { persistSession: false } });
+const REFRESH = process.argv.includes("--refresh");
 
 // Belt and braces. The ref check inside resolveTarget is the real guard; this one survives someone
 // "temporarily" editing PROD_REF or pointing .env.local somewhere new. A catalogue-only staging
 // database has no orders and no profiles, so finding either means this is aimed at something real.
+// --refresh exists for a staging that holds test orders, so there the ref check alone has to do.
 for (const table of ["orders", "profiles"]) {
   const { count, error } = await db.from(table).select("*", { count: "exact", head: true });
   if (error) fail(`could not read ${table}: ${error.message}`);
-  if (count > 0) fail(`${table} holds ${count} row(s). This does not look like staging. Refusing.`);
+  if (REFRESH) console.log(`${table}: ${count} row(s) on staging, kept`);
+  else if (count > 0)
+    fail(
+      `${table} holds ${count} row(s). This does not look like staging. Refusing.\n` +
+        "(To update the catalogue of a staging that is in use, pass --refresh.)",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -98,9 +113,84 @@ while (remaining.length) {
 }
 console.log(`categories resolve into ${levels.length} level(s): ${levels.map((l) => l.length).join(" → ")}`);
 
+// ---------------------------------------------------------------------------
+// What a refresh changes
+
+async function stagingRows(table, columns) {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from(table)
+      .select(columns)
+      .order("id")
+      .range(from, from + 999);
+    if (error) fail(`could not read ${table}: ${error.message}`);
+    rows.push(...data);
+    if (data.length < 1000) return rows;
+  }
+}
+
+const plan = {};
+if (REFRESH) {
+  const current = {
+    products: await stagingRows("products", "id"),
+    brands: await stagingRows("brands", "id, slug"),
+    categories: await stagingRows("categories", "id, slug, parent_id"),
+    banners: await stagingRows("banners", "id"),
+  };
+  const dumped = { products, brands, categories, banners };
+  for (const [table, rows] of Object.entries(current)) {
+    const keep = new Set(dumped[table].map((r) => r.id));
+    const have = new Set(rows.map((r) => r.id));
+    const stale = rows.filter((r) => !keep.has(r.id));
+    // A stale row holding a slug the dump reuses under another id would fail the upsert on the
+    // unique slug, so it is renamed out of the way first and deleted with the rest afterwards.
+    const slugs = new Map(dumped[table].map((r) => [r.slug, r.id]));
+    const blocking = stale.filter((r) => r.slug != null && slugs.has(r.slug));
+    plan[table] = { stale, blocking, added: dumped[table].filter((r) => !have.has(r.id)).length };
+    console.log(
+      `${table}: ${dumped[table].length} in the dump · ${plan[table].added} new · ` +
+        `${dumped[table].length - plan[table].added} updated · ${stale.length} to delete` +
+        (blocking.length ? ` (${blocking.length} holding a slug the dump reuses)` : ""),
+    );
+  }
+  // Children before parents: categories.parent_id is ON DELETE RESTRICT.
+  const parentOf = new Map(current.categories.map((c) => [c.id, c.parent_id]));
+  const depth = (id) => (parentOf.get(id) == null ? 0 : 1 + depth(parentOf.get(id)));
+  plan.categories.stale.sort((a, b) => depth(b.id) - depth(a.id));
+}
+
 if (!target.execute) {
   console.log("\ndry run — nothing written. Re-run with --execute.");
   process.exit(0);
+}
+
+async function removeIds(table, ids) {
+  for (let i = 0; i < ids.length; i += 200) {
+    const { error } = await db
+      .from(table)
+      .delete()
+      .in("id", ids.slice(i, i + 200));
+    if (error) fail(`could not delete stale ${table}: ${error.message}`);
+  }
+  if (ids.length) console.log(`${table}: ${ids.length} stale rows deleted`);
+}
+
+// Products go first: a stale one may hold an external_id the dump gives to another id, and nothing
+// in the dump points at it. Their reviews, favorites and cart rows cascade with them.
+if (REFRESH) {
+  await removeIds(
+    "products",
+    plan.products.stale.map((r) => r.id),
+  );
+  for (const table of ["brands", "categories"])
+    for (const row of plan[table].blocking) {
+      const { error } = await db
+        .from(table)
+        .update({ slug: `${row.slug}-stale-${row.id}` })
+        .eq("id", row.id);
+      if (error) fail(`could not move ${table} ${row.id} off its slug: ${error.message}`);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +213,21 @@ async function load(table, rows, label = table) {
 await load("brands", brands);
 for (const [i, level] of levels.entries()) await load("categories", level, `categories level ${i}`);
 await load("banners", banners);
-await load("products", products);
+const KEEP_ON_STAGING = ["purchase_count", "rating_sum", "rating_count"];
+await load(
+  "products",
+  REFRESH
+    ? products.map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => !KEEP_ON_STAGING.includes(k))))
+    : products,
+);
+
+if (REFRESH) {
+  for (const table of ["categories", "brands", "banners"])
+    await removeIds(
+      table,
+      plan[table].stale.map((r) => r.id),
+    );
+}
 
 // ---------------------------------------------------------------------------
 // Sequences

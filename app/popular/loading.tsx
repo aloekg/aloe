@@ -1,5 +1,5 @@
 import LabelProductsSkeleton from "@/components/LabelProductsSkeleton";
 
 export default function Loading() {
-  return <LabelProductsSkeleton />;
+  return <LabelProductsSkeleton title="Популярные товары" />;
 }

@@ -14,7 +14,8 @@ export default function Toaster() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed top-4 left-1/2 -translate-x-1/2 md:top-auto md:bottom-6 md:left-auto md:translate-x-0 md:right-6 z-50 flex flex-col gap-2 items-center md:items-end pointer-events-none"
+      // inset-x-4, not left-1/2: a box pinned at the middle may only grow to half the screen, which wrapped every toast.
+      className="fixed top-4 inset-x-4 md:inset-x-auto md:top-auto md:bottom-6 md:right-6 z-50 flex flex-col gap-2 items-center md:items-end pointer-events-none"
     >
       {toasts.map((toast) => (
         <button
@@ -28,7 +29,7 @@ export default function Toaster() {
           aria-label={`${toast.message}. Закрыть`}
           className={`pointer-events-auto
             flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
-            cursor-pointer max-w-xs animate-slide-up
+            cursor-pointer max-w-full md:max-w-xs animate-slide-up
             ${toast.type === "success" ? "bg-green-700 text-white" : ""}
             ${toast.type === "error" ? "bg-red-600 text-white" : ""}
             ${toast.type === "info" ? "bg-gray-800 text-white" : ""}

@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { clearCart, deleteCartItem, loadCart, reconcileCartItems, upsertCartItem } from "@/services/cart.service";
+import {
+  clearCart,
+  deleteCartItem,
+  deleteCartItems,
+  loadCart,
+  reconcileCartItems,
+  upsertCartItem,
+} from "@/services/cart.service";
 
 type CartItem = {
   id: number;
@@ -12,10 +19,16 @@ type CartItem = {
 
 type CartStore = {
   items: CartItem[];
+  // Unticked lines, not ticked ones: a newly added product is selected without anyone touching it.
+  excluded: number[];
   userId: string | null;
   add: (item: Omit<CartItem, "quantity">) => void;
   addMany: (items: CartItem[]) => void;
   remove: (id: number) => void;
+  // After an order: the ordered lines leave, the unticked ones stay.
+  removeMany: (ids: number[]) => void;
+  toggleSelected: (id: number) => void;
+  setAllSelected: (selected: boolean) => void;
   increment: (id: number) => void;
   decrement: (id: number) => void;
   clear: () => void;
@@ -40,6 +53,7 @@ export const useCart = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      excluded: [],
       userId: null,
 
       add: (item) => {
@@ -52,6 +66,8 @@ export const useCart = create<CartStore>()(
           }
           return { items: [...state.items, { ...item, quantity: 1 }] };
         });
+        // Adding a product again is asking for it: it goes back into the order.
+        set((state) => ({ excluded: state.excluded.filter((x) => x !== item.id) }));
         const { userId, items } = get();
         if (userId) {
           const updated = items.find((i) => i.id === item.id)!;
@@ -68,7 +84,7 @@ export const useCart = create<CartStore>()(
             if (i >= 0) merged[i] = { ...merged[i], quantity: merged[i].quantity + item.quantity };
             else merged.push({ ...item });
           }
-          return { items: merged };
+          return { items: merged, excluded: state.excluded.filter((x) => !incoming.some((n) => n.id === x)) };
         });
         const { userId, items } = get();
         if (userId) {
@@ -79,11 +95,30 @@ export const useCart = create<CartStore>()(
 
       remove: (id) => {
         const { userId } = get();
-        set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
+        set((state) => ({
+          items: state.items.filter((i) => i.id !== id),
+          excluded: state.excluded.filter((x) => x !== id),
+        }));
         if (userId) {
           sync((sb) => deleteCartItem(sb, userId, id));
         }
       },
+
+      removeMany: (ids) => {
+        const { userId } = get();
+        set((state) => ({
+          items: state.items.filter((i) => !ids.includes(i.id)),
+          excluded: state.excluded.filter((x) => !ids.includes(x)),
+        }));
+        if (userId) sync((sb) => deleteCartItems(sb, userId, ids));
+      },
+
+      toggleSelected: (id) =>
+        set((state) => ({
+          excluded: state.excluded.includes(id) ? state.excluded.filter((x) => x !== id) : [...state.excluded, id],
+        })),
+
+      setAllSelected: (selected) => set((state) => ({ excluded: selected ? [] : state.items.map((i) => i.id) })),
 
       increment: (id) => {
         set((state) => ({
@@ -102,6 +137,7 @@ export const useCart = create<CartStore>()(
           items: state.items
             .map((i) => (i.id === id ? { ...i, quantity: i.quantity - 1 } : i))
             .filter((i) => i.quantity > 0),
+          excluded: prev && prev.quantity <= 1 ? state.excluded.filter((x) => x !== id) : state.excluded,
         }));
         const { userId } = get();
         if (userId && prev) {
@@ -118,7 +154,7 @@ export const useCart = create<CartStore>()(
 
       clear: () => {
         const { userId } = get();
-        set({ items: [] });
+        set({ items: [], excluded: [] });
         if (userId) {
           sync((sb) => clearCart(sb, userId));
         }
@@ -129,7 +165,7 @@ export const useCart = create<CartStore>()(
 
       setUser: async (userId) => {
         if (!userId) {
-          set({ userId: null, items: [] });
+          set({ userId: null, items: [], excluded: [] });
           return;
         }
 
@@ -165,7 +201,12 @@ export const useCart = create<CartStore>()(
     }),
     {
       name: "cart",
-      partialize: (state) => ({ items: state.items }),
+      partialize: (state) => ({ items: state.items, excluded: state.excluded }),
     },
   ),
 );
+
+// Derived in the component, not in a selector: a selector returning a fresh array re-renders forever.
+export function selectedItems<T extends { id: number }>(items: T[], excluded: number[]): T[] {
+  return items.filter((i) => !excluded.includes(i.id));
+}

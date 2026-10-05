@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useActiveSectionSync } from "@/hooks/useActiveSectionSync";
 import { useDragScroll } from "@/hooks/useDragScroll";
-import { useWindowScrolled } from "@/hooks/useWindowScrolled";
 import { scrollToSection } from "@/lib/section-scroll";
 import { containerClassname } from "./Container";
 
@@ -18,7 +17,6 @@ export default function SubcategoryFilter({
 }) {
   const { ref, handlers, onClickCapture } = useDragScroll<HTMLDivElement>();
   const { activeSectionId, pillRefs } = useActiveSectionSync(ref);
-  const scrolled = useWindowScrolled();
 
   // history.replaceState, not router.replace: the router would re-render the server on every scroll tick.
   useEffect(() => {
@@ -36,13 +34,13 @@ export default function SubcategoryFilter({
   // The scroller must stay `relative`: useActiveSectionSync compares the pills' offsetLeft with its scrollLeft.
 
   return (
-    <div className="sticky top-15 md:top-41.5 z-10 bg-white">
+    // data-sticky-bar: VirtualCategoryContent measures it to land a section just below.
+    <div data-sticky-bar className="sticky top-18 md:top-41.5 z-10 bg-white">
       <div className={`${containerClassname} py-2`}>
         <div
           ref={ref}
-          className={`relative flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none ${
-            scrolled ? "md:flex-nowrap md:overflow-x-auto" : "md:flex-wrap md:overflow-x-visible"
-          }`}
+          // One row at every width; a mouse drags it sideways through useDragScroll.
+          className="relative flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none"
           {...handlers}
           onClickCapture={onClickCapture}
         >

@@ -29,7 +29,7 @@ export default async function BrandsPage() {
 
         {list.length === 0 && <p className="text-gray-500 text-sm">Бренды не найдены</p>}
 
-        <div className="sticky top-15 md:top-41.5 bg-white flex flex-wrap gap-1 py-2 mb-4 md:mb-6">
+        <div className="sticky top-18 md:top-41.5 bg-white flex flex-wrap gap-1 py-2 mb-4 md:mb-6">
           {letters.map((letter) => (
             <a
               key={letter}
@@ -46,7 +46,7 @@ export default async function BrandsPage() {
             <section
               key={letter}
               id={`letter-${letter}`}
-              className="scroll-mt-56 sm:scroll-mt-46 md:scroll-mt-64 2xl:md:scroll-mt-54"
+              className="scroll-mt-59 sm:scroll-mt-49 md:scroll-mt-64 2xl:md:scroll-mt-54"
             >
               <h2 className="text-lg font-semibold text-green-700 border-b border-gray-200 pb-1 mb-3">{letter}</h2>
               <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">

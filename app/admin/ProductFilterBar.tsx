@@ -21,10 +21,13 @@ type Props = {
   published: string;
   category: string;
   categories: { id: number; name: string; depth: number }[];
+  brand: string;
+  brands: { id: number; name: string }[];
   sort: SortBy;
   onLabelChange: (value: string) => void;
   onPublishedChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
+  onBrandChange: (value: string) => void;
   onSortChange: (value: string) => void;
 };
 
@@ -33,10 +36,13 @@ export default function ProductFilterBar({
   published,
   category,
   categories,
+  brand,
+  brands,
   sort,
   onLabelChange,
   onPublishedChange,
   onCategoryChange,
+  onBrandChange,
   onSortChange,
 }: Props) {
   return (
@@ -85,6 +91,20 @@ export default function ProductFilterBar({
         {categories.map((c) => (
           <option key={c.id} value={c.id}>
             {"--".repeat(c.depth) + c.name}
+          </option>
+        ))}
+      </select>
+      <select
+        value={brand}
+        onChange={(e) => onBrandChange(e.target.value)}
+        aria-label="Бренд"
+        className="border border-gray-500 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-700 hover:cursor-pointer"
+      >
+        <option value="">Все бренды</option>
+        <option value="none">⚠ Без бренда</option>
+        {brands.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
           </option>
         ))}
       </select>

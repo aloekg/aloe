@@ -5,9 +5,8 @@ import { useFilterNav } from "@/hooks/useFilterNav";
 import type { PriceRange, SortValue } from "@/lib/page-params";
 import { filterCategorySections, priceBounds } from "@/lib/price-filter";
 import type { ProductListItem } from "@/types";
-import Container from "./Container";
 import MainContainer from "./MainContainer";
-import ProductFilterBar, { type FilterState } from "./ProductFilterBar";
+import ProductFilterBar, { type BrandOption, type FilterState } from "./ProductFilterBar";
 import SubcategoryFilter from "./SubcategoryFilter";
 import VirtualCategoryContent from "./VirtualCategoryContent";
 
@@ -16,6 +15,7 @@ type Section = {
   name: string;
   products: ProductListItem[];
   groups: { id: number; name: string; products: ProductListItem[] }[];
+  hideHeader?: boolean;
 };
 
 type Props = {
@@ -23,6 +23,9 @@ type Props = {
   subcategories: { id: number; name: string; slug: string }[];
   initialSort: SortValue;
   initialRange: PriceRange;
+  initialBrands: number[];
+  // The brands present in these sections, in display order.
+  brandOptions: BrandOption[];
   initialSectionId?: number;
   children?: React.ReactNode;
 };
@@ -32,18 +35,25 @@ export default function CategoryBrowser({
   subcategories,
   initialSort,
   initialRange,
+  initialBrands,
+  brandOptions,
   initialSectionId,
   children,
 }: Props) {
   const [sort, setSort] = useState<SortValue>(initialSort);
   const [range, setRange] = useState<PriceRange>(initialRange);
+  const [brands, setBrands] = useState<number[]>(initialBrands);
   const navigate = useFilterNav("url-only");
 
   // The ?sub= deep-link scroll applies only to the view the URL asked for.
-  const isInitialView = sort === initialSort && range.min === initialRange.min && range.max === initialRange.max;
+  const isInitialView =
+    sort === initialSort &&
+    range.min === initialRange.min &&
+    range.max === initialRange.max &&
+    brands.join() === initialBrands.join();
 
-  // Same transform page.tsx applies server-side, so filterCategorySections must stay pure.
-  const visible = useMemo(() => filterCategorySections(sections, range, sort), [sections, range, sort]);
+  // Runs in the server render and again on hydration, so filterCategorySections must stay pure.
+  const visible = useMemo(() => filterCategorySections(sections, range, sort, brands), [sections, range, sort, brands]);
 
   // Bounds from the whole category on purpose, not from the filtered set.
   const bounds = useMemo(
@@ -59,7 +69,7 @@ export default function CategoryBrowser({
 
   const countFor = useCallback(
     (next: FilterState) =>
-      filterCategorySections(sections, next.range, next.sort).reduce(
+      filterCategorySections(sections, next.range, next.sort, next.brands).reduce(
         (n, s) => n + s.products.length + s.groups.reduce((m, g) => m + g.products.length, 0),
         0,
       ),
@@ -69,26 +79,18 @@ export default function CategoryBrowser({
   const apply = (next: FilterState) => {
     setSort(next.sort);
     setRange(next.range);
+    setBrands(next.brands);
     navigate({
       sort: next.sort === "name" ? null : next.sort,
       price_min: next.range.min == null ? null : String(next.range.min),
       price_max: next.range.max == null ? null : String(next.range.max),
+      brand: next.brands.map(String),
     });
   };
 
   return (
     <>
-      <Container className="md:py-2">
-        <ProductFilterBar
-          variant="inline"
-          sort={sort}
-          range={range}
-          bounds={bounds}
-          onChange={apply}
-          note="Сортировка по цене — в каждом разделе"
-        />
-      </Container>
-
+      {/* One sticky row at every width: the two triggers lead the pills, as on a phone. */}
       <SubcategoryFilter
         subcategories={visibleSubcategories}
         leading={
@@ -96,10 +98,12 @@ export default function CategoryBrowser({
             variant="icons"
             sort={sort}
             range={range}
+            brands={brands}
+            brandOptions={brandOptions}
             bounds={bounds}
             onChange={apply}
             countFor={countFor}
-            note="Сортировка по цене — в каждом разделе"
+            className="md:flex"
           />
         }
       />
@@ -109,7 +113,7 @@ export default function CategoryBrowser({
           <div className="text-center py-16 text-gray-500">
             <p className="text-lg">По выбранным фильтрам ничего не найдено</p>
             <button
-              onClick={() => apply({ sort: "name", range: { min: null, max: null } })}
+              onClick={() => apply({ sort: "name", range: { min: null, max: null }, brands: [] })}
               className="text-green-700 text-sm mt-2 inline-block hover:underline cursor-pointer"
             >
               Сбросить фильтры
@@ -118,7 +122,7 @@ export default function CategoryBrowser({
         ) : (
           <VirtualCategoryContent
             // Remounts the virtualizer: its measurements go stale when the sections change shape.
-            key={`${sort}:${range.min ?? ""}:${range.max ?? ""}`}
+            key={`${sort}:${range.min ?? ""}:${range.max ?? ""}:${brands.join()}`}
             sections={visible}
             initialSectionId={isInitialView ? initialSectionId : undefined}
           />

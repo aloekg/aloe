@@ -7,7 +7,7 @@ const APPLY_DELAY_MS = 500;
 
 const inputCls =
   // text-base below md stops iOS zooming on focus; border-gray-500, not 300, for contrast.
-  "w-20 md:w-24 min-w-0 text-base md:text-sm border border-gray-500 rounded-lg px-2 py-1.5 bg-white text-gray-700 " +
+  "min-w-0 text-base md:text-sm border border-gray-500 rounded-lg px-2 py-1.5 bg-white text-gray-700 " +
   "focus:outline-none focus:ring-1 focus:ring-green-700 focus:border-green-700 " +
   "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
@@ -19,11 +19,14 @@ export default function PriceFilter({
   onChange,
   bounds,
   className,
+  stretch = false,
 }: {
   value: PriceRange;
   onChange: (range: PriceRange) => void;
   bounds?: { min: number; max: number } | null;
   className?: string;
+  // Inputs share the row's width — the bottom sheet, where the row is the whole panel.
+  stretch?: boolean;
 }) {
   const [min, setMin] = useState(() => toInput(value.min));
   const [max, setMax] = useState(() => toInput(value.max));
@@ -73,7 +76,7 @@ export default function PriceFilter({
     min: 0,
     max: MAX_PRICE,
     step: 1,
-    className: inputCls,
+    className: `${inputCls} ${stretch ? "flex-1" : "w-20 md:w-24"}`,
   };
 
   return (

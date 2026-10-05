@@ -179,6 +179,17 @@ describe("buildReport", () => {
     expect(report.topProducts[1]).toMatchObject({ id: 20, quantity: 1, revenue: 500 });
   });
 
+  it("counts a custom line as sold but never ranks it — its id is reused by every order", () => {
+    const rows = [
+      order({ id: 1, created_at: "2026-09-15T06:00:00Z", items: [item(10, 100), item(-1, 900, 1, "Пакет")] }),
+      order({ id: 2, created_at: "2026-09-16T06:00:00Z", items: [item(-1, 900, 1, "Упаковка")] }),
+    ];
+    const report = buildReport({ ...base, rows, includeCancelled: false });
+
+    expect(report.itemsSold).toBe(3);
+    expect(report.topProducts.map((p) => p.id)).toEqual([10]);
+  });
+
   it("counts free delivery only where the tariff could have charged for it", () => {
     const rows = [
       // Free because the basket cleared the threshold.

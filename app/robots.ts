@@ -9,27 +9,36 @@ export default function robots(): MetadataRoute.Robots {
   }
 
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      // Crawl-budget guard for faceted URLs; deliberately not paired with noindex, which a blocked page never serves.
-      disallow: [
-        "/admin",
-        "/cart",
-        "/checkout",
-        "/profile",
-        "/favorites",
-        "/auth",
-        "/review",
-        "/order",
-        "/search",
-        "/*?q=",
-        "/*?brand=",
-        "/*?sort=",
-        "/*?price_min=",
-        "/*?price_max=",
-      ],
-    },
+    rules: [
+      {
+        // AI training crawlers: a fifth of product-page hits, and each one can cost a page rebuild.
+        // Assistants that fetch on a user's behalf (OAI-SearchBot, ChatGPT-User, PerplexityBot) are
+        // not here, and neither is Applebot, which also feeds Siri and Spotlight search.
+        userAgent: ["meta-externalagent", "GPTBot", "ClaudeBot", "CCBot", "Bytespider", "ShapBot"],
+        disallow: "/",
+      },
+      {
+        userAgent: "*",
+        allow: "/",
+        // Crawl-budget guard for faceted URLs; deliberately not paired with noindex, which a blocked page never serves.
+        disallow: [
+          "/admin",
+          "/cart",
+          "/checkout",
+          "/profile",
+          "/favorites",
+          "/auth",
+          "/review",
+          "/order",
+          "/search",
+          "/*?q=",
+          "/*?brand=",
+          "/*?sort=",
+          "/*?price_min=",
+          "/*?price_max=",
+        ],
+      },
+    ],
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

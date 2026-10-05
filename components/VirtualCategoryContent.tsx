@@ -16,6 +16,8 @@ type Section = {
   name: string;
   products: ProductListItem[];
   groups?: Group[];
+  // The page title already names it: a subcategory page with no sub-subcategories is one section.
+  hideHeader?: boolean;
 };
 
 type VirtualRow =
@@ -31,14 +33,27 @@ const SECTION_GAP = 40;
 const SUBHEADER_HEIGHT = 36;
 const GROUP_GAP = 24;
 
+// Space between the sticky bar and a section heading that was jumped to.
+const GAP_BELOW_BAR = 12;
+
+// Where the sticky bar ends once it sticks: its CSS `top` plus its height, measured rather than
+// hardcoded — the phone's header is less than half the desktop's, and a fixed 214px left a
+// 140px gap above every section on a phone.
+function stickyBarBottom(): number {
+  const bar = document.querySelector<HTMLElement>("[data-sticky-bar]");
+  if (!bar) return 0;
+  return (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight;
+}
+
 // The SSR fallback is capped per section: rendering the whole category bloats hydration.
 const SSR_PRODUCTS_PER_SECTION = 12;
 
 function sectionRowCount(section: Section, cols: number): number {
-  if (!section.groups?.length) return 1 + Math.ceil(section.products.length / cols);
+  const header = section.hideHeader ? 0 : 1;
+  if (!section.groups?.length) return header + Math.ceil(section.products.length / cols);
   const restRows = section.products.length > 0 ? Math.ceil(section.products.length / cols) : 0;
   const groupRows = section.groups.reduce((sum, g) => sum + 1 + Math.ceil(g.products.length / cols), 0);
-  return 1 + restRows + groupRows;
+  return header + restRows + groupRows;
 }
 
 function buildRows(sections: Section[], cols: number): VirtualRow[] {
@@ -50,8 +65,8 @@ function buildRows(sections: Section[], cols: number): VirtualRow[] {
       sawFirstProductsRow = true;
     }
   };
-  sections.forEach(({ name, products, groups }, si) => {
-    rows.push({ type: "header", name, first: si === 0 });
+  sections.forEach(({ name, products, groups, hideHeader }, si) => {
+    if (!hideHeader) rows.push({ type: "header", name, first: si === 0 });
     pushProductsRows(products);
     groups?.forEach((g, gi) => {
       rows.push({ type: "subheader", name: g.name, first: gi === 0 && products.length === 0 });
@@ -64,6 +79,10 @@ function buildRows(sections: Section[], cols: number): VirtualRow[] {
 function VirtualizedProducts({ sections, initialSectionId }: { sections: Section[]; initialSectionId?: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(3);
+  // Where the list starts in the document. Without it the window virtualizer assumes the list starts
+  // at the top of the page, treats rows that are on screen as above it, and "corrects" the scroll
+  // by their size change once they are measured — which pushed a jumped-to section under the bar.
+  const [scrollMargin, setScrollMargin] = useState(0);
   const didInitialScroll = useRef(false);
 
   useLayoutEffect(() => {
@@ -76,6 +95,8 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       frame = null;
       const next = Math.max(2, Math.floor((el.offsetWidth + 16) / ITEM_WIDTH));
       setCols((prev) => (prev === next ? prev : next));
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setScrollMargin((prev) => (Math.abs(prev - top) < 1 ? prev : top));
     };
     const schedule = () => {
       if (frame === null) frame = requestAnimationFrame(measure);
@@ -101,6 +122,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       return PRODUCT_ROW_HEIGHT;
     },
     overscan: 3,
+    scrollMargin,
   });
 
   const sectionHeaderRows = useMemo(() => {
@@ -128,14 +150,16 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       frame = null;
       // Re-measured per frame, not only on resize: the sticky bar's height changes as a result of scrolling.
       measureTop();
-      const relPos = window.scrollY + 220 - containerDocTop;
+      // The same line a jump lands a heading on, so the pill that was tapped is the one that lights up.
+      const relPos = window.scrollY + stickyBarBottom() + GAP_BELOW_BAR + 1 - containerDocTop;
       const measurements = (
         virtualizer as unknown as { getMeasurements: () => Array<{ start: number }> }
       ).getMeasurements();
+      const margin = virtualizer.options.scrollMargin;
       let activeIdx = 0;
       // No early exit: an unmeasured row reads as Infinity and would pick the wrong section.
       for (let si = 0; si < sectionHeaderRows.length; si++) {
-        const start = measurements[sectionHeaderRows[si]]?.start ?? Infinity;
+        const start = (measurements[sectionHeaderRows[si]]?.start ?? Infinity) - margin;
         if (start <= relPos) activeIdx = si;
       }
       setActiveSection(sections[activeIdx]?.id ?? null);
@@ -178,20 +202,59 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
       const measurements = (
         virtualizer as unknown as { getMeasurements: () => Array<{ start: number }> }
       ).getMeasurements();
-      const itemStart = measurements[rowIdx]?.start;
-      if (itemStart == null) return null;
+      const rawStart = measurements[rowIdx]?.start;
+      if (rawStart == null) return null;
+      // Measurements include scrollMargin; the container's live position is the authority.
+      const itemStart = rawStart - virtualizer.options.scrollMargin;
 
       const containerDocTop = containerRef.current.getBoundingClientRect().top + window.scrollY;
-      // 214px = the section header's viewport position below the sticky bar.
-      return Math.max(0, containerDocTop + itemStart - 214);
+      // The heading's own text sits below the section gap padded onto its row.
+      const section = sections[sectionIndex];
+      const headingPad = section.hideHeader || sectionIndex === 0 ? 0 : SECTION_GAP;
+      return Math.max(0, containerDocTop + itemStart + headingPad - stickyBarBottom() - GAP_BELOW_BAR);
     };
 
     let rafId: number | null = null;
+    let settleId: number | null = null;
+    const stopSettling = () => {
+      if (settleId !== null) cancelAnimationFrame(settleId);
+      settleId = null;
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
+      window.removeEventListener("wheel", stopSettling);
+      window.removeEventListener("touchstart", stopSettling);
+    };
 
-    const unregister = registerSectionScroller((sectionId) => {
-      const target = getScrollTarget(sectionId);
-      if (target != null) window.scrollTo({ top: target, behavior: "auto" });
-    });
+    // The first target comes from estimated row heights; rows measured on the way in move the
+    // section, which read as an overshoot. Re-aim until the target holds still for a few frames,
+    // and let go the moment the user scrolls. Meanwhile the virtualizer's own size-change correction
+    // is off: on iOS it is deferred until scrolling stops and then applied on top of ours, which
+    // pushed the heading 30–140px under the bar a fifth of a second after it had landed.
+    const jumpTo = (sectionId: number) => {
+      stopSettling();
+      const first = getScrollTarget(sectionId);
+      if (first == null) return;
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;
+      window.scrollTo({ top: first, behavior: "auto" });
+      window.addEventListener("wheel", stopSettling, { passive: true });
+      window.addEventListener("touchstart", stopSettling, { passive: true });
+      let frames = 0;
+      let still = 0;
+      const settle = () => {
+        const target = getScrollTarget(sectionId);
+        if (target != null && Math.abs(window.scrollY - target) > 1) {
+          window.scrollTo({ top: target, behavior: "auto" });
+          still = 0;
+        } else {
+          still++;
+        }
+        frames++;
+        if (still >= 6 || frames >= 60) stopSettling();
+        else settleId = requestAnimationFrame(settle);
+      };
+      settleId = requestAnimationFrame(settle);
+    };
+
+    const unregister = registerSectionScroller(jumpTo);
 
     // Wait until `cols` is measured, or the initial scroll targets the wrong row layout.
     const measuredCols = containerRef.current
@@ -217,6 +280,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
 
     return () => {
       unregister();
+      stopSettling();
       // Must cancel, or the loop scrolls the next page after navigating away.
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
@@ -238,7 +302,7 @@ function VirtualizedProducts({ sections, initialSectionId }: { sections: Section
               top: 0,
               left: 0,
               width: "100%",
-              transform: `translateY(${virtualItem.start}px)`,
+              transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
             }}
           >
             {row.type === "header" ? (
@@ -289,9 +353,9 @@ export default function VirtualCategoryContent({
         ))}
       </ProductGrid>
     );
-    return sections.map(({ id, name, products, groups }) => (
+    return sections.map(({ id, name, products, groups, hideHeader }) => (
       <React.Fragment key={id}>
-        <h2 className="text-lg font-semibold mb-4 text-center md:text-left">{name}</h2>
+        {!hideHeader && <h2 className="text-lg font-semibold mb-4 text-center md:text-left">{name}</h2>}
         {products.length > 0 && renderGrid(products)}
         {groups?.map((g) => (
           <React.Fragment key={g.id}>

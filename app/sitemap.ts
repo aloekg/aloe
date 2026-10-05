@@ -55,13 +55,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const hasProducts = (id: number): boolean =>
     productCategoryIds.has(id) || (childrenOf.get(id) ?? []).some(hasProducts);
 
-  // Top-level only: sub-subcategories have no page, and ?sub= URLs duplicate their parent.
+  // Top-level and subcategories: sub-subcategories have no page, only a ?sub= section of their parent's.
+  const topIds = new Set(categories.filter((c) => !c.parent_id).map((c) => c.id));
   const categoryUrls: MetadataRoute.Sitemap = categories
-    .filter((c) => !c.parent_id && hasProducts(c.id))
+    .filter((c) => (!c.parent_id || topIds.has(c.parent_id)) && hasProducts(c.id))
     .map((c) => ({
       url: `${SITE_URL}/catalog/${c.slug}`,
       changeFrequency: "daily",
-      priority: 0.8,
+      priority: c.parent_id ? 0.7 : 0.8,
     }));
 
   const brandUrls: MetadataRoute.Sitemap = brands

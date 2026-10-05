@@ -46,6 +46,7 @@ export async function getProductsByLabel(supabase: SupabaseClient<Database>, lab
     .select(LIST_COLUMNS, COUNT)
     .eq("published", true)
     .eq("label", label)
+    .order("purchase_count", { ascending: false })
     .order("id", { ascending: false })
     .limit(limit);
   return toList("products-by-label", res);
@@ -92,7 +93,9 @@ export async function getHomePageCategoryProducts(
         .select(LIST_COLUMNS, COUNT)
         .eq("published", true)
         .in("category_id", allIds)
-        .order("name")
+        // Most products have no sales yet, so the newest fill the rest rather than the same first names.
+        .order("purchase_count", { ascending: false })
+        .order("id", { ascending: false })
         .limit(limitPerCategory);
       const { products, total } = toList("home-category-products", res);
       return { topId, products, total };
@@ -270,21 +273,33 @@ export async function getAdminProducts(
     q?: string;
     label?: string;
     published?: string;
-    categoryId?: number | "none";
+    categoryIds?: number[] | "none";
+    brandId?: number | "none";
     sort?: AdminProductsSort;
     page?: number;
     pageSize?: number | "all";
   },
 ) {
-  const { q = "", label = "", published = "", categoryId, sort = "id-desc", page = 1, pageSize = 20 } = options;
+  const {
+    q = "",
+    label = "",
+    published = "",
+    categoryIds,
+    brandId,
+    sort = "id-desc",
+    page = 1,
+    pageSize = 20,
+  } = options;
 
   // select("*") on purpose: the edit drawer needs description/seo_text/published.
   let query = supabase.from("products").select("*", { count: "exact" });
   const idTerm = parseProductId(q);
   if (idTerm) query = query.or(`id.eq.${idTerm},name.ilike.%${idTerm}%`);
   else if (q) query = query.ilike("name", `%${escapeLike(q)}%`);
-  if (categoryId === "none") query = query.is("category_id", null);
-  else if (categoryId) query = query.eq("category_id", categoryId);
+  if (categoryIds === "none") query = query.is("category_id", null);
+  else if (categoryIds) query = query.in("category_id", categoryIds);
+  if (brandId === "none") query = query.is("brand_id", null);
+  else if (brandId) query = query.eq("brand_id", brandId);
   if (label === "none") query = query.is("label", null);
   else if (label) query = query.eq("label", label);
   if (published === "yes") query = query.eq("published", true);
