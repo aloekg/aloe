@@ -448,11 +448,11 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 
 | function                                            | TTL    | tags                          |
 | --------------------------------------------------- | ------ | ----------------------------- |
-| `getCachedCategories()`                             | 1 hour | `categories`                  |
-| `getCachedCategoriesWithSlug()`                     | 1 hour | `categories`                  |
-| `getCachedBrands()`                                 | 1 hour | `brands`                      |
-| `getCachedBrandBySlug(slug)`                        | 1 hour | `brands`                      |
-| `getCachedActiveBanners()`                          | 1 hour | `banners`                     |
+| `getCachedCategories()`                             | 1 day  | `categories`                  |
+| `getCachedCategoriesWithSlug()`                     | 1 day  | `categories`                  |
+| `getCachedBrands()`                                 | 1 day  | `brands`                      |
+| `getCachedBrandBySlug(slug)`                        | 1 day  | `brands`                      |
+| `getCachedActiveBanners()`                          | 1 day  | `banners`                     |
 | `getCachedProductsByLabel(label, limit?)`           | 10 min | `products` `products-popular` |
 | `getCachedProductsByLabelPaginated(label, page, …)` | 10 min | `products`                    |
 | `getCachedPopularProducts(limit?)`                  | 10 min | `products` `products-popular` |
@@ -460,9 +460,9 @@ type Order = Omit<Tables["orders"]["Row"], "items"> & { items: OrderItem[] };
 | `getCachedHomePageCategoryProducts(groups, limit?)` | 10 min | `products` `products-popular` |
 | `getCachedCategoryProducts(categoryIds)`            | 10 min | `products`                    |
 | `getCachedProductsByBrand(id, page, pageSize)`      | 10 min | `products`                    |
-| `getCachedProduct(id)`                              | 10 min | `products` `product-<id>`     |
-| `getCachedProductReviews(id)`                       | 10 min | `product-<id>`                |
-| `getCachedRelatedProducts(categoryId)`              | 10 min | `products` `category-<id>`    |
+| `getCachedProduct(id)`                              | 1 day  | `products` `product-<id>`     |
+| `getCachedProductReviews(id)`                       | 1 day  | `product-<id>`                |
+| `getCachedRelatedProducts(categoryId)`              | 1 day  | `products` `category-<id>`    |
 
 The two per-entity tags are built by `lib/cache-tags.ts` (`productTag()`, `categoryTag()`), and
 their readers construct the `unstable_cache` wrapper **per call** rather than once per module —
@@ -474,12 +474,15 @@ common edit, used to expire 2400 products and their pages. The trade is stated i
 `getCachedProductReviews`: after an approval the stars on that product's **card** catch up within
 `CATALOGUE_TTL`, while its page shows the review at once.
 
-The two TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min) and `REFERENCE_TTL`
-(1 hour). Neither is what keeps the site fresh: every write path invalidates by tag
-(`updateTag("products")` on each admin mutation, `updateTag("products-popular")` at checkout), so
-the TTL only backstops a row edited straight in the Supabase dashboard. It was 60 s until that cost
-became visible — an entry that expires every minute is an entry **rewritten** every minute, and
-Vercel's Hobby plan meters those against 200K ISR writes a month. See "Cache budget" below.
+The three TTLs are named in `cached-queries.ts` — `CATALOGUE_TTL` (10 min, the lists),
+`PRODUCT_TTL` (1 day, what `/product/[id]` reads) and `REFERENCE_TTL` (1 day, categories, brands,
+banners). None of them is what keeps the site fresh: every write path invalidates by tag
+(`updateTag("products")` on each admin mutation, `updateTag("products-popular")` when an order's
+status changes), so the TTL only backstops a row edited straight in the Supabase dashboard or by a
+script. **Such an edit now takes up to a day to reach a product page**; saving the product once in
+the admin publishes it at once. The TTLs were 60 s, then 10 min / 1 hour, and each step down cost
+more than it bought — an entry that expires every minute is an entry **rewritten** every minute. See
+"Cache budget" below.
 
 `getCachedCategoryProducts` returns tuples rather than the `Map` the service produces — a `Map`
 cannot cross the `unstable_cache` boundary, so the caller rebuilds it. The extra `products-popular`
@@ -870,7 +873,10 @@ update policy at all — the edit goes through a server action on the service ro
 customer wrote. `scripts/purge-test-data.mjs` therefore cannot force such an order away, and
 `seed-staging-orders.mjs --reset` deletes its own reviews before its own orders.
 
-**Cache budget (Vercel Hobby).** The plan meters 200K ISR writes a month, and a write is charged
+**Cache budget.** The project moved from Vercel Hobby to Pro on 2026-10-05, after Hobby's 200K ISR
+writes a month ran out (775K in the 30 days after the domain cutover). On Pro the same writes are
+billed rather than blocked (about $5 per million), so what follows saves money now instead of
+preventing an outage. A write is charged
 both for regenerating an ISR page and for filling a Data Cache entry — `unstable_cache` included.
 That is the only metric this project has come close to (174K in a 30-day window; nothing else was
 above ~35%), and the cause was never traffic, it was key cardinality times expiry rate. A single
@@ -878,8 +884,15 @@ product view that finds everything stale costs three writes: the `/product/[id]`
 `getCachedProduct(id)`, and `getCachedRelatedProducts(...)`. So four things are load-bearing and
 should be weighed before any of them is changed:
 
-- **`revalidate` on `/product/[id]` tracks `CATALOGUE_TTL`.** Both are 10 min, so the page and the
-  data it reads expire together — a shorter page TTL just rebuilds a page around unchanged data.
+- **`revalidate` on `/product/[id]` tracks `PRODUCT_TTL`, and so must everything the page reads.**
+  Both are a day. A route revalidates at the shortest TTL among its `revalidate` export **and every
+  `unstable_cache` call made while rendering it**, the root layout's included — so the layout's
+  `getCachedCategories()` (`REFERENCE_TTL`) caps every product page, and a cached query added to the
+  page or the layout with a shorter TTL quietly brings the rebuilds back. The measurement behind the
+  day: 82% of all ISR writes came from this one route, at about six writes per rebuild (the page plus
+  its segment files), and 93% of its hits were crawlers — search engines, AI crawlers, scrapers posing
+  as browsers — which rarely visit the same product twice within an hour. At 10 min only 9% of those
+  hits were served from cache.
 - **A cache key must not carry anything per-product that the query does not need.** `excludeId` on
   related products was the whole difference between ~90 entries and 2400.
 - **An admin write expires the narrowest tag that is still correct.** `updateTag("products")` marks
