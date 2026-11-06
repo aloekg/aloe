@@ -14,6 +14,7 @@ export default function Breadcrumb({ crumbs }: { crumbs: Crumb[] }) {
               {crumb.href ? (
                 <Link
                   href={crumb.href}
+                  prefetch={false}
                   aria-current={last ? "page" : undefined}
                   className="hover:text-gray-700 transition-colors"
                 >

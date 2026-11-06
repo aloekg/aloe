@@ -27,6 +27,7 @@ export default function AuthButton() {
     return (
       <Link
         href="/profile"
+        prefetch={false}
         title={user.email ?? "Профиль"}
         className="p-2 rounded-full flex items-center justify-center text-gray-500 hover:text-green-700 transition-colors"
       >
@@ -38,6 +39,7 @@ export default function AuthButton() {
   return (
     <Link
       href="/auth"
+      prefetch={false}
       title="Войти"
       className="p-2 rounded-full flex items-center justify-center text-gray-500 hover:text-green-700 transition-colors"
     >

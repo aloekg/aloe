@@ -137,7 +137,7 @@ export default function BannerCarousel({ banners, media }: { banners: Banner[]; 
           {banners.map((b, i) => (
             <div key={b.id} className="relative flex-[0_0_100%] h-full">
               {b.link ? (
-                <Link href={b.link} className="block w-full h-full">
+                <Link href={b.link} prefetch={false} className="block w-full h-full">
                   <BannerImage banner={b} index={i} media={media} />
                 </Link>
               ) : (

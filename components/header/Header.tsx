@@ -28,6 +28,7 @@ export default function Header({ className, logoOnly = false }: { className?: st
               <DeliveryModal />
               <Link
                 href="/favorites"
+                prefetch={false}
                 className="p-2 text-gray-500 hover:text-red-500 transition-colors"
                 title="Избранное"
               >

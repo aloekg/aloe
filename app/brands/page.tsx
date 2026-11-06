@@ -54,6 +54,7 @@ export default async function BrandsPage() {
                   <li key={brand.id}>
                     <Link
                       href={`/brands/${brand.slug}`}
+                      prefetch={false}
                       className="block text-sm text-gray-700 hover:text-green-700 hover:underline transition-colors truncate"
                     >
                       {brand.name}

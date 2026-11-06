@@ -18,7 +18,7 @@ export default function Footer() {
 
         <nav aria-label="Разделы сайта" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className="hover:text-green-700 transition-colors">
+            <Link key={link.href} href={link.href} prefetch={false} className="hover:text-green-700 transition-colors">
               {link.label}
             </Link>
           ))}
