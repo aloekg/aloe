@@ -57,6 +57,7 @@ function NavItem({
   return (
     <Link
       href={href}
+      prefetch={false}
       onNavigate={() => window.scrollTo(0, 0)}
       aria-current={active ? "page" : undefined}
       className={`flex flex-col items-center gap-1.5 rounded-lg transition-colors shrink-0 w-18`}

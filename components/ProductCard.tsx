@@ -36,13 +36,15 @@ function ProductCard({ product: p, className = "", href, preload = false }: Prop
   const cardImage = p.thumbnail_url || p.image_url;
 
   // scroll={false}: the quick-view modal is position:fixed, so Next would otherwise scroll the grid to top.
+  // prefetch={false}: the quick view is rendered per request, so a prefetch fetched only its loading shell and
+  // cost a function invocation for every card that scrolled into view — 340K of 1.4M CDN requests a month.
   // alt="" on purpose: the link already carries the name as text.
 
   return (
     // FavoriteButton stays outside the <Link>: a <button> inside an <a> is invalid HTML.
     <div className={`relative flex flex-col rounded-lg overflow-hidden ${className}`}>
       <FavoriteButton productId={p.id} />
-      <Link className="flex-1 flex flex-col" href={productHref} scroll={false}>
+      <Link className="flex-1 flex flex-col" href={productHref} scroll={false} prefetch={false}>
         <div className="relative p-2 aspect-square shadow-xs rounded-lg">
           <Image
             src={cardImage}

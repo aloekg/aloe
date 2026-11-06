@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import { useIsClient } from "@/hooks/useIsClient";
 import { useCart } from "@/store/cart";
 
-const items = [
+// Only the static destinations prefetch: for /favorites and /profile, which render per request, a
+// prefetch is a function invocation that brings nothing the tap would not fetch anyway.
+const items: Array<{ href: string; icon: typeof Home; label: string; prefetch?: false }> = [
   { href: "/", icon: Home, label: "Главная" },
   { href: "/catalog", icon: HandbagIcon, label: "Каталог" },
-  { href: "/favorites", icon: Heart, label: "Избранное" },
-  { href: "/profile", icon: User, label: "Профиль" },
+  { href: "/favorites", icon: Heart, label: "Избранное", prefetch: false },
+  { href: "/profile", icon: User, label: "Профиль", prefetch: false },
 ];
 
 export default function MobileBottomNav() {
@@ -32,6 +34,7 @@ export default function MobileBottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={item.prefetch}
                 aria-label={item.label}
                 aria-current={isActive ? "page" : undefined}
                 className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 px-5 py-3 transition-colors text-green-700 rounded-full ${

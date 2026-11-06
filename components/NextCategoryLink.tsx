@@ -12,6 +12,7 @@ export default function NextCategoryLink({ name, slug }: NextCategoryLinkProps) 
       <span className="text-xs text-gray-700">Перейти далее в раздел</span>
       <Link
         href={`/catalog/${slug}`}
+        prefetch={false}
         className="inline-flex items-center gap-2 text-green-700 hover:text-green-700 hover:underline"
       >
         <span>{name}</span>
