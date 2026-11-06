@@ -918,6 +918,23 @@ should be weighed before any of them is changed:
 
 None of it costs freshness, because tag invalidation, not the TTL, is what publishes an admin edit.
 
+**Links to dynamic routes do not prefetch.** CDN requests are the second metered quantity here, and
+from 2026-10-06 to 2026-11-05 65% of them (906K of 1.4M) were `<Link>` prefetches. 647K of those
+targeted routes that render per request — the quick view `/(.)product/[id]` (340K, one per
+`ProductCard` that scrolled into view), `/catalog/[slug]`, `/popular`, `/new`, `/sale`, `/favorites`.
+A prefetch of such a route brings only the shell down to its `loading.tsx`, yet it is a request **and**
+a function invocation; the data is fetched on the tap regardless. So `prefetch={false}` sits on
+`ProductCard`, `CategoryNav`, the `/catalog` tiles, `SeeAllProducts`, `NextCategoryLink`,
+`Breadcrumb`, the banners, the `/brands` index, the footer, and the header's and bottom nav's
+`/favorites`, `/profile` and `/auth`. What still prefetches is the main navigation to static pages —
+`/`, `/catalog`, `/cart` — where a prefetch makes the tap instant. A new link to a dynamic route
+should pass `prefetch={false}` too. The cost is the quick view's skeleton appearing one round trip
+after the tap rather than at once.
+
+This matters because Flat Rate CDN, once enabled, moves the team up a tier automatically when the
+month's requests exceed it: the free 1M tier was outgrown and became the $20/month 10M tier on
+2026-11-05. Flat Rate is switched off from 2026-12-05 (usage-based billing).
+
 **AI training crawlers are turned away in `app/robots.ts`.** A cache rebuild is paid for by whoever
 triggers it, and a fifth of product-page hits came from crawlers collecting training data
 (meta-externalagent, GPTBot, ClaudeBot, ShapBot, CCBot, Bytespider), which send no customers back.

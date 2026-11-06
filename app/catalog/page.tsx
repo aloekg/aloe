@@ -37,7 +37,7 @@ function Tile({
   preload?: boolean;
 }) {
   return (
-    <Link href={href} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+    <Link href={href} prefetch={false} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
       {image ? (
         <>
           <Image
@@ -90,6 +90,7 @@ export default async function CatalogPage() {
                 <h2 id={`catalog-${cat.id}`} className="mb-2 md:mb-3">
                   <Link
                     href={`/catalog/${cat.slug}`}
+                    prefetch={false}
                     className="inline-flex items-center gap-0.5 text-base md:text-lg font-semibold hover:text-green-700"
                   >
                     {cat.name}
